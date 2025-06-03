@@ -1,7 +1,6 @@
-- Hi, I’m Abhi
-- I’m interested in product management/tech/development
-- I’m currently learning programming with tools such as Python, C#, HTML/CSS and databases
-- I’m looking to collaborate on innovative products/projects and would love to learn about new technologies.
+- Hi I’m Abhi
+- I’m interested in product management/tech/startups
+- I’m currently learning programming with tools such as Python, C#, HTML/CSS/JS and databases
 - How to reach me: email - abhibandi.r@gmail.com or phone - 4694079718
 
 <!---

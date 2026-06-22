@@ -24,6 +24,10 @@ export default function Scene({ children }: { children: ReactNode }) {
       <hemisphereLight args={["#1e3a5f", "#050a14", 0.4]} />
       <Stars radius={50} depth={35} count={1500} factor={2} saturation={0} fade speed={0.3} />
 
+      <gridHelper args={[20, 40, "#1e3a5f", "#0f1c2e"]} position={[0, -0.02, 0]}>
+        <lineBasicMaterial attach="material" transparent opacity={0.3} toneMapped={false} />
+      </gridHelper>
+
       <ScrollControls pages={SCROLL_PAGES} damping={0.2}>
         <CameraRig />
         <Suspense fallback={null}>

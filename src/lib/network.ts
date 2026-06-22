@@ -16,6 +16,8 @@ export const COLORS: Record<Interconnection, string> = {
   ercot: "#f5a623",
 };
 
+export const BASE_GREEN = "#39ff14";
+
 export const MACRO_NODES: MacroNode[] = [
   { id: "seattle", name: "Seattle", position: [-5.2, 0, 4.4], interconnection: "western" },
   { id: "la", name: "Los Angeles", position: [-4.8, 0, -1.6], interconnection: "western" },

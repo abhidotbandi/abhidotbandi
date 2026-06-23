@@ -15,8 +15,8 @@ export default function VppBuilder() {
   const peakShaved = vppHouseCount * AVG_DISCHARGE_KW;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">Build your VPP</p>
+    <div className="panel rounded-md border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-livewire">Build your VPP</p>
       <p className="mt-2 text-sm text-slate-300">
         Add neighbors to the block. Every battery you add joins the same pool Base dispatches into
         ERCOT.
@@ -25,16 +25,16 @@ export default function VppBuilder() {
       <div className="mt-4 flex items-center gap-3">
         <button
           onClick={() => setVppHouseCount(Math.max(1, vppHouseCount - 1))}
-          className="h-9 w-9 rounded-lg border border-white/15 bg-black/30 text-lg text-slate-200 hover:border-white/30"
+          className="h-9 w-9 rounded-md border border-white/15 bg-black/30 text-lg text-slate-200 hover:border-white/30"
         >
           −
         </button>
-        <span className="min-w-[3ch] text-center text-lg font-semibold text-slate-100">
+        <span className="min-w-[3ch] text-center font-mono text-lg font-semibold text-slate-100">
           {vppHouseCount}
         </span>
         <button
           onClick={() => setVppHouseCount(Math.min(MAX_HOUSES, vppHouseCount + 1))}
-          className="h-9 w-9 rounded-lg border border-white/15 bg-black/30 text-lg text-slate-200 hover:border-white/30"
+          className="h-9 w-9 rounded-md border border-white/15 bg-black/30 text-lg text-slate-200 hover:border-white/30"
         >
           +
         </button>
@@ -42,8 +42,8 @@ export default function VppBuilder() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <StatCallout value={`${totalCapacity.toFixed(0)} kWh`} label="Pooled battery capacity" color="#f5a623" />
-        <StatCallout value={`${peakShaved.toFixed(0)} kW`} label="Peak demand shaved" color="#34d399" />
+        <StatCallout value={`${totalCapacity.toFixed(0)} kWh`} label="Pooled battery capacity" color="#39ff14" />
+        <StatCallout value={`${peakShaved.toFixed(0)} kW`} label="Peak demand shaved" color="#f5a623" />
       </div>
 
       <p className="mt-3 text-xs text-slate-500">

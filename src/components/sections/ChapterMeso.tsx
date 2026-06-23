@@ -14,7 +14,7 @@ export default function ChapterMeso() {
       <h2 className="text-3xl font-bold text-slate-50 sm:text-4xl">Texas chose to go it alone</h2>
       <p className="text-slate-300">{ERCOT_FACTS.isolation}</p>
 
-      <div className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4">
+      <div className="rounded-md border border-rose-400/30 bg-rose-500/10 p-4">
         <p className="text-sm font-semibold text-rose-200">{ERCOT_FACTS.uri.title}</p>
         <p className="mt-1 text-sm text-rose-100/80">{ERCOT_FACTS.uri.detail}</p>
       </div>

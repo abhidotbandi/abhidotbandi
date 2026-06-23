@@ -19,7 +19,7 @@ export default function DuckCurveChart() {
   const path = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div className="panel rounded-md border border-white/10 bg-white/5 p-5">
       <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">{DUCK_CURVE.title}</p>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="mt-3 w-full">
         <line x1={PAD} y1={HEIGHT - PAD} x2={WIDTH - PAD} y2={HEIGHT - PAD} stroke="#334155" strokeWidth={1} />

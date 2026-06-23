@@ -17,7 +17,7 @@ export default function ChapterMacro() {
       </p>
       <div className="grid gap-3">
         {INTERCONNECTIONS.map((ic) => (
-          <div key={ic.id} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+          <div key={ic.id} className="flex gap-3 rounded-md border border-white/10 bg-white/5 p-4">
             <span
               className="mt-1 h-3 w-3 flex-shrink-0 rounded-full"
               style={{ backgroundColor: ic.color, boxShadow: `0 0 12px ${ic.color}` }}

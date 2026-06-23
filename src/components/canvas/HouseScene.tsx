@@ -7,6 +7,7 @@ import { Line } from "@react-three/drei";
 import FlowPacket from "./FlowPacket";
 import {
   AUSTIN_CITY,
+  BASE_GREEN,
   COLORS,
   ERCOT_NODE,
   NEIGHBORHOOD_HOUSE_SLOTS,
@@ -105,8 +106,8 @@ function FocusHouse() {
         <boxGeometry args={[0.12, 0.22, 0.1]} />
         <meshStandardMaterial
           ref={batteryMat}
-          color={COLORS.western}
-          emissive={COLORS.western}
+          color={BASE_GREEN}
+          emissive={BASE_GREEN}
           emissiveIntensity={1.1}
           toneMapped={false}
         />
@@ -147,7 +148,7 @@ function NeighborHouse({ slotIndex }: { slotIndex: number }) {
       </mesh>
       <mesh position={[-0.24, 0.08, 0.08]}>
         <boxGeometry args={[0.08, 0.16, 0.07]} />
-        <meshStandardMaterial color={COLORS.western} emissive={COLORS.western} emissiveIntensity={1.4} toneMapped={false} />
+        <meshStandardMaterial color={BASE_GREEN} emissive={BASE_GREEN} emissiveIntensity={1.4} toneMapped={false} />
       </mesh>
     </group>
   );

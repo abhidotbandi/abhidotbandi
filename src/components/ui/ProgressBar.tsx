@@ -22,7 +22,7 @@ export default function ProgressBar() {
       <div className="flex-1">
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-sky-400 via-amber-400 to-amber-300 transition-[width] duration-150"
+            className="h-full rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 to-livewire transition-[width] duration-150"
             style={{ width: `${Math.min(100, progress * 100)}%` }}
           />
         </div>
@@ -33,9 +33,9 @@ export default function ProgressBar() {
         </div>
       </div>
       <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-slate-200 backdrop-blur-sm">
-        <span className="text-amber-400">{badgeCount}/4 badges</span>
+        <span className="font-mono text-livewire">{badgeCount}/4 badges</span>
         <span className="text-slate-500">·</span>
-        <span>{xp} XP</span>
+        <span className="font-mono">{xp} XP</span>
       </div>
     </div>
   );

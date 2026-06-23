@@ -40,29 +40,31 @@ body {
   }
 }
 
-.panel {
-  position: relative;
-}
+@layer base {
+  .panel {
+    position: relative;
+  }
 
-.panel::before,
-.panel::after {
-  content: "";
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-}
+  .panel::before,
+  .panel::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+  }
 
-.panel::before {
-  top: 0;
-  left: 0;
-  border-top: 1.5px solid var(--color-livewire);
-  border-left: 1.5px solid var(--color-livewire);
-}
+  .panel::before {
+    top: 0;
+    left: 0;
+    border-top: 1.5px solid var(--color-livewire);
+    border-left: 1.5px solid var(--color-livewire);
+  }
 
-.panel::after {
-  bottom: 0;
-  right: 0;
-  border-bottom: 1.5px solid var(--color-livewire);
-  border-right: 1.5px solid var(--color-livewire);
+  .panel::after {
+    bottom: 0;
+    right: 0;
+    border-bottom: 1.5px solid var(--color-livewire);
+    border-right: 1.5px solid var(--color-livewire);
+  }
 }

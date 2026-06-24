@@ -15,7 +15,7 @@ export default function Finale() {
   };
 
   return (
-    <SectionShell id="finale" align="center" className="max-w-2xl text-center">
+    <SectionShell id="finale" align="center" variant="plain" className="max-w-2xl text-center">
       <p className="text-xs font-semibold uppercase tracking-wide text-livewire">Recap</p>
       <h2 className="text-3xl font-bold text-slate-50 sm:text-4xl">
         You just walked the entire grid — macro to micro.

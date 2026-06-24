@@ -2,7 +2,7 @@ import SectionShell from "./SectionShell";
 
 export default function Hero() {
   return (
-    <SectionShell id="hero" align="center" className="max-w-3xl text-center">
+    <SectionShell id="hero" align="center" variant="plain" className="max-w-3xl text-center">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-livewire">
         An interactive tour of the US energy grid
       </p>

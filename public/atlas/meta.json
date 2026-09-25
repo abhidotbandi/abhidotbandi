@@ -1,0 +1,13 @@
+{
+ "terrain": {
+  "width": 1024,
+  "height": 1443,
+  "min": 92.30708312988281,
+  "max": 432.3140563964844
+ },
+ "surface": {
+  "width": 2048,
+  "height": 2885,
+  "sdfLevelsPerPx": 4
+ }
+}

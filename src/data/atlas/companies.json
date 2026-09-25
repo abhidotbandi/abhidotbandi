@@ -1,0 +1,1734 @@
+[
+  {
+    "id": "saronic",
+    "name": "Saronic",
+    "domain": "defense-space",
+    "builds": "Autonomous ships",
+    "blurb": "Autonomous surface vessels for the U.S. Navy and allied fleets, designed and built in Southeast Austin.",
+    "facts": [
+      "Closed a $1.75B Series D at a $9.25B valuation in March 2026",
+      "Austin footprint is past 500,000 sq ft, anchored by its Eastside Commerce Center plant",
+      "Bought a shipyard in Franklin, Louisiana and is building a next-generation yard, Port Alpha"
+    ],
+    "founded": 2022,
+    "status": {
+      "kind": "private",
+      "raised": 2600000000,
+      "valuation": 9250000000,
+      "lastRound": "Series D",
+      "asOf": "Mar 2026"
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.saronic.com",
+    "sites": [
+      {
+        "id": "saronic",
+        "label": "HQ & production plant",
+        "place": "Eastside Commerce Center",
+        "address": "1312 Dalton Ln, Austin",
+        "lat": 30.22442,
+        "lon": -97.67801,
+        "radius": 0.3
+      }
+    ],
+    "sources": [
+      {
+        "label": "PR Newswire: Series D (Mar 2026)",
+        "url": "https://www.prnewswire.com/news-releases/saronic-closes-1-75b-series-d-at-9-25b-valuation-to-accelerate-a-new-era-of-maritime-autonomy-302729238.html"
+      },
+      {
+        "label": "CNBC Disruptor 50 (May 2026)",
+        "url": "https://www.cnbc.com/2026/05/19/saronic-cnbc-disruptor-50-ranking.html"
+      },
+      {
+        "label": "KXAN: new Austin facility",
+        "url": "https://www.kxan.com/news/saronic-to-use-huge-new-facility-in-austin-to-ramp-up-production-hire-hundreds/"
+      }
+    ]
+  },
+  {
+    "id": "firefly",
+    "name": "Firefly Aerospace",
+    "domain": "defense-space",
+    "builds": "Rockets & lunar landers",
+    "blurb": "Alpha rockets, Blue Ghost lunar landers and Elytra orbital vehicles, designed in Cedar Park and test-fired at a ranch in Briggs.",
+    "facts": [
+      "Blue Ghost Mission 1 landed on the Moon in March 2025, the first fully successful commercial lunar landing",
+      "Listed on Nasdaq as FLY in August 2025",
+      "Cedar Park campus grew to 144,000 sq ft across three buildings in 2026"
+    ],
+    "founded": 2014,
+    "status": {
+      "kind": "public",
+      "ticker": "FLY",
+      "exchange": "Nasdaq"
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://fireflyspace.com",
+    "sites": [
+      {
+        "id": "firefly",
+        "label": "HQ, mission control & spacecraft lines",
+        "place": "Cedar Park",
+        "address": "2203 Scottsdale Dr, Cedar Park",
+        "lat": 30.54155,
+        "lon": -97.81189,
+        "radius": 0.35
+      },
+      {
+        "id": "firefly-ranch",
+        "label": "Rocket Ranch: engine tests & rocket production",
+        "place": "Briggs",
+        "address": "281 County Rd 210, Briggs",
+        "lat": 30.88159,
+        "lon": -97.92658,
+        "radius": 0.9
+      }
+    ],
+    "sources": [
+      {
+        "label": "Austin American-Statesman: HQ expansion",
+        "url": "https://www.statesman.com/business/technology/article/firefly-aerospace-headquarters-expansion-22431234.php"
+      },
+      {
+        "label": "KVUE: three new Cedar Park buildings",
+        "url": "https://www.kvue.com/article/tech/science/aerospace/firefly-aerospace-new-cedar-park-hq/269-1bc2d47e-a29b-45a1-95e3-93b1370930a9"
+      },
+      {
+        "label": "DailyTrib: Rocket Ranch expansion",
+        "url": "https://www.dailytrib.com/2024/02/29/expanded-rocket-ranch-in-briggs-sets-sights-on-moon/"
+      },
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Firefly_Aerospace"
+      }
+    ]
+  },
+  {
+    "id": "cesiumastro",
+    "name": "CesiumAstro",
+    "domain": "defense-space",
+    "builds": "Phased-array space comms",
+    "blurb": "Active phased-array communication payloads for satellites, aircraft and munitions, and now whole satellites, starting with Element.",
+    "facts": [
+      "Committing $500M to grow its Bee Cave HQ, including 270,000 sq ft of manufacturing space",
+      "Plans 550 new jobs, taking Central Texas headcount past 1,000 by 2030",
+      "Texas Space Commission grant of up to $10M for its Element satellite line"
+    ],
+    "founded": 2017,
+    "status": {
+      "kind": "private",
+      "raised": 626000000,
+      "lastRound": "$470M round",
+      "asOf": "Feb 2026"
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.cesiumastro.com",
+    "sites": [
+      {
+        "id": "cesiumastro",
+        "label": "HQ & manufacturing",
+        "place": "Bee Cave",
+        "address": "13215 Bee Cave Pkwy, Bee Cave",
+        "lat": 30.31368,
+        "lon": -97.94611,
+        "radius": 0.25
+      }
+    ],
+    "sources": [
+      {
+        "label": "CesiumAstro: $500M Texas HQ expansion",
+        "url": "https://www.cesiumastro.com/press-release/expanding-texas-hq-with-500m-investment-to-scale-us-manufacturing"
+      },
+      {
+        "label": "Austin American-Statesman: Q1 2026 funding",
+        "url": "https://www.statesman.com/business/technology/article/austin-startups-q1-funding-record-22208196.php"
+      },
+      {
+        "label": "Texas Space Commission grant",
+        "url": "https://space.texas.gov/news/release/texas-space-commission-awards-grant-to-cesiumastro-inc"
+      }
+    ]
+  },
+  {
+    "id": "allen-control-systems",
+    "name": "Allen Control Systems",
+    "domain": "defense-space",
+    "builds": "Counter-drone gun turrets",
+    "blurb": "Bullfrog, an AI-aimed robotic weapon station that turns a standard machine gun into a drone killer.",
+    "facts": [
+      "Raised a $200M Series B at a $2.2B valuation in 2026",
+      "Bullfrog is fielded with the U.S. Army and Navy",
+      "Converting a 191,000 sq ft former office campus in North Austin into a factory"
+    ],
+    "status": {
+      "kind": "private",
+      "valuation": 2200000000,
+      "lastRound": "$200M Series B",
+      "asOf": "May 2026"
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.allencontrolsystems.com",
+    "sites": [
+      {
+        "id": "allen-control-systems",
+        "label": "HQ & production",
+        "place": "St. Elmo",
+        "address": "510 E St Elmo Rd, Austin",
+        "lat": 30.21507,
+        "lon": -97.76116,
+        "radius": 0.08
+      },
+      {
+        "id": "allen-control-systems-factory",
+        "label": "New 191,000 sq ft factory",
+        "place": "North Austin",
+        "address": "15700 Long Vista Dr, Austin",
+        "lat": 30.4554,
+        "lon": -97.67357,
+        "radius": 0.25
+      }
+    ],
+    "sources": [
+      {
+        "label": "ACS: Series B",
+        "url": "https://www.allencontrolsystems.com/blog/series-b"
+      },
+      {
+        "label": "The Real Deal: 191K sf factory",
+        "url": "https://therealdeal.com/texas/2026/09/16/austin-based-drone-hunting-startup-adding-191k-sf-factory/"
+      },
+      {
+        "label": "Business Wire: Austin expansion",
+        "url": "https://businesswire.com/news/home/20260223792790/en/Allen-Control-Systems-Triples-Austin-Operations-to-Meet-Demand-for-Bullfrog-Autonomous-Counter-Drone-Systems"
+      }
+    ]
+  },
+  {
+    "id": "aeon-industrial",
+    "name": "Aeon Industrial",
+    "domain": "defense-space",
+    "builds": "Tactical missiles",
+    "blurb": "Vertically integrated precision weapons: the Zeus tactical missile and ODIN autonomous targeting software.",
+    "facts": [
+      "Founded in 2023; moved its HQ and manufacturing to Cedar Park in 2026",
+      "Expanding from 48,000 to 138,000 sq ft on Scottsdale Drive, down the street from Firefly",
+      "Flight-tested with Moog's turret under an Army Applications Laboratory contract"
+    ],
+    "founded": 2023,
+    "status": {
+      "kind": "private"
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.aeonindustrial.com",
+    "sites": [
+      {
+        "id": "aeon-industrial",
+        "label": "HQ & missile factory",
+        "place": "Cedar Park",
+        "address": "2305 Scottsdale Dr, Cedar Park",
+        "lat": 30.54007,
+        "lon": -97.81135,
+        "radius": 0.12
+      }
+    ],
+    "sources": [
+      {
+        "label": "The Real Deal: Cedar Park expansion",
+        "url": "https://therealdeal.com/texas/2026/09/09/aeon-industrial-triples-cedar-park-space/"
+      },
+      {
+        "label": "Cedar Park EDC",
+        "url": "https://cedarparktexasedc.com/news/aeon-industrial-relocates-headquarters-and-manufacturing-to-cedar-park-texas/"
+      },
+      {
+        "label": "Austin American-Statesman",
+        "url": "https://www.statesman.com/business/technology/article/defense-startup-headquarters-jobs-cedar-park-22276199.php"
+      }
+    ]
+  },
+  {
+    "id": "perseus-defense",
+    "name": "Perseus Defense",
+    "domain": "defense-space",
+    "builds": "Anti-drone micro-missiles",
+    "blurb": "Guided micro-missiles for knocking down drones, from a Y Combinator team of NASA and Boeing alumni.",
+    "facts": [
+      "Founded in 2025; picked Buda's Tower Business Park for its HQ",
+      "Plans roughly 400 jobs within five years"
+    ],
+    "founded": 2025,
+    "status": {
+      "kind": "private"
+    },
+    "defense": true,
+    "tier": 3,
+    "url": "https://www.perseusdefense.com",
+    "sites": [
+      {
+        "id": "perseus-defense",
+        "label": "HQ",
+        "place": "Buda",
+        "address": "Tower Business Park, 1340 FM 2001, Buda",
+        "lat": 30.0672,
+        "lon": -97.8086,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "Community Impact",
+        "url": "https://communityimpact.com/austin/san-marcos-buda-kyle/development/2026/01/02/perseus-defense-names-buda-as-location-for-new-headquarters/"
+      },
+      {
+        "label": "Buda EDC",
+        "url": "https://www.budaedc.com/news/perseus-defense-emerges-from-y-combinator-establishes-buda-as-headquarters-to-launch-aerospace-defense-startup/"
+      }
+    ]
+  },
+  {
+    "id": "bae-systems",
+    "name": "BAE Systems",
+    "domain": "defense-space",
+    "builds": "Electronic warfare systems",
+    "blurb": "Electronic warfare, sensors, autonomy and cyber systems, engineered and built in East Austin on the old Tracor campus.",
+    "facts": [
+      "Descends from Tracor, founded in Austin in 1955, the city's first homegrown defense giant",
+      "Opened a $150M, 390,000 sq ft engineering and production facility in Austin"
+    ],
+    "status": {
+      "kind": "subsidiary",
+      "parent": "BAE Systems plc"
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.baesystems.com/en-us/",
+    "sites": [
+      {
+        "id": "bae-systems",
+        "label": "Engineering & production",
+        "place": "East Austin",
+        "address": "6500 Tracor Ln, Austin",
+        "lat": 30.27803,
+        "lon": -97.66155,
+        "radius": 0.45
+      }
+    ],
+    "sources": [
+      {
+        "label": "Austin Chamber: 390,000 sq ft facility",
+        "url": "https://www.austinchamber.com/blog/bae-systems-celebrates-opening-of-new-390-000-square-foot-austin-tx-facility"
+      },
+      {
+        "label": "BAE Systems: manufacturing center",
+        "url": "https://www.baesystems.com/en-us/article/bae-systems-completes-manufacturing-center-in-texas"
+      },
+      {
+        "label": "Wikipedia: Tracor",
+        "url": "https://en.wikipedia.org/wiki/Tracor"
+      }
+    ]
+  },
+  {
+    "id": "spacex",
+    "name": "SpaceX · Starlink",
+    "domain": "defense-space",
+    "builds": "Starlink kits & chip packaging",
+    "blurb": "SpaceX's Bastrop factory builds Starlink user terminals and is adding advanced semiconductor packaging.",
+    "facts": [
+      "Roughly 700,000 sq ft today, with a 1M sq ft expansion planned",
+      "A $280M packaging R&D expansion backed by a $17.3M Texas Semiconductor Innovation Fund grant"
+    ],
+    "founded": 2002,
+    "status": {
+      "kind": "private"
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.starlink.com",
+    "sites": [
+      {
+        "id": "spacex",
+        "label": "Starlink factory",
+        "place": "Bastrop",
+        "address": "858 FM 1209, Bastrop",
+        "lat": 30.15633,
+        "lon": -97.40742,
+        "radius": 0.5
+      }
+    ],
+    "sources": [
+      {
+        "label": "Austin American-Statesman: Bastrop expansion",
+        "url": "https://www.statesman.com/business/article/spacex-starlink-bastrop-expansion-22385611.php"
+      },
+      {
+        "label": "Office of the Texas Governor: TSIF grant",
+        "url": "https://gov.texas.gov/news/post/governor-abbott-announces-texas-semiconductor-innovation-fund-grant-to-spacex"
+      },
+      {
+        "label": "The Real Deal (Mar 2026)",
+        "url": "https://therealdeal.com/texas/austin/2026/03/04/spacexs-bastrop-factory-balloons-east-of-austin/"
+      }
+    ]
+  },
+  {
+    "id": "skyways",
+    "name": "Skyways",
+    "domain": "defense-space",
+    "builds": "Autonomous cargo drones",
+    "blurb": "Long-range autonomous VTOL cargo aircraft for military logistics, like ship-to-ship resupply at sea.",
+    "facts": [
+      "$37M U.S. Air Force AFWERX contract to scale production (2025)",
+      "Standing up a 250,000 sq ft production site in Tech Ridge"
+    ],
+    "status": {
+      "kind": "private"
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.skyways.com",
+    "sites": [
+      {
+        "id": "skyways",
+        "label": "HQ",
+        "place": "Tech Ridge",
+        "address": "500 Center Ridge Dr, Austin",
+        "lat": 30.41475,
+        "lon": -97.6645,
+        "radius": 0.12
+      }
+    ],
+    "sources": [
+      {
+        "label": "DroneLife: $37M AFWERX contract",
+        "url": "https://dronelife.com/2025/06/09/skyways-afwerx-contract/"
+      },
+      {
+        "label": "Austin American-Statesman",
+        "url": "https://www.statesman.com/business/technology/article/austin-skyways-autonomous-drone-aircraft-21311896.php"
+      }
+    ]
+  },
+  {
+    "id": "nanohmics",
+    "name": "Nanohmics",
+    "domain": "defense-space",
+    "builds": "Sensor & optics R&D",
+    "blurb": "Contract R&D in optics, advanced materials and sensing, much of it through Department of Defense SBIR programs.",
+    "facts": [
+      "Founded in 2002 by three research scientists",
+      "A long-running SBIR performer for DoD and NASA"
+    ],
+    "founded": 2002,
+    "status": {
+      "kind": "private"
+    },
+    "defense": true,
+    "tier": 3,
+    "url": "https://www.nanohmics.com",
+    "sites": [
+      {
+        "id": "nanohmics",
+        "label": "Labs",
+        "place": "Southeast Austin",
+        "address": "6201 E Oltorf St, Austin",
+        "lat": 30.21503,
+        "lon": -97.71178,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "SBIR.gov portfolio",
+        "url": "https://www.sbir.gov/portfolio/243093"
+      }
+    ]
+  },
+  {
+    "id": "t2com",
+    "name": "U.S. Army T2COM",
+    "domain": "defense-space",
+    "builds": "Army modernization HQ",
+    "blurb": "The Army's Transformation and Training Command, formed in 2025 by merging Army Futures Command with TRADOC, runs from the UT System building downtown.",
+    "facts": [
+      "Army Futures Command set up here in 2018, in an office tower rather than on a base",
+      "T2COM activated on Oct. 2, 2025 as a four-star headquarters",
+      "The Army kept the HQ in Austin for its innovation culture and the Army Software Factory"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "U.S. Army",
+      "est": 2018
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.army.mil/t2com",
+    "sites": [
+      {
+        "id": "t2com",
+        "label": "Headquarters, UT System Building",
+        "place": "Downtown",
+        "address": "210 W 7th St, Austin",
+        "lat": 30.26965,
+        "lon": -97.74427,
+        "radius": 0.03
+      }
+    ],
+    "sources": [
+      {
+        "label": "Breaking Defense (Oct 2025)",
+        "url": "https://breakingdefense.com/2025/10/army-sunsets-futures-command-activates-transformation-training-command/"
+      },
+      {
+        "label": "Stars and Stripes (May 2025)",
+        "url": "https://www.stripes.com/branches/army/2025-05-19/army-merge-futures-training-austin-17845850.html"
+      }
+    ]
+  },
+  {
+    "id": "army-software-factory",
+    "name": "Army Software Factory",
+    "domain": "defense-space",
+    "builds": "Soldier-built software",
+    "blurb": "Active-duty soldiers spend three-year tours here as developers, designers, product managers and platform engineers.",
+    "facts": [
+      "Based at Austin Community College's Rio Grande campus since 2021",
+      "A 10-year, $16M agreement with ACC was signed in January 2026; a Marine Software Factory followed"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "U.S. Army",
+      "est": 2021
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.army.mil/article/289972/army_acc_partnership_extended_for_army_software_factory",
+    "sites": [
+      {
+        "id": "army-software-factory",
+        "label": "ACC Rio Grande campus",
+        "place": "Downtown",
+        "address": "1212 Rio Grande St, Austin",
+        "lat": 30.27653,
+        "lon": -97.74762,
+        "radius": 0.05
+      }
+    ],
+    "sources": [
+      {
+        "label": "Spectrum News (Feb 2026)",
+        "url": "https://spectrumlocalnews.com/tx/austin/news/2026/02/03/army-software-factory"
+      },
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Army_Software_Factory"
+      }
+    ]
+  },
+  {
+    "id": "army-applications-lab",
+    "name": "Army Applications Laboratory",
+    "domain": "defense-space",
+    "builds": "The Army's startup scouts",
+    "blurb": "The Army's startup-facing team, working out of Capital Factory to get commercial technology in front of soldiers fast.",
+    "facts": [
+      "Stood up in 2018 alongside Army Futures Command",
+      "Its contracts helped fund flight tests like Aeon Industrial's missile-and-turret pairing"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "U.S. Army",
+      "est": 2018
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://aal.army",
+    "sites": [
+      {
+        "id": "army-applications-lab",
+        "label": "At Capital Factory",
+        "place": "Downtown",
+        "address": "701 Brazos St, Austin",
+        "lat": 30.2689,
+        "lon": -97.74053,
+        "radius": 0.03
+      }
+    ],
+    "sources": [
+      {
+        "label": "AAL",
+        "url": "https://aal.army"
+      },
+      {
+        "label": "The Real Deal: Aeon Industrial",
+        "url": "https://therealdeal.com/texas/2026/09/09/aeon-industrial-triples-cedar-park-space/"
+      }
+    ]
+  },
+  {
+    "id": "arl-ut",
+    "name": "Applied Research Laboratories",
+    "domain": "defense-space",
+    "builds": "Sonar, radar & signals research",
+    "blurb": "ARL:UT, a University Affiliated Research Center working on acoustics, sonar, radar, communications and space geodesy for the Navy and DoD.",
+    "facts": [
+      "Developed the high-resolution sonar installed on U.S. Navy submarines",
+      "One of 15 Department of Defense University Affiliated Research Centers"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "UT Austin",
+      "est": 1945
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.arlut.utexas.edu",
+    "sites": [
+      {
+        "id": "arl-ut",
+        "label": "J.J. Pickle Research Campus",
+        "place": "North Austin",
+        "address": "10000 Burnet Rd, Austin",
+        "lat": 30.38389,
+        "lon": -97.72467,
+        "radius": 0.3
+      }
+    ],
+    "sources": [
+      {
+        "label": "ARL:UT: About",
+        "url": "https://wwwext.arlut.utexas.edu/about.shtml"
+      },
+      {
+        "label": "UT News (Jul 2026)",
+        "url": "https://news.utexas.edu/2026/07/24/uts-lab-that-engineers-the-hidden-technologies-behind-national-security-and-everyday-life/"
+      }
+    ]
+  },
+  {
+    "id": "ut-csr",
+    "name": "UT Center for Space Research",
+    "domain": "defense-space",
+    "builds": "Satellite geodesy",
+    "blurb": "Orbit determination and space geodesy research; UT led the science for NASA's GRACE gravity-mapping satellites.",
+    "facts": [
+      "Principal-investigator home of NASA's GRACE mission"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "UT Austin"
+    },
+    "defense": false,
+    "tier": 3,
+    "url": "https://www.csr.utexas.edu",
+    "sites": [
+      {
+        "id": "ut-csr",
+        "label": "West Pickle Research Building",
+        "place": "North Austin",
+        "address": "3925 W Braker Ln, Austin",
+        "lat": 30.39546,
+        "lon": -97.73527,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "UT Center for Space Research",
+        "url": "https://www.csr.utexas.edu"
+      }
+    ]
+  },
+  {
+    "id": "samsung",
+    "name": "Samsung Semiconductor",
+    "domain": "chips-compute",
+    "builds": "Leading-edge chip fabs",
+    "blurb": "Samsung's U.S. foundry: two fabs on Parmer Lane and a new leading-edge fab in Taylor.",
+    "facts": [
+      "Broke ground in March 1996 with the Longhorn Band and a rodeo; the $1.4B was then Texas' largest foreign investment",
+      "More than $18B invested in the two Austin fabs",
+      "Taylor: $37B+ planned, a $4.745B CHIPS Act award, and Tesla AI-chip production starting in 2026"
+    ],
+    "founded": 1996,
+    "status": {
+      "kind": "subsidiary",
+      "parent": "Samsung Electronics"
+    },
+    "defense": false,
+    "tier": 1,
+    "url": "https://semiconductor.samsung.com/sas/",
+    "sites": [
+      {
+        "id": "samsung",
+        "label": "Austin fabs (Fab 1 & 2)",
+        "place": "Northeast Austin",
+        "address": "12100 Samsung Blvd, Austin",
+        "lat": 30.37564,
+        "lon": -97.63905,
+        "radius": 0.55
+      },
+      {
+        "id": "samsung-taylor",
+        "label": "Taylor fab",
+        "place": "Taylor",
+        "address": "FM 973 at U.S. 79, Taylor",
+        "lat": 30.5374,
+        "lon": -97.45258,
+        "radius": 1.3
+      }
+    ],
+    "sources": [
+      {
+        "label": "Samsung: 30 years in Austin",
+        "url": "https://news.samsung.com/us/samsung-austin-semiconductor-celebrates-30-years/"
+      },
+      {
+        "label": "Austin American-Statesman: Tesla deal",
+        "url": "https://www.statesman.com/story/business/2025/07/28/tesla-taps-samsung-in-16-5b-ai-chip-deal-tied-to-new-austin-area-facility/85408748007/"
+      },
+      {
+        "label": "Seoul Economic Daily (Sep 2026)",
+        "url": "https://en.sedaily.com/finance/2026/09/15/samsung-starts-chip-output-at-texas-plant-on-tesla-orders"
+      }
+    ]
+  },
+  {
+    "id": "nxp",
+    "name": "NXP Semiconductors",
+    "domain": "chips-compute",
+    "builds": "Automotive chips",
+    "blurb": "Motorola's Austin chip business, spun out as Freescale in 2004 and bought by NXP in 2015. Two 200mm fabs still run here.",
+    "facts": [
+      "Motorola came to Austin in 1974, the seed of the city's chip industry",
+      "About 2,700 employees across the Oak Hill and Ed Bluestein campuses",
+      "Has put its 155-acre Oak Hill campus, long its U.S. HQ, on the market"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "NXPI",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.nxp.com",
+    "sites": [
+      {
+        "id": "nxp-oak-hill",
+        "label": "Oak Hill fab",
+        "place": "Oak Hill",
+        "address": "6501 W William Cannon Dr, Austin",
+        "lat": 30.23565,
+        "lon": -97.86639,
+        "radius": 0.5
+      },
+      {
+        "id": "nxp-ed-bluestein",
+        "label": "Ed Bluestein fab",
+        "place": "East Austin",
+        "address": "3501 Ed Bluestein Blvd, Austin",
+        "lat": 30.27338,
+        "lon": -97.66254,
+        "radius": 0.45
+      }
+    ],
+    "sources": [
+      {
+        "label": "TechCrunch: Keeping Austin wired",
+        "url": "https://techcrunch.com/2022/04/06/keeping-austin-wired-apple-motorola/"
+      },
+      {
+        "label": "KXAN: Oak Hill campus for sale",
+        "url": "https://www.kxan.com/news/local/austin/nxp-is-putting-its-longtime-us-hq-on-market-in-austin/"
+      }
+    ]
+  },
+  {
+    "id": "applied-materials",
+    "name": "Applied Materials",
+    "domain": "chips-compute",
+    "builds": "Chipmaking equipment",
+    "blurb": "Builds the deposition and etch systems that fabs worldwide run on, at a campus off U.S. 290 near Walter E. Long Lake.",
+    "facts": [
+      "One of the largest manufacturing plants in the region",
+      "Also runs R&D, IT and data-center operations on Spectrum Drive in Northwest Austin"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "AMAT",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.appliedmaterials.com",
+    "sites": [
+      {
+        "id": "applied-materials",
+        "label": "Manufacturing campus",
+        "place": "Northeast Austin",
+        "address": "9700 E U.S. 290, Austin",
+        "lat": 30.33438,
+        "lon": -97.61594,
+        "radius": 0.6
+      }
+    ],
+    "sources": [
+      {
+        "label": "City of Austin: project summary",
+        "url": "https://services.austintexas.gov/edims/document.cfm?id=303541"
+      }
+    ]
+  },
+  {
+    "id": "amd",
+    "name": "AMD",
+    "domain": "chips-compute",
+    "builds": "CPU, GPU & AI chip design",
+    "blurb": "AMD's Austin campus designs processors and accelerators in the Southwest Parkway tech corridor.",
+    "facts": [
+      "Part of the Lantana corridor alongside NXP's Oak Hill campus"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "AMD",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.amd.com",
+    "sites": [
+      {
+        "id": "amd",
+        "label": "Austin design campus",
+        "place": "Southwest Austin",
+        "address": "7171 Southwest Pkwy, Austin",
+        "lat": 30.25159,
+        "lon": -97.86405,
+        "radius": 0.35
+      }
+    ],
+    "sources": [
+      {
+        "label": "Overture Maps Places",
+        "url": "https://overturemaps.org"
+      }
+    ]
+  },
+  {
+    "id": "skywater",
+    "name": "SkyWater · Fab 25",
+    "domain": "chips-compute",
+    "builds": "U.S. trusted foundry",
+    "blurb": "A U.S.-only pure-play foundry making 130–65 nm chips for industrial, automotive and defense customers.",
+    "facts": [
+      "Bought Fab 25 from Infineon in June 2025 for about $93M",
+      "Adds about 400,000 wafer starts a year and roughly 1,000 employees",
+      "Fab 25 was Spansion's main fab before Cypress and Infineon owned it"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "SKYT",
+      "exchange": "Nasdaq"
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.skywatertechnology.com",
+    "sites": [
+      {
+        "id": "skywater",
+        "label": "Fab 25",
+        "place": "Southeast Austin",
+        "address": "5204 E Ben White Blvd, Austin",
+        "lat": 30.21774,
+        "lon": -97.72418,
+        "radius": 0.35
+      }
+    ],
+    "sources": [
+      {
+        "label": "SkyWater: acquisition closes",
+        "url": "https://www.skywatertechnology.com/skywater-completes-acquisition-of-fab-25/"
+      },
+      {
+        "label": "Wikipedia: Spansion",
+        "url": "https://en.wikipedia.org/wiki/Spansion"
+      }
+    ]
+  },
+  {
+    "id": "silicon-labs",
+    "name": "Silicon Labs",
+    "domain": "chips-compute",
+    "builds": "Wireless IoT chips",
+    "blurb": "Low-power wireless chips (Bluetooth, Zigbee, Thread, Wi-Fi) for connected devices. Founded in Austin in 1996.",
+    "facts": [
+      "Texas Instruments agreed to acquire it for about $7.5B in February 2026; closing expected in 2027"
+    ],
+    "founded": 1996,
+    "status": {
+      "kind": "public",
+      "ticker": "SLAB",
+      "exchange": "Nasdaq",
+      "note": "Being acquired by Texas Instruments"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.silabs.com",
+    "sites": [
+      {
+        "id": "silicon-labs",
+        "label": "HQ",
+        "place": "Downtown",
+        "address": "400 W Cesar Chavez St, Austin",
+        "lat": 30.26456,
+        "lon": -97.74813,
+        "radius": 0.03
+      }
+    ],
+    "sources": [
+      {
+        "label": "TI: agreement to acquire Silicon Labs",
+        "url": "https://www.ti.com/about-ti/newsroom/news-releases/2026/2026-02-04-texas-instruments-to-acquire-silicon-labs.html"
+      }
+    ]
+  },
+  {
+    "id": "cirrus-logic",
+    "name": "Cirrus Logic",
+    "domain": "chips-compute",
+    "builds": "Audio & mixed-signal chips",
+    "blurb": "Low-power audio and mixed-signal chips that ship in hundreds of millions of phones and laptops, designed at its downtown HQ.",
+    "facts": [
+      "Headquartered on West 6th Street in downtown Austin"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "CRUS",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.cirrus.com",
+    "sites": [
+      {
+        "id": "cirrus-logic",
+        "label": "HQ",
+        "place": "Downtown",
+        "address": "800 W 6th St, Austin",
+        "lat": 30.2706,
+        "lon": -97.7509,
+        "radius": 0.04
+      }
+    ],
+    "sources": [
+      {
+        "label": "Cirrus Logic",
+        "url": "https://www.cirrus.com"
+      }
+    ]
+  },
+  {
+    "id": "ambiq",
+    "name": "Ambiq",
+    "domain": "chips-compute",
+    "builds": "Ultra-low-power AI chips",
+    "blurb": "Microcontrollers built on subthreshold-voltage circuits so wearables and sensors can run AI on tiny batteries.",
+    "facts": [
+      "IPO on the NYSE as AMBQ in July 2025",
+      "Its chips are in more than 280 million devices"
+    ],
+    "founded": 2010,
+    "status": {
+      "kind": "public",
+      "ticker": "AMBQ",
+      "exchange": "NYSE"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://ambiq.com",
+    "sites": [
+      {
+        "id": "ambiq",
+        "label": "HQ",
+        "place": "River Place",
+        "address": "6500 River Place Blvd, Austin",
+        "lat": 30.39212,
+        "lon": -97.84864,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "Ambiq: IPO closes",
+        "url": "https://ambiq.com/news/ambiq-announces-closing-of-its-upsized-initial-public-offering-and-full-exercise-of-underwriters-option-to-purchase-additional-shares/"
+      },
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Ambiq_Micro"
+      }
+    ]
+  },
+  {
+    "id": "mythic",
+    "name": "Mythic",
+    "domain": "chips-compute",
+    "builds": "Analog in-memory AI chips",
+    "blurb": "Analog compute-in-memory processors that run AI inference inside flash memory cells at a fraction of GPU power.",
+    "facts": [
+      "Raised $125M in December 2025",
+      "Acquired German AI-processor maker Videantis in January 2026"
+    ],
+    "status": {
+      "kind": "private",
+      "lastRound": "$125M round",
+      "asOf": "Dec 2025"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.mythic.ai",
+    "sites": [
+      {
+        "id": "mythic",
+        "label": "HQ",
+        "place": "North Austin",
+        "address": "1905 Kramer Ln, Austin",
+        "lat": 30.38629,
+        "lon": -97.71043,
+        "radius": 0.05
+      }
+    ],
+    "sources": [
+      {
+        "label": "Bloomberg (Dec 2025)",
+        "url": "https://www.bloomberg.com/news/articles/2025-12-17/ai-chip-startup-mythic-raises-125-million-in-bid-to-take-on-nvidia"
+      }
+    ]
+  },
+  {
+    "id": "neurophos",
+    "name": "Neurophos",
+    "domain": "chips-compute",
+    "builds": "Photonic AI chips",
+    "blurb": "Optical processing units that do AI matrix math with light, using metamaterial modulators far smaller than conventional photonics.",
+    "facts": [
+      "$110M Series A led by Gates Frontier in January 2026",
+      "Expanding its Domain HQ and opening a San Francisco engineering site"
+    ],
+    "founded": 2020,
+    "status": {
+      "kind": "private",
+      "raised": 118000000,
+      "lastRound": "$110M Series A",
+      "asOf": "Jan 2026"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.neurophos.com",
+    "sites": [
+      {
+        "id": "neurophos",
+        "label": "HQ",
+        "place": "The Domain",
+        "address": "11801 Domain Blvd, Austin",
+        "lat": 30.40477,
+        "lon": -97.72106,
+        "radius": 0.04
+      }
+    ],
+    "sources": [
+      {
+        "label": "PR Newswire: Series A",
+        "url": "https://www.prnewswire.com/news-releases/neurophos-secures-110-million-series-a-to-launch-exaflop-scale-photonic-ai-chips-302667517.html"
+      }
+    ]
+  },
+  {
+    "id": "canon-nanotechnologies",
+    "name": "Canon Nanotechnologies",
+    "domain": "chips-compute",
+    "builds": "Nanoimprint lithography",
+    "blurb": "Develops nanoimprint lithography, stamping chip patterns into resist instead of projecting them with light.",
+    "facts": [
+      "Started in 2001 as Molecular Imprints; acquired by Canon in 2014"
+    ],
+    "founded": 2001,
+    "status": {
+      "kind": "subsidiary",
+      "parent": "Canon"
+    },
+    "defense": false,
+    "tier": 3,
+    "sites": [
+      {
+        "id": "canon-nanotechnologies",
+        "label": "R&D and tool development",
+        "place": "North Austin",
+        "address": "1807 W Braker Ln, Austin",
+        "lat": 30.39085,
+        "lon": -97.70547,
+        "radius": 0.06
+      }
+    ],
+    "sources": [
+      {
+        "label": "Overture Maps Places",
+        "url": "https://overturemaps.org"
+      }
+    ]
+  },
+  {
+    "id": "ideal-power",
+    "name": "Ideal Power",
+    "domain": "chips-compute",
+    "builds": "B-TRAN power switches",
+    "blurb": "Bidirectional bipolar power semiconductors (B-TRAN) for EV contactors, solid-state breakers and grid gear.",
+    "facts": [
+      "Listed on Nasdaq as IPWR"
+    ],
+    "status": {
+      "kind": "public",
+      "ticker": "IPWR",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 3,
+    "url": "https://www.idealpower.com",
+    "sites": [
+      {
+        "id": "ideal-power",
+        "label": "HQ",
+        "place": "South Austin",
+        "address": "4120 Freidrich Ln, Austin",
+        "lat": 30.21424,
+        "lon": -97.74607,
+        "radius": 0.05
+      }
+    ],
+    "sources": [
+      {
+        "label": "Ideal Power",
+        "url": "https://www.idealpower.com"
+      }
+    ]
+  },
+  {
+    "id": "ni",
+    "name": "NI (Emerson)",
+    "domain": "chips-compute",
+    "builds": "Test & measurement systems",
+    "blurb": "The instruments and LabVIEW software used to test rocket engines, chips and radars. Founded in Austin in 1976.",
+    "facts": [
+      "Acquired by Emerson in 2023; now Emerson's Test & Measurement business"
+    ],
+    "founded": 1976,
+    "status": {
+      "kind": "subsidiary",
+      "parent": "Emerson"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.ni.com",
+    "sites": [
+      {
+        "id": "ni",
+        "label": "Campus",
+        "place": "North Austin",
+        "address": "11500 N MoPac Expy, Austin",
+        "lat": 30.40793,
+        "lon": -97.72575,
+        "radius": 0.35
+      }
+    ],
+    "sources": [
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/National_Instruments"
+      }
+    ]
+  },
+  {
+    "id": "tie",
+    "name": "Texas Institute for Electronics",
+    "domain": "chips-compute",
+    "builds": "DARPA's 3D-chip foundry",
+    "blurb": "A UT-led foundry for 3D heterogeneous integration, stacking chips made of different materials, for defense and industry.",
+    "facts": [
+      "$1.4B: $840M from DARPA's NGMM program plus $552M from Texas",
+      "Refitting the original SEMATECH fab on Montopolis Drive",
+      "Tools slated to be in place in early 2026"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "UT Austin",
+      "est": 2021
+    },
+    "defense": true,
+    "tier": 1,
+    "url": "https://www.txie.org",
+    "sites": [
+      {
+        "id": "tie",
+        "label": "Montopolis Research Center fab",
+        "place": "Montopolis",
+        "address": "2706 Montopolis Dr, Austin",
+        "lat": 30.21765,
+        "lon": -97.71271,
+        "radius": 0.3
+      }
+    ],
+    "sources": [
+      {
+        "label": "UT News: $840M award",
+        "url": "https://news.utexas.edu/2024/07/18/uts-texas-institute-for-electronics-awarded-840m-to-build-a-dod-microelectronics-manufacturing-center-advance-u-s-semiconductor-industry/"
+      },
+      {
+        "label": "IEEE Spectrum",
+        "url": "https://spectrum.ieee.org/3d-heterogeneous-integration"
+      },
+      {
+        "label": "TIE: facilities",
+        "url": "https://www.txie.org/facilities/"
+      }
+    ]
+  },
+  {
+    "id": "tacc",
+    "name": "Texas Advanced Computing Center",
+    "domain": "chips-compute",
+    "builds": "Academic supercomputers",
+    "blurb": "Runs some of the most powerful academic supercomputers in the U.S., now including NSF's Horizon.",
+    "facts": [
+      "Horizon anchors NSF's Leadership-Class Computing Facility, with about 4,000 NVIDIA Blackwell GPUs in phase one",
+      "Early users came onto Horizon in late summer 2026"
+    ],
+    "status": {
+      "kind": "institution",
+      "parent": "UT Austin",
+      "est": 2001
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://tacc.utexas.edu",
+    "sites": [
+      {
+        "id": "tacc",
+        "label": "J.J. Pickle Research Campus",
+        "place": "North Austin",
+        "address": "10100 Burnet Rd, Austin",
+        "lat": 30.39007,
+        "lon": -97.72532,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "TACC (Jul 2026)",
+        "url": "https://tacc.utexas.edu/news/latest-news/2026/07/07/opening-the-future-of-science/"
+      },
+      {
+        "label": "HPCwire",
+        "url": "https://www.hpcwire.com/off-the-wire/taccs-horizon-nears-early-operations-as-nsf-leadership-class-supercomputer/"
+      }
+    ]
+  },
+  {
+    "id": "tesla",
+    "name": "Tesla · Giga Texas",
+    "domain": "energy-mobility",
+    "builds": "EVs, batteries & AI compute",
+    "blurb": "Tesla's global headquarters and largest U.S. factory, on the Colorado River east of the airport.",
+    "facts": [
+      "About 2,500 acres, with more than 10M sq ft of factory floor",
+      "Builds Model Y and Cybertruck and 4680 cells, and houses the Cortex AI training clusters",
+      "Tesla moved its HQ here in 2021; production began in 2022"
+    ],
+    "founded": 2003,
+    "status": {
+      "kind": "public",
+      "ticker": "TSLA",
+      "exchange": "Nasdaq"
+    },
+    "defense": false,
+    "tier": 1,
+    "url": "https://www.tesla.com",
+    "sites": [
+      {
+        "id": "tesla",
+        "label": "Gigafactory Texas",
+        "place": "Del Valle",
+        "address": "1 Tesla Rd, Austin",
+        "lat": 30.22106,
+        "lon": -97.6188,
+        "radius": 1.3
+      }
+    ],
+    "sources": [
+      {
+        "label": "Wikipedia: Gigafactory Texas",
+        "url": "https://en.wikipedia.org/wiki/Gigafactory_Texas"
+      },
+      {
+        "label": "Austin American-Statesman: Gigafactory from above",
+        "url": "https://www.statesman.com/projects/2026/explore-tesla-gigafactory/"
+      }
+    ]
+  },
+  {
+    "id": "base-power",
+    "name": "Base Power",
+    "domain": "energy-mobility",
+    "builds": "Home batteries for the grid",
+    "blurb": "Installs large home batteries that keep houses running through outages and act as a virtual power plant for the grid, and builds them in Austin.",
+    "facts": [
+      "$1B Series D at a $13B valuation in August 2026; more than $2.5B raised",
+      "Factory 1 is the old Austin American-Statesman printing plant, beside the bat bridge",
+      "Factory 2: a $265M, 486,000 sq ft plant near the airport"
+    ],
+    "founded": 2023,
+    "status": {
+      "kind": "private",
+      "raised": 2500000000,
+      "valuation": 13000000000,
+      "lastRound": "Series D",
+      "asOf": "Aug 2026"
+    },
+    "defense": false,
+    "tier": 1,
+    "url": "https://www.basepowercompany.com",
+    "sites": [
+      {
+        "id": "base-power",
+        "label": "Factory 1 (former Statesman plant)",
+        "place": "South Shore",
+        "address": "305 S Congress Ave, Austin",
+        "lat": 30.25883,
+        "lon": -97.74401,
+        "radius": 0.12
+      },
+      {
+        "id": "base-power-factory-2",
+        "label": "Factory 2 (planned)",
+        "place": "MetCenter",
+        "address": "8001 Metropolis Dr, Austin",
+        "lat": 30.20742,
+        "lon": -97.68687,
+        "radius": 0.25
+      }
+    ],
+    "sources": [
+      {
+        "label": "TechCrunch: Series D (Aug 2026)",
+        "url": "https://techcrunch.com/2026/08/03/base-power-raises-another-1b-to-save-the-grid-using-backyard-batteries/"
+      },
+      {
+        "label": "Austin American-Statesman: former Statesman site",
+        "url": "https://www.statesman.com/business/technology/article/former-statesman-site-base-power-factory-21086909.php"
+      },
+      {
+        "label": "Hoodline: airport factory",
+        "url": "https://hoodline.com/2026/02/battery-startup-presses-austin-for-massive-factory-deal-by-the-airport/"
+      }
+    ]
+  },
+  {
+    "id": "aalo",
+    "name": "Aalo Atomics",
+    "domain": "energy-mobility",
+    "builds": "Factory-built microreactors",
+    "blurb": "Sodium-cooled modular reactors designed to be mass-produced in a factory and paired with data centers.",
+    "facts": [
+      "$100M Series B in August 2025; more than $136M raised",
+      "Broke ground on its Aalo-X reactor at Idaho National Laboratory under DOE's Reactor Pilot Program",
+      "Opened a 40,000 sq ft reactor factory HQ off East Ben White in 2025"
+    ],
+    "founded": 2023,
+    "status": {
+      "kind": "private",
+      "raised": 136000000,
+      "lastRound": "$100M Series B",
+      "asOf": "Aug 2025"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.aalo.com",
+    "sites": [
+      {
+        "id": "aalo",
+        "label": "Factory HQ",
+        "place": "Southeast Austin",
+        "address": "5900 E Ben White Blvd, Austin",
+        "lat": 30.21397,
+        "lon": -97.71703,
+        "radius": 0.12
+      }
+    ],
+    "sources": [
+      {
+        "label": "Business Wire: Series B",
+        "url": "https://www.businesswire.com/news/home/20250820559252/en/Aalo-Atomics-Secures-$100-Million-in-Series-B-Funding-to-Build-Modular-Nuclear-Plants-Purpose-Built-for-Powering-AI-Data-Centers"
+      },
+      {
+        "label": "Aalo: factory HQ",
+        "url": "https://www.aalo.com/post/announcing-our-new-factory-hq-in-austin-texas"
+      }
+    ]
+  },
+  {
+    "id": "last-energy",
+    "name": "Last Energy",
+    "domain": "energy-mobility",
+    "builds": "Mass-produced 5 MW reactors",
+    "blurb": "Small pressurized-water reactors (PWR-5) built like products rather than projects, for data centers and industry.",
+    "facts": [
+      "Raised a $100M+ Series C in December 2025",
+      "Building a pilot PWR-5 at Texas A&M-RELLIS in DOE's reactor pilot program",
+      "Moved its headquarters from Washington, D.C. to Austin"
+    ],
+    "founded": 2019,
+    "status": {
+      "kind": "private",
+      "lastRound": "$100M+ Series C",
+      "asOf": "Dec 2025"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.lastenergy.com",
+    "sites": [
+      {
+        "id": "last-energy",
+        "label": "HQ",
+        "place": "St. Elmo",
+        "address": "4201 S Congress Ave, Austin",
+        "lat": 30.2208,
+        "lon": -97.76458,
+        "radius": 0.06
+      }
+    ],
+    "sources": [
+      {
+        "label": "Built In Austin: Series C",
+        "url": "https://www.builtinaustin.com/articles/last-energy-raises-100m-series-c-20251218"
+      },
+      {
+        "label": "World Nuclear News",
+        "url": "https://www.world-nuclear-news.org/articles/last-energy-microreactor-planned-at-texas-university"
+      }
+    ]
+  },
+  {
+    "id": "hyliion",
+    "name": "Hyliion",
+    "domain": "energy-mobility",
+    "builds": "KARNO linear generators",
+    "blurb": "Fuel-agnostic linear generators, largely 3D-printed, for data centers, defense and prime power.",
+    "facts": [
+      "$41.7M U.S. Navy contract for megawatt-scale KARNO systems (July 2026)",
+      "The KARNO technology was acquired from GE Aerospace"
+    ],
+    "founded": 2015,
+    "status": {
+      "kind": "public",
+      "ticker": "HYLN",
+      "exchange": "NYSE American"
+    },
+    "defense": true,
+    "tier": 2,
+    "url": "https://www.hyliion.com",
+    "sites": [
+      {
+        "id": "hyliion",
+        "label": "HQ & production",
+        "place": "Cedar Park",
+        "address": "1202 BMC Dr, Cedar Park",
+        "lat": 30.50244,
+        "lon": -97.79984,
+        "radius": 0.1
+      }
+    ],
+    "sources": [
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Hyliion_Holdings"
+      },
+      {
+        "label": "Hyliion investor news",
+        "url": "https://investors.hyliion.com/news/news-details/2026/Hyliions-KARNO-Power-Module-Named-2026-Most-Valuable-Product-by-Consulting-Specifying-Engineer/default.aspx"
+      }
+    ]
+  },
+  {
+    "id": "infinitum",
+    "name": "Infinitum",
+    "domain": "energy-mobility",
+    "builds": "Air-core electric motors",
+    "blurb": "Axial-flux motors with printed-circuit-board stators: lighter, quieter and more efficient than iron-core motors.",
+    "facts": [
+      "Raised a $185M round in 2024 to scale production",
+      "Engineering HQ in Round Rock; motor plants in Mexico"
+    ],
+    "founded": 2016,
+    "status": {
+      "kind": "private",
+      "lastRound": "$185M round",
+      "asOf": "2024"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://goinfinitum.com",
+    "sites": [
+      {
+        "id": "infinitum",
+        "label": "HQ & engineering",
+        "place": "Round Rock",
+        "address": "106 E Old Settlers Blvd, Round Rock",
+        "lat": 30.53514,
+        "lon": -97.68656,
+        "radius": 0.1
+      }
+    ],
+    "sources": [
+      {
+        "label": "Infinitum: $185M raise",
+        "url": "https://goinfinitum.com/infinitum-raises-185m-to-make-more-efficient-motors-expand-operations-in-mexico/"
+      }
+    ]
+  },
+  {
+    "id": "energyx",
+    "name": "EnergyX",
+    "domain": "energy-mobility",
+    "builds": "Direct lithium extraction",
+    "blurb": "Membrane and sorbent technology that pulls lithium out of brine, developed in Austin labs and pilot plants.",
+    "facts": [
+      "Opened a 40,000 sq ft Lithium Innovation HQ in Austin in 2024",
+      "Eni invested $225M for a stake in its Project Black Giant in Chile (July 2026)"
+    ],
+    "founded": 2018,
+    "status": {
+      "kind": "private"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://energyx.com",
+    "sites": [
+      {
+        "id": "energyx",
+        "label": "Lithium Innovation HQ",
+        "place": "Northeast Austin",
+        "address": "1624 Headway Cir, Austin",
+        "lat": 30.33449,
+        "lon": -97.68166,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "EnergyX: HQ opening",
+        "url": "https://energyx.com/press-release/hq-grand-opening/"
+      },
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Energy_Exploration_Technologies"
+      }
+    ]
+  },
+  {
+    "id": "apptronik",
+    "name": "Apptronik",
+    "domain": "robotics-mfg",
+    "builds": "Apollo humanoid robots",
+    "blurb": "General-purpose humanoid robots for factories and logistics, spun out of UT Austin's Human Centered Robotics Lab.",
+    "facts": [
+      "Series A passed $935M with a $520M extension in February 2026, at a $5B+ valuation",
+      "Backers include Google, Mercedes-Benz, B Capital, John Deere and QIA",
+      "Leasing a 59,000 sq ft production warehouse across the street from its HQ"
+    ],
+    "founded": 2016,
+    "status": {
+      "kind": "private",
+      "raised": 935000000,
+      "valuation": 5000000000,
+      "lastRound": "Series A-X",
+      "asOf": "Feb 2026"
+    },
+    "defense": false,
+    "tier": 1,
+    "url": "https://apptronik.com",
+    "sites": [
+      {
+        "id": "apptronik",
+        "label": "HQ & robot production",
+        "place": "North Austin",
+        "address": "11701 Stonehollow Dr, Austin",
+        "lat": 30.39758,
+        "lon": -97.70954,
+        "radius": 0.1
+      }
+    ],
+    "sources": [
+      {
+        "label": "CNBC (Feb 2026)",
+        "url": "https://www.cnbc.com/2026/02/11/apptronik-raises-520-million-at-5-billion-valuation-for-apollo-robot.html"
+      },
+      {
+        "label": "Apptronik: Series A",
+        "url": "https://apptronik.com/news-collection/apptronik-closes-over-935-million-series-a"
+      }
+    ]
+  },
+  {
+    "id": "icon",
+    "name": "ICON",
+    "domain": "robotics-mfg",
+    "builds": "3D-printed buildings",
+    "blurb": "Robotic construction printers that print houses from concrete, plus lunar construction R&D for NASA.",
+    "facts": [
+      "$57.2M NASA contract (2022) for Project Olympus lunar construction",
+      "Raised a $56M Series C in February 2025"
+    ],
+    "founded": 2017,
+    "status": {
+      "kind": "private",
+      "lastRound": "$56M Series C",
+      "asOf": "Feb 2025"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.iconbuild.com",
+    "sites": [
+      {
+        "id": "icon",
+        "label": "HQ & printer factory",
+        "place": "St. Elmo",
+        "address": "444 E St Elmo Rd, Austin",
+        "lat": 30.21603,
+        "lon": -97.76138,
+        "radius": 0.1
+      }
+    ],
+    "sources": [
+      {
+        "label": "KXAN: Series C",
+        "url": "https://www.kxan.com/news/local/austin/austin-based-3d-home-printing-startup-icon-raises-56m-just-a-month-after-big-layoffs/"
+      },
+      {
+        "label": "3D Printing Industry",
+        "url": "https://3dprintingindustry.com/news/icon-raises-56m-in-a-latest-series-c-funding-round-236573/"
+      }
+    ]
+  },
+  {
+    "id": "boring-company",
+    "name": "The Boring Company",
+    "domain": "robotics-mfg",
+    "builds": "Tunnel boring machines",
+    "blurb": "Designs and builds Prufrock tunnel boring machines and runs its global TBM operations center from Bastrop.",
+    "facts": [
+      "Moved HQ and engineering to Bastrop by 2023",
+      "Opened a Global Operations Control Center there in 2025"
+    ],
+    "founded": 2016,
+    "status": {
+      "kind": "private"
+    },
+    "defense": false,
+    "tier": 2,
+    "url": "https://www.boringcompany.com",
+    "sites": [
+      {
+        "id": "boring-company",
+        "label": "HQ & TBM factory",
+        "place": "Bastrop",
+        "address": "130 Walker Watson Rd, Bastrop",
+        "lat": 30.1525,
+        "lon": -97.4025,
+        "radius": 0.25
+      }
+    ],
+    "sources": [
+      {
+        "label": "Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/The_Boring_Company"
+      },
+      {
+        "label": "TeslaNorth: operations center",
+        "url": "https://teslanorth.com/2025/09/28/boring-company-launches-global-operations-control-center-in-bastrop-texas/"
+      }
+    ]
+  },
+  {
+    "id": "diligent-robotics",
+    "name": "Diligent Robotics",
+    "domain": "robotics-mfg",
+    "builds": "Hospital service robots",
+    "blurb": "Moxi, a mobile manipulator that fetches supplies and runs errands for hospital nurses.",
+    "facts": [
+      "Moxi works in health systems including Cedars-Sinai and Texas Medical Center"
+    ],
+    "founded": 2017,
+    "status": {
+      "kind": "private"
+    },
+    "defense": false,
+    "tier": 3,
+    "url": "https://www.diligentrobots.com",
+    "sites": [
+      {
+        "id": "diligent-robotics",
+        "label": "HQ",
+        "place": "East Austin",
+        "address": "2400 E Cesar Chavez St, Austin",
+        "lat": 30.25487,
+        "lon": -97.71763,
+        "radius": 0.05
+      }
+    ],
+    "sources": [
+      {
+        "label": "Austin American-Statesman",
+        "url": "https://www.statesman.com/story/business/2023/09/27/austins-diligent-robotics-raises-25m-to-expand-robot-moxis-reach/70971235007/"
+      }
+    ]
+  },
+  {
+    "id": "fox-robotics",
+    "name": "Fox Robotics",
+    "domain": "robotics-mfg",
+    "builds": "Autonomous forklifts",
+    "blurb": "FoxBot autonomous forklifts that load and unload trailers at warehouse docks.",
+    "facts": [
+      "Founded in Austin in 2017; acquired by Symbotic in February 2026"
+    ],
+    "founded": 2017,
+    "status": {
+      "kind": "subsidiary",
+      "parent": "Symbotic"
+    },
+    "defense": false,
+    "tier": 3,
+    "url": "https://www.foxrobotics.com",
+    "sites": [
+      {
+        "id": "fox-robotics",
+        "label": "HQ",
+        "place": "Southeast Austin",
+        "address": "4101 Smith School Rd, Austin",
+        "lat": 30.19861,
+        "lon": -97.71087,
+        "radius": 0.08
+      }
+    ],
+    "sources": [
+      {
+        "label": "The Robot Report",
+        "url": "https://www.therobotreport.com/symbotic-acquires-autonomous-forklift-maker-fox-robotics/"
+      }
+    ]
+  }
+]

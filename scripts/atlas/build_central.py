@@ -72,6 +72,14 @@ LANDMARK_POINTS = {
     "barton-springs": (-97.77110, 30.26380),
     "mount-bonnell": (-97.77325, 30.32161),
 }
+# Buildings drawn as models rather than extrusions, found by their Overture names.
+NAMED_LANDMARKS = {
+    "frost-bank-tower": "Frost Bank Tower",
+    "the-independent": "The Independent",
+    "block-185": "Block 185",
+    "dkr-stadium": "DKR Memorial Stadium",
+    "moody-center": "Moody Center",
+}
 STREETS = {
     "rainey": (["Rainey Street"], None),
     "sixth": (["East 6th Street"], (-97.7431, -97.7365)),
@@ -190,7 +198,7 @@ def elevation():
 
 
 def building_geoms():
-    rows = bbox_rows(str(CACHE / "buildings.parquet"), ["geometry", "height", "num_floors"])
+    rows = bbox_rows(str(CACHE / "buildings.parquet"), ["geometry", "height", "num_floors", "names"])
     return shapely.from_wkb([r["geometry"] for r in rows]), rows
 
 
@@ -622,6 +630,16 @@ def landmark_footprints(bgeoms, brows):
         g = to_m(bgeoms[best])
         poly = g if g.geom_type == "Polygon" else max(g.geoms, key=lambda q: q.area)
         out[key] = {"outline": encode(LineString(poly.exterior.coords)), "height": brows[best]["height"]}
+    for key, name in NAMED_LANDMARKS.items():
+        hits = [i for i, r in enumerate(brows) if ((r["names"] or {}).get("primary") or "") == name]
+        if not hits:
+            print(f"  landmark not found: {name}")
+            continue
+        best = max(hits, key=lambda i: bgeoms[i].area)
+        g = to_m(bgeoms[best])
+        poly = g if g.geom_type == "Polygon" else max(g.geoms, key=lambda q: q.area)
+        out[key] = {"outline": encode(LineString(poly.exterior.coords)), "height": max(brows[i]["height"] or 0 for i in hits)}
+    print(f"  landmarks: {', '.join(out)}")
     return out
 
 

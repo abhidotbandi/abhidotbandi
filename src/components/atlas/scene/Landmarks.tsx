@@ -8,6 +8,7 @@ import type { Polyline } from "@/lib/atlas/assets";
 import type { Central } from "@/lib/atlas/central";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { sky } from "@/lib/atlas/timeOfDay";
+import Buildings from "./Buildings";
 
 // Austin's landmarks as procedural low-poly models: the Texas State Capitol in sunset-red
 // granite, the UT Tower (lit burnt orange at night), the moonlight towers, the pavilion on
@@ -414,6 +415,392 @@ function pennybacker(ms: Mesher, lines: number[], lcol: number[], ground: Height
   }
 }
 
+// ---------------------------------------------------------------- towers and arenas
+
+/**
+ * Glass for modelled towers, in the buildings' own format (aInfo, aU) so they share the
+ * curtain-wall shader, its sky reflections and its lit windows at night.
+ */
+class GlassMesher {
+  private pos: number[] = [];
+  private info: number[] = [];
+  private u: number[] = [];
+
+  constructor(
+    private yBase: number,
+    private hM: number,
+    private r: number,
+  ) {}
+
+  private vtx(p: number[], u: number) {
+    this.pos.push(p[0], p[1], p[2]);
+    this.info.push(-1, this.yBase, this.hM, this.r);
+    this.u.push(u);
+  }
+
+  tri(a: number[], b: number[], c: number[]) {
+    this.vtx(a, 0);
+    this.vtx(b, 0);
+    this.vtx(c, 0);
+  }
+
+  /** A wall quad from a (u = ua) to b (u = ub), bottom y0 to top y1 at each end. */
+  wall(a: number[], b: number[], ua: number, ub: number, y0: number, y1a: number, y1b = y1a) {
+    const p = [a[0], y0, a[1]];
+    const q = [b[0], y0, b[1]];
+    const qt = [b[0], y1b, b[1]];
+    const pt = [a[0], y1a, a[1]];
+    this.vtx(p, ua);
+    this.vtx(q, ub);
+    this.vtx(qt, ub);
+    this.vtx(p, ua);
+    this.vtx(qt, ub);
+    this.vtx(pt, ua);
+  }
+
+  /** Vertical walls around a ring (km), and a flat cap. */
+  prism(ring: ArrayLike<number>, y0: number, y1: number, cap = true) {
+    const n = ring.length / 2;
+    let cum = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const seg = Math.hypot(ring[j * 2] - ring[i * 2], ring[j * 2 + 1] - ring[i * 2 + 1]) * 1000;
+      this.wall([ring[i * 2], ring[i * 2 + 1]], [ring[j * 2], ring[j * 2 + 1]], cum, cum + seg, y0, y1);
+      cum += seg;
+    }
+    if (!cap) return;
+    const idx = earcut(Array.from(ring));
+    const p = (q: number) => [ring[q * 2], y1, ring[q * 2 + 1]];
+    for (let k = 0; k < idx.length; k += 3) this.tri(p(idx[k]), p(idx[k + 1]), p(idx[k + 2]));
+  }
+
+  append(to: { pos: number[]; info: number[]; u: number[] }) {
+    to.pos.push(...this.pos);
+    to.info.push(...this.info);
+    to.u.push(...this.u);
+  }
+}
+
+/** Oriented bounds of an outline: centre, long axis (unit) and half extents along and across it. */
+function obb(outline: Polyline) {
+  const r = ring(outline);
+  const n = r.length / 2;
+  let best = 0;
+  let ux = 1;
+  let uz = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const dx = r[j * 2] - r[i * 2];
+    const dz = r[j * 2 + 1] - r[i * 2 + 1];
+    const l = Math.hypot(dx, dz);
+    if (l > best) {
+      best = l;
+      ux = dx / l;
+      uz = dz / l;
+    }
+  }
+  let a0 = Infinity;
+  let a1 = -Infinity;
+  let b0 = Infinity;
+  let b1 = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const p = r[i * 2] * ux + r[i * 2 + 1] * uz;
+    const q = -r[i * 2] * uz + r[i * 2 + 1] * ux;
+    a0 = Math.min(a0, p);
+    a1 = Math.max(a1, p);
+    b0 = Math.min(b0, q);
+    b1 = Math.max(b1, q);
+  }
+  let A = (a1 - a0) / 2;
+  let B = (b1 - b0) / 2;
+  const cp = (a0 + a1) / 2;
+  const cq = (b0 + b1) / 2;
+  const cx = cp * ux - cq * uz;
+  const cz = cp * uz + cq * ux;
+  if (B > A) {
+    [A, B] = [B, A];
+    [ux, uz] = [-uz, ux];
+  }
+  /** World point at (p along, q across) in km from the centre. */
+  const at = (p: number, q: number): [number, number] => [cx + ux * p - uz * q, cz + uz * p + ux * q];
+  return { cx, cz, ux, uz, A, B, at };
+}
+
+type GlassOut = { pos: number[]; info: number[]; u: number[] };
+
+/**
+ * Frost Bank Tower (2003): blue glass rising to a faceted crown that splits into two peaks,
+ * the "owl ears" of the skyline.
+ */
+function frostTower(glass: GlassOut, c: Central, ground: HeightField) {
+  const o = c.landmarks["frost-bank-tower"];
+  if (!o) return;
+  const [lo] = groundRange(ground, o.outline);
+  const H = (o.height ?? 157) * V;
+  const gm = new GlassMesher(lo, o.height ?? 157, 0.1);
+  const shaftTop = lo + H * 0.76;
+  gm.prism(ring(o.outline), lo - 0.003, shaftTop, false);
+  const b = obb(o.outline);
+  const A = b.A * 0.97;
+  const B = b.B * 0.97;
+  const P = (p: number, q: number, y: number) => {
+    const [x, z] = b.at(p, q);
+    return [x, y, z];
+  };
+  const c1 = P(-A, -B, shaftTop);
+  const c2 = P(A, -B, shaftTop);
+  const c3 = P(A, B, shaftTop);
+  const c4 = P(-A, B, shaftTop);
+  const m1 = P(0, -B, shaftTop);
+  const m3 = P(0, B, shaftTop);
+  const top = lo + H;
+  const p1 = P(-A * 0.38, 0, top);
+  const p2 = P(A * 0.38, 0, top);
+  const notch = P(0, 0, shaftTop + (top - shaftTop) * 0.55);
+  gm.tri(c1, m1, p1);
+  gm.tri(m1, c2, p2);
+  gm.tri(m1, p2, notch);
+  gm.tri(m1, notch, p1);
+  gm.tri(c3, m3, p2);
+  gm.tri(m3, c4, p1);
+  gm.tri(m3, p1, notch);
+  gm.tri(m3, notch, p2);
+  gm.tri(c4, c1, p1);
+  gm.tri(c2, c3, p2);
+  // Close the shaft under the crown where the outline and the crown's rectangle differ.
+  const r = ring(o.outline);
+  const idx = earcut(Array.from(r));
+  for (let k = 0; k < idx.length; k += 3) {
+    const q = (i: number) => [r[i * 2], shaftTop, r[i * 2 + 1]];
+    gm.tri(q(idx[k]), q(idx[k + 1]), q(idx[k + 2]));
+  }
+  gm.append(glass);
+}
+
+/**
+ * The Independent (2019): 58 floors in five stacked glass blocks, each slid off the one below —
+ * Austin's "Jenga tower". White slab edges mark the joints.
+ */
+function independent(glass: GlassOut, ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["the-independent"];
+  if (!o) return;
+  const [lo] = groundRange(ground, o.outline);
+  const hM = o.height ?? 209;
+  const H = hM * V;
+  const b = obb(o.outline);
+  const gm = new GlassMesher(lo, hM, 0.6);
+  const offsets = [0, 0.34, -0.22, 0.4, -0.12];
+  const white = new THREE.Color("#f1efe9");
+  for (let i = 0; i < 5; i++) {
+    const d = offsets[i] * b.A;
+    const q = [
+      ...b.at(-b.A + d, -b.B),
+      ...b.at(b.A + d, -b.B),
+      ...b.at(b.A + d, b.B),
+      ...b.at(-b.A + d, b.B),
+    ];
+    const y0 = i === 0 ? lo - 0.003 : lo + (H * i) / 5;
+    const y1 = lo + (H * (i + 1)) / 5;
+    gm.prism(q, y0, y1 - 0.0012, i === 4);
+    // The white slab edge at the top of each block.
+    const s = 1.02;
+    const e = [b.at((-b.A + d) * s, -b.B * s), b.at((b.A + d) * s, -b.B * s), b.at((b.A + d) * s, b.B * s), b.at((-b.A + d) * s, b.B * s)];
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = e[k];
+      const [bx, bz] = e[(k + 1) % 4];
+      ms.quad([ax, y1 - 0.0012, az], [bx, y1 - 0.0012, bz], [bx, y1, bz], [ax, y1, az], white);
+    }
+    ms.quad([e[0][0], y1, e[0][1]], [e[1][0], y1, e[1][1]], [e[2][0], y1, e[2][1]], [e[3][0], y1, e[3][1]], white);
+  }
+  gm.append(glass);
+}
+
+/**
+ * Block 185 (2022): a glass tower whose top curves down along its length like a sail.
+ */
+function block185(glass: GlassOut, c: Central, ground: HeightField) {
+  const o = c.landmarks["block-185"];
+  if (!o) return;
+  const [lo] = groundRange(ground, o.outline);
+  const hM = o.height ?? 181;
+  const H = hM * V;
+  const gm = new GlassMesher(lo, hM, 0.35);
+  const base = lo + H * 0.8;
+  gm.prism(ring(o.outline), lo - 0.003, base);
+  const b = obb(o.outline);
+  // The sail over the tower's rectangle (inset to stay on the roof), tall at the south end.
+  const A = b.A * 0.84;
+  const B = b.B * 0.84;
+  const southIsPlus = b.uz > 0;
+  const steps = 10;
+  const hAt = (t: number) => base + (H - (base - lo)) * Math.pow(1 - t, 1.6);
+  const pt = (t: number, q: number, y: number) => {
+    const p = (southIsPlus ? 1 : -1) * (A - 2 * A * t);
+    const [x, z] = b.at(p, q);
+    return [x, y, z];
+  };
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps;
+    const t1 = (i + 1) / steps;
+    const y0 = hAt(t0);
+    const y1 = hAt(t1);
+    const u0 = t0 * 2 * A * 1000;
+    const u1 = t1 * 2 * A * 1000;
+    for (const q of [-B, B]) {
+      const a = pt(t0, q, 0);
+      const d = pt(t1, q, 0);
+      gm.wall([a[0], a[2]], [d[0], d[2]], u0, u1, base, y0, y1);
+    }
+    // The curved top.
+    gm.tri(pt(t0, -B, y0), pt(t1, -B, y1), pt(t1, B, y1));
+    gm.tri(pt(t0, -B, y0), pt(t1, B, y1), pt(t0, B, y0));
+  }
+  const e0 = pt(0, -B, 0);
+  const e1 = pt(0, B, 0);
+  gm.wall([e0[0], e0[2]], [e1[0], e1[2]], 0, 2 * B * 1000, base, hAt(0));
+  gm.append(glass);
+}
+
+/** Where a ray from (cx, cz) along (dx, dz) leaves a ring, as a distance (km). */
+function rayExit(r: Float32Array, cx: number, cz: number, dx: number, dz: number): number {
+  const n = r.length / 2;
+  let best = Infinity;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = r[i * 2] - cx;
+    const az = r[i * 2 + 1] - cz;
+    const ex = r[j * 2] - r[i * 2];
+    const ez = r[j * 2 + 1] - r[i * 2 + 1];
+    const den = dx * ez - dz * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = (ax * ez - az * ex) / den;
+    const s = (ax * dz - az * dx) / den;
+    if (t > 0 && s >= 0 && s <= 1) best = Math.min(best, t);
+  }
+  return best;
+}
+
+/**
+ * Darrell K Royal–Texas Memorial Stadium: a bowl of burnt-orange lower seats and grey upper
+ * decks around a north–south field, tallest on the west side.
+ */
+function stadium(ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["dkr-stadium"];
+  if (!o) return;
+  const r = ring(o.outline);
+  const [lo] = groundRange(ground, o.outline);
+  const n = r.length / 2;
+  let cx = 0;
+  let cz = 0;
+  for (let i = 0; i < n; i++) {
+    cx += r[i * 2];
+    cz += r[i * 2 + 1];
+  }
+  cx /= n;
+  cz /= n;
+  // The bowl is cut into a slope: build it from the field's level.
+  let yc = lo;
+  for (const [fx, fz] of [
+    [0, 0],
+    [-0.042, -0.07],
+    [0.042, -0.07],
+    [0.042, 0.07],
+    [-0.042, 0.07],
+    [0.042, 0],
+    [-0.042, 0],
+  ]) {
+    yc = Math.max(yc, groundY(ground, cx + fx, cz + fz));
+  }
+  const y = yc + 0.0005;
+  const orange = new THREE.Color("#bf5700");
+  const grey = new THREE.Color("#b9b4ab");
+  const facade = new THREE.Color("#d8d1c3");
+  const walk = new THREE.Color("#77736d");
+  const turf = new THREE.Color("#3e7a37");
+  const white = new THREE.Color("#f4f4ef");
+
+  // Field: 100 yards plus end zones, north–south.
+  const W = 0.0244;
+  const Lf = 0.0549;
+  const P = (x: number, z: number, yy: number) => [cx + x, yy, cz + z];
+  ms.quad(P(-0.042, -0.07, y), P(0.042, -0.07, y), P(0.042, 0.07, y), P(-0.042, 0.07, y), turf);
+  for (const s of [-1, 1]) {
+    ms.quad(P(-W, s * 0.0457, y + 0.0002), P(W, s * 0.0457, y + 0.0002), P(W, s * Lf, y + 0.0002), P(-W, s * Lf, y + 0.0002), orange);
+  }
+  for (let k = -5; k <= 5; k++) {
+    const z = k * 0.00914;
+    ms.quad(P(-W, z - 0.0003, y + 0.0003), P(W, z - 0.0003, y + 0.0003), P(W, z + 0.0003, y + 0.0003), P(-W, z + 0.0003, y + 0.0003), white);
+  }
+
+  // The bowl, lofted from the field's edge out to the stadium's outline.
+  const steps = 72;
+  const ring3: number[][][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    const tIn = Math.min(0.042 / Math.max(1e-6, Math.abs(dx)), 0.07 / Math.max(1e-6, Math.abs(dz)));
+    const tOut = Math.max(tIn + 0.02, Math.min(rayExit(r, cx, cz, dx, dz), 0.2));
+    const we = Math.max(0, dx) ** 2;
+    const ww = Math.max(0, -dx) ** 2;
+    const wn = Math.max(0, -dz) ** 2;
+    const wsth = Math.max(0, dz) ** 2;
+    const hM = (50 * we + 62 * ww + 30 * wn + 46 * wsth) / (we + ww + wn + wsth);
+    const tMid = tIn + (tOut - tIn) * 0.5;
+    const tWalk = tMid + (tOut - tIn) * 0.06;
+    const yMid = yc + hM * 0.38 * V;
+    ring3.push([
+      [cx + dx * tIn, yc + 3 * V, cz + dz * tIn],
+      [cx + dx * tMid, yMid, cz + dz * tMid],
+      [cx + dx * tWalk, yMid + 0.6 * V, cz + dz * tWalk],
+      [cx + dx * tOut, yc + hM * V, cz + dz * tOut],
+      [cx + dx * tOut, lo - 0.003, cz + dz * tOut],
+    ]);
+  }
+  for (let i = 0; i < steps; i++) {
+    const a = ring3[i];
+    const b = ring3[i + 1];
+    ms.quad(a[0], b[0], b[1], a[1], orange);
+    ms.quad(a[1], b[1], b[2], a[2], walk);
+    ms.quad(a[2], b[2], b[3], a[3], grey);
+    ms.quad(a[3], b[3], b[4], a[4], facade);
+    // A low wall around the field.
+    ms.quad([a[0][0], y, a[0][2]], [b[0][0], y, b[0][2]], b[0], a[0], facade);
+  }
+}
+
+/** Moody Center (2022): the university's arena, a glass-and-metal drum under a pale domed roof. */
+function moody(ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["moody-center"];
+  if (!o) return;
+  const r = ring(o.outline);
+  const [lo] = groundRange(ground, o.outline);
+  const n = r.length / 2;
+  let cx = 0;
+  let cz = 0;
+  for (let i = 0; i < n; i++) {
+    cx += r[i * 2];
+    cz += r[i * 2 + 1];
+  }
+  cx /= n;
+  cz /= n;
+  const eave = lo + 20 * V;
+  const mid = lo + 26 * V;
+  const crown = lo + 28.5 * V;
+  const wall = new THREE.Color("#5f6975");
+  const roof = new THREE.Color("#ecebe6");
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = [r[i * 2], r[i * 2 + 1]];
+    const b = [r[j * 2], r[j * 2 + 1]];
+    ms.quad([a[0], lo - 0.003, a[1]], [b[0], lo - 0.003, b[1]], [b[0], eave, b[1]], [a[0], eave, a[1]], wall);
+    const am = [cx + (a[0] - cx) * 0.6, mid, cz + (a[1] - cz) * 0.6];
+    const bm = [cx + (b[0] - cx) * 0.6, mid, cz + (b[1] - cz) * 0.6];
+    ms.quad([a[0], eave, a[1]], [b[0], eave, b[1]], bm, am, roof);
+    ms.tri(am, bm, [cx, crown, cz], roof);
+  }
+}
+
 // ---------------------------------------------------------------- assembly
 
 interface Parts {
@@ -442,8 +829,9 @@ function glowTexture(): THREE.Texture {
   return t;
 }
 
-function build(c: Central, ground: HeightField): THREE.Group {
+function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THREE.BufferGeometry } {
   const stone = new Mesher();
+  const glassOut: GlassOut = { pos: [], info: [], u: [] };
   const soft = new Mesher();
   const hot = new Mesher();
   const lamps = new Mesher();
@@ -456,6 +844,11 @@ function build(c: Central, ground: HeightField): THREE.Group {
   moonlightTowers(c, ground, lines, lcol, lamps, glow);
   bonnell(stone, ground);
   pennybacker(stone, lines, lcol, ground);
+  frostTower(glassOut, c, ground);
+  independent(glassOut, stone, c, ground);
+  block185(glassOut, c, ground);
+  stadium(stone, c, ground);
+  moody(stone, c, ground);
 
   const mat = () => new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   const parts: Parts = {
@@ -489,12 +882,17 @@ function build(c: Central, ground: HeightField): THREE.Group {
   parts.glowPoints.renderOrder = 2;
   root.add(parts.glowPoints);
   root.userData.parts = parts;
-  return root;
+  const glass = new THREE.BufferGeometry();
+  glass.setAttribute("position", new THREE.Float32BufferAttribute(glassOut.pos, 3));
+  glass.setAttribute("aInfo", new THREE.Float32BufferAttribute(glassOut.info, 4));
+  glass.setAttribute("aU", new THREE.Float32BufferAttribute(glassOut.u, 1));
+  glass.computeBoundingSphere();
+  return { root, glass };
 }
 
 export default function Landmarks({ central, ground }: { central: Central; ground: HeightField }) {
   const ref = useRef<THREE.Group>(null);
-  const root = useMemo(() => build(central, ground), [central, ground]);
+  const { root, glass } = useMemo(() => build(central, ground), [central, ground]);
 
   useFrame(() => {
     const g = ref.current;
@@ -510,5 +908,10 @@ export default function Landmarks({ central, ground }: { central: Central; groun
     p.glowPoints.visible = n > 0.03;
   });
 
-  return <primitive ref={ref} object={root} />;
+  return (
+    <>
+      <primitive ref={ref} object={root} />
+      <Buildings geometry={glass} />
+    </>
+  );
 }

@@ -13,7 +13,15 @@ import {
 } from "./geo";
 
 /** Landmark footprints drawn as models (scene/Landmarks.tsx) instead of plain extrusions. */
-export const MODELLED_LANDMARKS = ["capitol", "ut-tower"] as const;
+export const MODELLED_LANDMARKS = [
+  "capitol",
+  "ut-tower",
+  "frost-bank-tower",
+  "the-independent",
+  "block-185",
+  "dkr-stadium",
+  "moody-center",
+] as const;
 
 export interface CentralMeta {
   bounds: [number, number, number, number];

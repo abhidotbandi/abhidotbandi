@@ -6,13 +6,14 @@ import * as THREE from "three";
 import { buildingGeometry } from "@/lib/atlas/buildings";
 import { tileKey, type TileMeshes } from "@/lib/atlas/detail/build";
 import type { InitMessage, TileMessage } from "@/lib/atlas/detail/worker";
-import { HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, clamp } from "@/lib/atlas/geo";
+import { HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, clamp, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import type { TileIndex } from "@/lib/atlas/tiles";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { makeBuildingMaterial } from "./Buildings";
 import type { PreparedScene } from "./prepare";
 import { CONE, ROUND, TREE_EXAG, crownGeometry } from "./Trees";
+import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
 
 // Street-scale detail beyond central Austin, streamed in 2 km tiles around the camera once it
 // comes in close: every building, the local streets at their real width (streetlights after
@@ -256,6 +257,9 @@ interface State {
   version: number;
   shared: Shared;
   pool: TreePool;
+  cars: CarSim;
+  ground: HeightField;
+  deck: DeckFinder | null;
   lowPower: boolean;
 }
 
@@ -270,6 +274,8 @@ function makeRoot(scene: PreparedScene): THREE.Group {
   const shared = sharedUniforms(scene.tex.normal);
   const pool = new TreePool(scene.lowPower ? 5000 : 16000);
   root.add(pool.round, pool.cone);
+  const cars = new CarSim(scene.lowPower ? 350 : 1400);
+  root.add(cars.root);
   // Stand-ins that are never seen, so the tiles' shaders compile with the rest of the scene.
   const dummy = new THREE.BufferGeometry();
   dummy.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
@@ -298,6 +304,9 @@ function makeRoot(scene: PreparedScene): THREE.Group {
     version: 0,
     shared,
     pool,
+    cars,
+    ground: scene.ground,
+    deck: scene.central ? makeDeckFinder(scene.central.data, scene.ground) : null,
     lowPower: scene.lowPower,
   };
   root.userData.state = state;
@@ -450,6 +459,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
       }
       tile.group = tileGroup(e.data.meshes, st, tile.appear);
       tile.trees = e.data.meshes.trees;
+      if (e.data.meshes.lanes) st.cars.addTile(tile.key, e.data.meshes.lanes, st.ground, st.deck);
       tile.status = 2;
       tile.appear.value = runtime.reducedMotion ? 1 : 0;
       g.add(tile.group);
@@ -489,6 +499,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
         m.geometry.dispose();
         (m.material as THREE.Material).dispose();
       }
+      st.cars.dispose();
     };
   }, [scene]);
 
@@ -579,6 +590,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
         for (const t of ready.slice(0, ready.length - cap)) {
           if (now - t.seen < 2000) break;
           if (t.group) disposeGroup(t.group);
+          st.cars.removeTile(t.key);
           st.tiles.delete(t.key);
           st.version++;
         }
@@ -598,6 +610,12 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
       }
     }
     fillTrees(st, cam, visible.filter((t) => t.appear.value >= 1));
+
+    const carMax = st.lowPower ? 3.6 : 5.5;
+    st.cars.root.visible = cam.dist < carMax;
+    if (st.cars.root.visible) {
+      st.cars.update(runtime.reducedMotion ? 0 : Math.min(dt, 0.1), cam, sky.uNight.value, sh.uLift.value, st.lowPower);
+    }
   });
 
   return <primitive ref={ref} object={root} />;

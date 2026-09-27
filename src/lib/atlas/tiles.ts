@@ -71,6 +71,32 @@ export const STREETS: Record<number, StreetStyle> = {
   31: { half: 11.5, look: 4, lamps: 0 }, // taxiway
 };
 
+/** Inside central Austin, roads come as lanes for cars only (not drawn), coded class + this. */
+export const LANES_ONLY = 100;
+
+export interface CarClass {
+  /** km/s */
+  speed: number;
+  /** traffic per km of road, relative */
+  weight: number;
+  /** lanes each way (on one-way carriageways: in all) */
+  lanes: number;
+  /** motorways and trunks come as one line per carriageway, digitised in the direction of travel */
+  oneWay: boolean;
+}
+
+/** The streets cars drive on, by street class. */
+export const CARS: Record<number, CarClass> = {
+  1: { speed: 0.0085, weight: 0.3, lanes: 1, oneWay: false },
+  2: { speed: 0.009, weight: 0.25, lanes: 1, oneWay: false },
+  3: { speed: 0.005, weight: 0.1, lanes: 1, oneWay: false },
+  20: { speed: 0.011, weight: 1.2, lanes: 1, oneWay: false },
+  21: { speed: 0.013, weight: 1.8, lanes: 2, oneWay: false },
+  22: { speed: 0.015, weight: 2.4, lanes: 2, oneWay: false },
+  23: { speed: 0.02, weight: 3, lanes: 2, oneWay: true },
+  24: { speed: 0.026, weight: 4, lanes: 3, oneWay: true },
+};
+
 /** Area kinds, by build_tiles.py's AREA_* codes. */
 export const AREA_PARKING = 1;
 export const AREA_APRON = 2;

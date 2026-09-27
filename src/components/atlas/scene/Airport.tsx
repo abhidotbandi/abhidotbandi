@@ -207,6 +207,9 @@ interface Sim {
   lights: THREE.Points;
   movers: Mover[];
   parked: number;
+  /** each parked aircraft's matrix, to restore after hiding them */
+  parkedAt: THREE.Matrix4[];
+  parkedShown: boolean;
   ground: HeightField;
 }
 
@@ -218,6 +221,7 @@ const _s = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 const _quat = new THREE.Quaternion();
 const _e = new THREE.Euler();
+const _hide = new THREE.Matrix4().makeScale(0, 0, 0);
 
 /** Position (world) and a point a little further on, for a script at time t. Returns size and lights. */
 function sample(sim: Sim, sc: Script, t: number, pos: THREE.Vector3, ahead: THREE.Vector3): [number, number] {
@@ -264,11 +268,13 @@ function makeSim(ground: HeightField): THREE.Group {
   const n = parked.length + MOVERS;
   const body = instanced(bodyG, white, n);
   const fin = instanced(finG, paint, n);
+  const parkedAt: THREE.Matrix4[] = [];
   parked.forEach((g, i) => {
     // heading 0 faces north (-z).
     _quat.setFromAxisAngle(_up, -g.heading);
     _p.set(g.x, groundY(ground, g.x, g.z) + 0.0024 * SCALE, g.z);
     _m.compose(_p, _quat, _s.set(1, 1, 1));
+    parkedAt.push(_m.clone());
     body.setMatrixAt(i, _m);
     fin.setMatrixAt(i, _m);
     body.setColorAt(i, new THREE.Color("#f3f2ee"));
@@ -306,7 +312,7 @@ function makeSim(ground: HeightField): THREE.Group {
 
   const root = new THREE.Group();
   root.add(body, fin, lights);
-  root.userData.sim = { body, fin, lights, movers, parked: parked.length, ground } satisfies Sim;
+  root.userData.sim = { body, fin, lights, movers, parked: parked.length, parkedAt, parkedShown: true, ground } satisfies Sim;
   return root;
 }
 
@@ -339,6 +345,15 @@ export default function Airport({ ground }: { ground: HeightField }) {
     g.visible = near;
     if (!near) return;
     const sim = g.userData.sim as Sim;
+    // Parked aircraft only while the terminal's detail tile can be drawn.
+    const parked = cam.dist < 7.5;
+    if (parked !== sim.parkedShown) {
+      sim.parkedShown = parked;
+      for (let i = 0; i < sim.parked; i++) {
+        sim.body.setMatrixAt(i, parked ? sim.parkedAt[i] : _hide);
+        sim.fin.setMatrixAt(i, parked ? sim.parkedAt[i] : _hide);
+      }
+    }
     const step = runtime.reducedMotion ? 0 : Math.min(dt, 0.1);
     const lp = sim.lights.geometry.attributes.position as THREE.BufferAttribute;
     const lc = sim.lights.geometry.attributes.color as THREE.BufferAttribute;

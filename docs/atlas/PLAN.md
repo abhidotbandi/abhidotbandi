@@ -481,11 +481,16 @@ Asked for after 2.8: more detail outside central Austin.
   - trees over the regional land cover, clear of roofs, streets and water: woods where it says
     forest (thinner where it's built up), a scatter over shrubland, and yard trees through the
     neighbourhoods
-- The pipeline writes 2,124 tiles, 20.5 MB in all. Most are a few KB and the densest is 75 KB.
+- The pipeline writes 2,136 tiles, 20.6 MB in all. Most are a few KB and the densest is 75 KB.
   A worker decodes and meshes them, so they stream in without stalling a frame. Up to 44 stay
   loaded (14 on phones).
 - Views with tiles draw 4.7–5.4M triangles on desktop and 2.7–3.7M on phones, about what a
   downtown view already draws (6.5M and 4.3M).
+- **Traffic** (`Cars`): up to 1,400 cars (350 on phones) around the camera once it's within
+  ~5.5 km, on the tiles' streets and arterials and, inside central Austin, on its roads (the
+  tiles carry those as lanes that aren't drawn). They keep right, spread over the lanes of
+  one-way carriageways, cross the river on the bridge decks, and show headlights and
+  taillights after dark.
 - **Austin-Bergstrom** (`Airport`):
   - airliners on final over East Austin to 17R, rolling out and turning off for the terminal
   - departures lining up on 17L and climbing out to the south

@@ -16,7 +16,7 @@ import { sky } from "@/lib/atlas/timeOfDay";
 const M = 0.001; // metres -> km
 
 /** Deck widths (m) by road class. */
-const DECK_WIDTH: Record<string, number> = {
+export const DECK_WIDTH: Record<string, number> = {
   motorway: 34,
   trunk: 26,
   primary: 22,
@@ -155,6 +155,20 @@ function arches(
   }
 }
 
+/**
+ * A road bridge's deck height (world y) at t = 0..1 along its line: level from abutment to
+ * abutment with a gentle rise, and always clear of the water. Cars on the bridge ride on it.
+ */
+export function deckProfile(line: Polyline, ground: HeightField): (t: number) => number {
+  const n = line.length / 2;
+  const y0 = groundY(ground, line[0], line[1]);
+  const y1 = groundY(ground, line[n * 2 - 2], line[n * 2 - 1]);
+  const water = Math.min(y0, y1);
+  const span = Math.hypot(line[n * 2 - 2] - line[0], line[n * 2 - 1] - line[1]);
+  const rise = Math.min(0.004, span * 0.012);
+  return (t) => Math.max(y0 + (y1 - y0) * t + rise * Math.sin(Math.PI * t), water + 0.006);
+}
+
 function build(c: Central, ground: HeightField): THREE.BufferGeometry {
   const b: Builder = { pos: [], col: [] };
   const concrete = new THREE.Color("#dcd6cb");
@@ -172,9 +186,8 @@ function build(c: Central, ground: HeightField): THREE.BufferGeometry {
     const y0 = groundY(ground, line[0], line[1]);
     const y1 = groundY(ground, line[n * 2 - 2], line[n * 2 - 1]);
     const water = Math.min(y0, y1);
-    const span = Math.hypot(line[n * 2 - 2] - line[0], line[n * 2 - 1] - line[1]);
-    const rise = Math.min(0.004, span * 0.012);
-    const yAt = (_i: number, t: number) => Math.max(y0 + (y1 - y0) * t + rise * Math.sin(Math.PI * t), water + 0.006);
+    const profile = deckProfile(line, ground);
+    const yAt = (_i: number, t: number) => profile(t);
     const { cum, total } = deck(b, line, halfW, yAt, 1.6 * M, concrete, concreteSide);
     if (br.name === "South Congress Avenue") {
       // The Ann W. Richards Congress Avenue Bridge stands on shallow concrete arches.

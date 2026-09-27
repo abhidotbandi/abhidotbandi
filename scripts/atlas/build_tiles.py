@@ -9,11 +9,12 @@ A tile holds three blobs in the building format (building_codec.py), whose "heig
 carries a class code for the two that aren't buildings:
   buildings  every footprint that neither buildings.bin nor central_buildings.bin carries
   streets    open polylines: local streets, paths and tracks, the arterials again (so they can
-             be drawn at their real width up close), and runways and taxiways
+             be drawn at their real width up close), and runways and taxiways; inside central
+             Austin, only the roads cars drive on, as lanes (class code + 100), not drawn
   areas      polygons: parking lots, aprons, helipads, swimming pools and small ponds
 Tile layout: magic b"ATIL", version (1), 3 reserved bytes, then the three blobs' byte lengths
 (u32 little-endian each) and the blobs in that order. The central detail patch has its own
-street-scale surface, so streets and areas stop at its edge. Tile (ix, iz) spans
+street-scale surface, so streets (other than lanes) and areas stop at its edge. Tile (ix, iz) spans
 x in [X_MIN + ix * 2, X_MIN + (ix + 1) * 2) km, and likewise z; buildings belong to the tile
 their centroid falls in, and lines and polygons are clipped to it.
 """
@@ -48,6 +49,9 @@ STREET_CODES = {
     ("motorway", None): 24,
     ("runway", None): 30, ("taxiway", None): 31,
 }
+# Streets cars drive on; inside central Austin they're stored as lanes only (code + LANES_ONLY).
+CAR_CODES = {1, 2, 3, 20, 21, 22, 23, 24}
+LANES_ONLY = 100
 AREA_PARKING, AREA_APRON, AREA_HELIPAD, AREA_POOL, AREA_POND = 1, 2, 3, 10, 11
 POND_MAX_M2 = 20000  # larger ponds and lakes are already in the regional water
 
@@ -93,33 +97,40 @@ def parts(g, kind):
 
 
 def clip_to_tiles(geoms, codes, kind, simplify):
-    """Metre geometries -> {(ix, iz): [(code, -1, rings)]}, clipped to tiles and off the patch."""
+    """Metre geometries -> {(ix, iz): [(code, -1, rings)]}, clipped to tiles. Central Austin draws
+    its own streets, so nothing is drawn inside the patch; the roads cars use are kept there as
+    lanes only, under their class code + LANES_ONLY."""
     out = {}
     boxes = {}
-    for g, code in zip(geoms, codes):
-        g = g.difference(PATCH) if g.intersects(PATCH) else g
-        if g.is_empty:
-            continue
-        x0, z0, x1, z1 = (v / 1000 for v in g.bounds)
-        ix0, iz0 = (int(v) for v in tile_of(x0, z0))
-        ix1, iz1 = (int(v) for v in tile_of(x1, z1))
-        for ix in range(ix0, ix1 + 1):
-            for iz in range(iz0, iz1 + 1):
-                key = (ix, iz)
-                if key not in boxes:
-                    boxes[key] = tile_box(ix, iz)
-                part = g if (ix0 == ix1 and iz0 == iz1) else g.intersection(boxes[key])
-                for p in parts(part, kind):
-                    p = p.simplify(simplify)
-                    if kind == "LineString":
-                        pts = ints(p.coords, False)
-                        if pts:
-                            out.setdefault(key, []).append((code, -1, [pts]))
-                    else:
-                        outer = ints(shapely.geometry.polygon.orient(p, 1.0).exterior.coords, True)
-                        if outer:
-                            rings = [outer] + [r for h in p.interiors if (r := ints(h.coords, True))]
-                            out.setdefault(key, []).append((code, -1, rings))
+    for g0, code0 in zip(geoms, codes):
+        pieces = [(g0, code0)]
+        if g0.intersects(PATCH):
+            pieces = [(g0.difference(PATCH), code0)]
+            if kind == "LineString" and code0 in CAR_CODES:
+                pieces.append((g0.intersection(PATCH), code0 + LANES_ONLY))
+        for g, code in pieces:
+            if g.is_empty:
+                continue
+            x0, z0, x1, z1 = (v / 1000 for v in g.bounds)
+            ix0, iz0 = (int(v) for v in tile_of(x0, z0))
+            ix1, iz1 = (int(v) for v in tile_of(x1, z1))
+            for ix in range(ix0, ix1 + 1):
+                for iz in range(iz0, iz1 + 1):
+                    key = (ix, iz)
+                    if key not in boxes:
+                        boxes[key] = tile_box(ix, iz)
+                    part = g if (ix0 == ix1 and iz0 == iz1) else g.intersection(boxes[key])
+                    for p in parts(part, kind):
+                        p = p.simplify(simplify)
+                        if kind == "LineString":
+                            pts = ints(p.coords, False)
+                            if pts:
+                                out.setdefault(key, []).append((int(code), -1, [pts]))
+                        else:
+                            outer = ints(shapely.geometry.polygon.orient(p, 1.0).exterior.coords, True)
+                            if outer:
+                                rings = [outer] + [r for h in p.interiors if (r := ints(h.coords, True))]
+                                out.setdefault(key, []).append((int(code), -1, rings))
     return out
 
 

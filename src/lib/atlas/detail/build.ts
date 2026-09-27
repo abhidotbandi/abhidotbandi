@@ -6,7 +6,7 @@ import earcut from "earcut";
 import type { BuildingsData } from "../buildingsCodec";
 import { extrudeBuildings } from "../extrude";
 import { CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, elevToY, type HeightField } from "../geo";
-import { STREETS, type TileData } from "../tiles";
+import { CARS, LANES_ONLY, STREETS, type TileData } from "../tiles";
 
 export interface BuildingParts {
   position: Float32Array;
@@ -25,6 +25,14 @@ export interface RibbonArrays {
   index: Uint32Array;
 }
 
+/** The roads cars drive on: x, z (km) per point, with where each line starts and its class. */
+export interface LaneArrays {
+  xz: Float32Array;
+  /** first point of each line; one more entry than there are lines */
+  start: Uint32Array;
+  cls: Uint8Array;
+}
+
 export interface AreaArrays {
   position: Float32Array;
   kind: Float32Array;
@@ -35,6 +43,7 @@ export interface TileMeshes {
   buildings: BuildingParts | null;
   streets: RibbonArrays | null;
   areas: AreaArrays | null;
+  lanes: LaneArrays | null;
   /** per tree: x, y, z (km), crown radius (m), variant (tint 0..127, +128 when conical) */
   trees: Float32Array;
 }
@@ -238,6 +247,27 @@ function ribbons(s: BuildingsData, ground: HeightField): RibbonArrays | null {
   }
   if (!idx.n) return null;
   return { position: pos.done(), shape: shape.done(), line: line.done(), index: idx.done() };
+}
+
+/** The lines cars drive along, as drawn (subdivided later by the car layer, which owns heights). */
+function lanes(s: BuildingsData): LaneArrays | null {
+  const xz: number[] = [];
+  const start: number[] = [];
+  const cls: number[] = [];
+  for (let b = 0; b < s.count; b++) {
+    const code = s.height[b] >= LANES_ONLY ? s.height[b] - LANES_ONLY : s.height[b];
+    if (!CARS[code]) continue;
+    const r = s.ringStart[b];
+    const v0 = s.vertStart[r];
+    const v1 = s.vertStart[r + 1];
+    if (v1 - v0 < 2) continue;
+    start.push(xz.length / 2);
+    cls.push(code);
+    for (let j = v0; j < v1; j++) xz.push(s.x[j] / 1000, s.z[j] / 1000);
+  }
+  if (!cls.length) return null;
+  start.push(xz.length / 2);
+  return { xz: new Float32Array(xz), start: new Uint32Array(start), cls: new Uint8Array(cls) };
 }
 
 /** Parking lots, aprons, pools and ponds as flat polygons on the ground. */
@@ -454,6 +484,7 @@ export function buildTile(t: TileData, world: World, o: TileOptions, key: number
     buildings,
     streets: ribbons(t.streets, world.ground),
     areas: flatAreas(t.areas, world.ground),
+    lanes: lanes(t.streets),
     trees: scatterTrees(t, world, o, key, key * 2654435761),
   };
 }
@@ -464,5 +495,6 @@ export function transferables(m: TileMeshes): ArrayBuffer[] {
   if (m.buildings) out.push(...[m.buildings.position, m.buildings.info, m.buildings.u, m.buildings.index].map((a) => a.buffer as ArrayBuffer));
   if (m.streets) out.push(...[m.streets.position, m.streets.shape, m.streets.line, m.streets.index].map((a) => a.buffer as ArrayBuffer));
   if (m.areas) out.push(...[m.areas.position, m.areas.kind, m.areas.index].map((a) => a.buffer as ArrayBuffer));
+  if (m.lanes) out.push(...[m.lanes.xz, m.lanes.start, m.lanes.cls].map((a) => a.buffer as ArrayBuffer));
   return out;
 }

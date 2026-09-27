@@ -76,8 +76,9 @@ export default function RedLine({ vectors, height }: { vectors: Vectors; height:
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
   const lastUi = useRef(0);
+  const lineRef = useRef<Line2>(null);
 
-  const { track, line, material, stationPos } = useMemo(() => {
+  const { track, line, stationPos } = useMemo(() => {
     const track = buildTrack(vectors.redLine.line, height);
     const geo = new LineGeometry();
     geo.setPositions(track.pts);
@@ -90,7 +91,7 @@ export default function RedLine({ vectors, height }: { vectors: Vectors; height:
       trackAt(track, st.at, v);
       return v;
     });
-    return { track, line, material, stationPos };
+    return { track, line, stationPos };
   }, [vectors, height]);
 
   const bodyMat = useMemo(() => new THREE.MeshLambertMaterial({ color: "#f5f3ef" }), []);
@@ -107,7 +108,7 @@ export default function RedLine({ vectors, height }: { vectors: Vectors; height:
     let s: number;
     let dir = 1;
     if (st.mode === "ride") {
-      if (!st.ridePaused && !runtime.reducedMotion) {
+      if (!st.ridePaused) {
         runtime.rideS = Math.min(1, runtime.rideS + Math.min(dt, 0.1) / RIDE_SECONDS);
       }
       s = runtime.rideS;
@@ -135,10 +136,12 @@ export default function RedLine({ vectors, height }: { vectors: Vectors; height:
       g.scale.setScalar(zoomIn);
     }
 
-    const night = sky.uNight.value;
-    material.color.set(night > 0.5 ? "#ff4d5e" : "#c8102e");
-    material.linewidth = st.mode === "ride" ? 4 : 2.2 + (1 - sky.uZoomOut.value) * 1.2;
-    material.opacity = 0.55 + 0.45 * (1 - sky.uZoomOut.value * 0.6);
+    const lm = lineRef.current?.material;
+    if (lm) {
+      lm.color.set(sky.uNight.value > 0.5 ? "#ff4d5e" : "#c8102e");
+      lm.linewidth = st.mode === "ride" ? 4 : 2.2 + (1 - sky.uZoomOut.value) * 1.2;
+      lm.opacity = 0.55 + 0.45 * (1 - sky.uZoomOut.value * 0.6);
+    }
 
     const sm = stations.current;
     if (sm) {
@@ -156,7 +159,7 @@ export default function RedLine({ vectors, height }: { vectors: Vectors; height:
 
   return (
     <group>
-      <primitive object={line} />
+      <primitive ref={lineRef} object={line} />
       <instancedMesh ref={stations} args={[stationGeo, stationMat, stationPos.length]} frustumCulled={false} renderOrder={13} />
       <group ref={train}>
         <mesh geometry={carGeo} material={bodyMat} position={[0, 0.009, 0.031]} />

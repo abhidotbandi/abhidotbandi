@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -59,7 +59,8 @@ const STYLES: Record<string, LayerStyle> = {
 };
 
 function Layer({ positions, style, order }: { positions: Float32Array; style: LayerStyle; order: number }) {
-  const { line, material, day, night } = useMemo(() => {
+  const ref = useRef<LineSegments2>(null);
+  const { line, day, night } = useMemo(() => {
     const geometry = new LineSegmentsGeometry();
     geometry.setPositions(positions);
     const material = new LineMaterial({
@@ -73,19 +74,22 @@ function Layer({ positions, style, order }: { positions: Float32Array; style: La
     const line = new LineSegments2(geometry, material);
     line.frustumCulled = false;
     line.renderOrder = order;
-    return { line, material, day: new THREE.Color(style.day), night: new THREE.Color(style.night) };
+    return { line, day: new THREE.Color(style.day), night: new THREE.Color(style.night) };
   }, [positions, style, order]);
 
   useFrame(() => {
+    const l = ref.current;
+    if (!l) return;
+    const m = l.material;
     const z = sky.uZoomOut.value;
-    material.opacity = style.near + (style.far - style.near) * z;
-    line.visible = material.opacity > 0.02;
-    material.color.copy(day).lerp(night, sky.uNight.value);
+    m.opacity = style.near + (style.far - style.near) * z;
+    l.visible = m.opacity > 0.02;
+    m.color.copy(day).lerp(night, sky.uNight.value);
     // Slightly thinner when far away so the network doesn't clot.
-    material.linewidth = style.width * (1 - 0.35 * z);
+    m.linewidth = style.width * (1 - 0.35 * z);
   });
 
-  return <primitive object={line} />;
+  return <primitive ref={ref} object={line} />;
 }
 
 export function MapLines({ assets }: { assets: AtlasAssets }) {

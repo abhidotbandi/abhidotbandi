@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { MapControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { MapControls as MapControlsImpl } from "three-stdlib";
@@ -11,6 +11,8 @@ import {
   cloneCam,
   dampCam,
   flight,
+  smoothstep,
+  wrapDeg,
   type CamState,
   type Flight,
 } from "@/lib/atlas/camera";
@@ -23,39 +25,32 @@ import { updateSiteState } from "./siteState";
 const target = new THREE.Vector3();
 
 export default function CameraDirector({ height }: { height: RegionRaster }) {
-  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
-  const scene = useThree((s) => s.scene);
-  const size = useThree((s) => s.size);
   const mode = useAtlas((s) => s.mode);
   const controls = useRef<MapControlsImpl>(null);
   const desired = useRef<CamState>(cloneCam(runtime.cam));
   const fly = useRef<{ f: Flight; t: number; dur: number } | null>(null);
+  const rideFly = useRef<{ f: Flight; t: number; dur: number; from: CamState } | null>(null);
+  const lastMode = useRef(mode);
+  /** the MapControls instance that has been handed the current view */
+  const handedOff = useRef<MapControlsImpl | null>(null);
   const offset = useRef({ x: 0, y: 0 });
   const timeline = getTimeline();
 
-  useEffect(() => {
-    scene.fog = new THREE.FogExp2(sky.uHorizon.value.clone(), 0.01);
-    return () => {
-      scene.fog = null;
-    };
-  }, [scene]);
-
-  // Entering explore: hand the current view to the controls.
-  useEffect(() => {
-    if (mode !== "explore") return;
-    const c = controls.current;
-    if (!c) return;
-    const cur = runtime.cam;
-    c.target.set(cur.x, groundY(height, cur.x, cur.z), cur.z);
-    applyCam(camera, cur, c.target.y);
-    c.update();
-  }, [mode, camera, height]);
-
   useFrame((state, rawDt) => {
+    const camera = state.camera as THREE.PerspectiveCamera;
+    const size = state.size;
     const dt = Math.min(rawDt, 0.1);
     sky.uTime.value = state.clock.elapsedTime;
     const cur = runtime.cam;
     const st = useAtlas.getState();
+
+    // A flight belongs to the mode that started it. Checked here rather than in an effect so
+    // a fly-to requested together with a mode switch (deep links, search) isn't cancelled.
+    if (st.mode !== lastMode.current) {
+      lastMode.current = st.mode;
+      fly.current = null;
+      rideFly.current = null;
+    }
 
     if (st.mode === "tour") {
       const { tod, stop } = timeline.sample(runtime.scroll, desired.current);
@@ -65,6 +60,14 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
       applyCam(camera, cur, groundY(height, cur.x, cur.z));
     } else if (st.mode === "explore") {
       const c = controls.current;
+      // New controls start aimed at the origin: hand them the current view first. Done here
+      // rather than in an effect so no frame can read the pose back before the handoff.
+      if (c && handedOff.current !== c) {
+        handedOff.current = c;
+        c.target.set(cur.x, groundY(height, cur.x, cur.z), cur.z);
+        applyCam(camera, cur, c.target.y);
+        c.update();
+      }
       if (runtime.flyTo) {
         const f = flight(cloneCam(cur), runtime.flyTo);
         fly.current = { f, t: 0, dur: runtime.reducedMotion ? 0.01 : clamp(1.1 + f.S * 0.45, 1.2, 3.6) };
@@ -96,23 +99,53 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
       // Ride: chase the train from above and behind.
       const tp = runtime.trainPos;
       const hdg = tp.heading;
-      desired.current.x = tp.x + Math.sin(hdg) * 0.18;
-      desired.current.z = tp.z - Math.cos(hdg) * 0.18;
-      desired.current.dist = 1.1;
-      desired.current.tilt = 63;
-      desired.current.bearing = (hdg * 180) / Math.PI;
-      dampCam(cur, desired.current, 3, dt);
+      const d = desired.current;
+      d.x = tp.x + Math.sin(hdg) * 0.18;
+      d.z = tp.z - Math.cos(hdg) * 0.18;
+      d.dist = 1.1;
+      d.tilt = 63;
+      d.bearing = (hdg * 180) / Math.PI;
+      // Big jumps (boarding, skipping stops) fly rather than drag the low camera across the map.
+      const far = Math.hypot(d.x - cur.x, d.z - cur.z) > 1.5 || Math.abs(Math.log(cur.dist / d.dist)) > 1.5;
+      if (far && !rideFly.current) {
+        if (runtime.reducedMotion) {
+          Object.assign(cur, d);
+        } else {
+          // Fly to a snapshot of the target; the train's progress since is added on top below.
+          const from = cloneCam(d);
+          const f = flight(cloneCam(cur), from);
+          rideFly.current = { f, t: 0, dur: clamp(1.1 + f.S * 0.45, 1.2, 3.6), from };
+        }
+      }
+      const fl = rideFly.current;
+      if (fl) {
+        fl.t = Math.min(1, fl.t + dt / fl.dur);
+        // The train keeps moving during the flight; fold that in so the flight lands on it.
+        const p = fl.f.at(fl.t);
+        const k = smoothstep(fl.t);
+        p.x += (d.x - fl.from.x) * k;
+        p.z += (d.z - fl.from.z) * k;
+        p.bearing += wrapDeg(d.bearing - fl.from.bearing) * k;
+        Object.assign(cur, p);
+        if (fl.t >= 1) rideFly.current = null;
+      } else {
+        dampCam(cur, d, 3, dt);
+      }
       applyCam(camera, cur, groundY(height, cur.x, cur.z));
+      // The morning commute: early light at Leander, full morning by Downtown.
+      runtime.tod += (0.16 + 0.18 * runtime.rideS - runtime.tod) * (1 - Math.exp(-1.5 * dt));
     }
 
     // Clip planes that follow the zoom level keep depth precision where it's needed.
     camera.near = Math.max(0.004, cur.dist * 0.006);
     camera.far = cur.dist * 9 + 90;
 
-    // Shift the focal point to make room for story cards (desktop: right; phone: up).
+    // Shift the focal point to make room for story cards (desktop: right; phone: up)
+    // and, while riding, for the HUD along the bottom.
     const wide = size.width >= 900;
     const wantX = st.mode === "tour" && wide ? Math.min(250, size.width * 0.15) : st.selectedSite && wide ? -170 : 0;
-    const wantY = st.mode === "tour" && !wide ? size.height * 0.17 : 0;
+    const wantY =
+      st.mode === "tour" && !wide ? size.height * 0.17 : st.mode === "ride" ? Math.min(130, size.height * 0.15) : 0;
     const k = 1 - Math.exp(-4 * dt);
     offset.current.x += (wantX - offset.current.x) * k;
     offset.current.y += (wantY - offset.current.y) * k;
@@ -128,13 +161,13 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
     applyTimeOfDay(runtime.tod);
     sky.uCamPos.value.copy(camera.position);
     sky.uZoomOut.value = clamp((Math.log(cur.dist) - Math.log(4)) / (Math.log(80) - Math.log(4)), 0, 1);
-    const fog = scene.fog as THREE.FogExp2 | null;
+    const fog = state.scene.fog as THREE.FogExp2 | null;
     if (fog) {
       fog.color.copy(sky.uHorizon.value);
       const d50 = cur.dist * 2.1 + 22;
       fog.density = (0.83 / d50) * (1 + 0.35 * sky.uNight.value);
     }
-    state.gl.setClearColor(sky.uHorizon.value);
+    state.gl.setClearColor(sky.uGround.value);
     updateSiteState({
       mode: st.mode,
       activeStop: st.activeStop,
@@ -146,20 +179,25 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
     });
   }, -1);
 
-  return mode === "explore" ? (
-    <MapControls
-      ref={controls}
-      makeDefault
-      enableDamping
-      dampingFactor={0.09}
-      screenSpacePanning={false}
-      minDistance={0.35}
-      maxDistance={150}
-      maxPolarAngle={1.32}
-      zoomSpeed={1.1}
-      onStart={() => {
-        fly.current = null;
-      }}
-    />
-  ) : null;
+  return (
+    <>
+      <fogExp2 attach="fog" args={["#e9dfcc", 0.01]} />
+      {mode === "explore" && (
+        <MapControls
+          ref={controls}
+          makeDefault
+          enableDamping
+          dampingFactor={0.09}
+          screenSpacePanning={false}
+          minDistance={0.35}
+          maxDistance={150}
+          maxPolarAngle={1.32}
+          zoomSpeed={1.1}
+          onStart={() => {
+            fly.current = null;
+          }}
+        />
+      )}
+    </>
+  );
 }

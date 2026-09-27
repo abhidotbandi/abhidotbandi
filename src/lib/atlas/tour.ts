@@ -1,10 +1,40 @@
+import { SITE_BY_ID } from "@/data/atlas/companies";
 import { STOPS, type Stop } from "@/data/atlas/tour";
 import { flight, type CamState, type Flight } from "./camera";
 import { clamp, project } from "./geo";
 
+/** A stop's camera: its own view, or one fitted around the sites it features. */
 export function stopCam(stop: Stop): CamState {
-  const [x, z] = project(stop.view.lon, stop.view.lat);
-  return { x, z, dist: stop.view.dist, tilt: stop.view.tilt, bearing: stop.view.bearing };
+  const v = stop.view;
+  const pts = (stop.frame ?? stop.sites).map((id) => SITE_BY_ID.get(id)).filter((s) => s !== undefined);
+  if (v.fixed || pts.length < 2) {
+    const [x, z] = project(v.lon, v.lat);
+    return { x, z, dist: v.dist, tilt: v.tilt, bearing: v.bearing };
+  }
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  for (const s of pts) {
+    x0 = Math.min(x0, s.x);
+    x1 = Math.max(x1, s.x);
+    z0 = Math.min(z0, s.z);
+    z1 = Math.max(z1, s.z);
+  }
+  // Depth is foreshortened by the tilt, so the across-screen and into-screen spans
+  // are weighed by how the bearing maps them onto the view.
+  const b = (v.bearing * Math.PI) / 180;
+  const w = Math.abs((x1 - x0) * Math.cos(b)) + Math.abs((z1 - z0) * Math.sin(b));
+  const d = Math.abs((x1 - x0) * Math.sin(b)) + Math.abs((z1 - z0) * Math.cos(b));
+  // Cards cover part of the screen, so leave extra room across it.
+  const extent = Math.max(w * 1.45, d * 1.6);
+  return {
+    x: (x0 + x1) / 2,
+    z: (z0 + z1) / 2,
+    dist: clamp(1.4 + extent * 1.55, 2.4, 40),
+    tilt: v.tilt,
+    bearing: v.bearing,
+  };
 }
 
 interface Leg {
@@ -29,7 +59,8 @@ export class Timeline {
   readonly total: number;
 
   constructor() {
-    let t = 0;
+    // Start half-way through the first dwell so the intro card is centred at scroll 0.
+    let t = -(STOPS[0].dwell ?? 1.1) / 2;
     STOPS.forEach((stop, i) => {
       const d = stop.dwell ?? 1.1;
       this.dwell.push([t, t + d]);

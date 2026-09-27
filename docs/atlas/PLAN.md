@@ -281,30 +281,54 @@ per chip, hidden if no slot, with fade transitions. ~70 chips means O(n²) overl
 
 ---
 
-## Status (paused 2026-09-25)
+## Status (2026-09-27): built, first QA pass done
 
-**Done**
-- Plan (this doc).
-- Company dataset: `src/data/atlas/companies.json`. 42 companies/labs across 47 sites, each with sources,
-  geocoded against Overture addresses/places. Typed wrapper in `companies.ts`, domains in `domains.ts`.
-- Tour copy and camera views for 14 stops: `src/data/atlas/tour.ts`.
-- Data pipeline (`scripts/atlas/`) and baked assets in `public/atlas/`: terrain.webp 1.3 MB,
-  surface.webp 0.6 MB, vectors.json ~0.2 MB gzipped, buildings.json ~0.8 MB gzipped (44k footprints).
-  QA renders via `preview.py` look right.
-- Libraries in `src/lib/atlas/`: projection (`geo.ts`), flyTo camera math (`camera.ts`), scroll timeline
-  (`tour.ts`), time-of-day palette (`timeOfDay.ts`), asset loader (`assets.ts`), building extruder
-  (`buildings.ts`), zustand store + per-frame runtime (`store.ts`).
-- Scene components in `src/components/atlas/scene/`: Terrain (topo shader: contours, waterlines, night
-  lights), Sky, Buildings (company-coloured footprints, lit windows), Lines (roads/creeks/rail), Beacons,
-  CameraDirector (tour/explore/ride), RedLine (track, stations, train), siteState, textures.
-  All of it type-checks, but none of it has been rendered yet.
+The atlas is live at `/atlas` (the Grid site at `/` is untouched). Everything in §2 is built.
+
+**Modes**
+- **Tour**: 14 stops scrubbed by scroll, running from dawn to night. Transits are van Wijk flights, and each
+  stop dwells while its card is read. The intro card is centred at scroll 0. The chapter rail jumps
+  between stops.
+- **Explore**: MapControls with filters for domain and "defense customers". You can set the time of day,
+  search (⌘K or `/`) and open a sortable table of every company. Picking a company flies to it and
+  opens its panel.
+- **Ride**: the Red Line from Leander to Downtown in 80 s, set as a morning commute. There are
+  previous, play/pause and next buttons, a scrubbable track and a list of companies near the train.
+  Big jumps fly rather than drag the low camera.
+- **Details**: bats pour off the Congress Ave bridge at dusk. Firefly test-fires at the Rocket Ranch.
+  Headlights and taillights move on the highways at night, with lit windows and two-scale city lights.
+  The map fades into paper along an uneven edge.
+- **Deep links**: `?c=<site id>`, `?mode=explore`, `?ride=1`.
+
+**Accessibility**
+- Reduced motion means camera cuts instead of flights, and no bats, plume or traffic movement. The
+  ride waits for Play.
+- Story text, the company panel, search and the table are real DOM and reachable by keyboard. Esc
+  backs out one layer at a time. Opening a company moves focus to its panel.
+- Domains always carry a glyph as well as a colour.
+
+**QA**
+- `eslint` and `tsc` are clean, and `next build` passes (`/atlas` prerenders as static).
+- Playwright with headless Chromium on SwiftShader covered:
+  - desktop 1440×900: every stop, Explore, search to panel, the table, and the ride (boarding flight
+    and chase cam);
+  - phones at 390, 360 and 320 px: landing, a stop, Explore, the ride and the panel. The header fits
+    at every width.
+- The console is clean apart from react-three-fiber's own `THREE.Clock` deprecation warning.
+- Payload: about 2.9 MB of compressed map data plus 0.45 MB of compressed JS. Buildings are about 1M
+  triangles in one draw call. The terrain uses 560 segments on desktop and 320 on low-power devices.
+
+**Changed from the plan**
+- Quality uses static tiers (coarse pointer or ≤4 cores means low power), not `PerformanceMonitor`.
+  Low power drops traffic, uses fewer bats, a coarser terrain and skips buildings under 120 m².
+- There is no minimap. The table and search cover finding things.
+- Buildings are extruded in one pass while the loader is up, not in idle-frame chunks.
+- Four sites have no matched footprint and show as beacons only: `aalo`, `aeon-industrial`,
+  `base-power-factory-2` and `saronic`.
 
 **Next**
-1. `AtlasCanvas.tsx` to assemble the scene (Canvas `flat`, lights, asset loading, building build step).
-2. `/atlas` route: `src/app/atlas/page.tsx` + `layout.tsx` (display serif), `AtlasApp.tsx` with the scroll
-   container and story cards.
-3. DOM label layer with declutter (company chips, towns, water, landmarks, shields, stations).
-4. UI: company card, legend/filters, search, explore toggle + time of day, ride HUD, list/table view,
-   about/credits.
-5. Bats (dusk stop), Briggs plume, night traffic.
-6. QA: lint, `next build`, Playwright screenshots desktop/mobile, perf pass. Then commit and push.
+1. Test on real hardware: GPU frame times (SwiftShader only reaches ~1 fps, so frame rate is
+   unmeasured), iOS Safari, and touch gestures in Explore.
+2. If phones struggle, add adaptive quality (DPR, then effects) and chunked building extrusion.
+3. Keep the data fresh. Figures carry as-of dates in `companies.json`, and `scripts/atlas/` rebuilds
+   geodata from new Overture releases.

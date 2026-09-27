@@ -47,12 +47,20 @@ const fragment = /* glsl */ `
   uniform float uNight;
   uniform float uSurfPxM;
   uniform float uSdfLevels;
+  uniform vec3 uGround;
+  uniform vec4 uRegion;
   varying vec2 vUv;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
 
   vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
   float band(float v, float width) {
     // 1 on integer values of v, anti-aliased to ~width pixels
     float fw = fwidth(v);
@@ -104,22 +112,30 @@ const fragment = /* glsl */ `
     float shore = 1.0 - smoothstep(0.0, 1.4 * aa, abs(sdfM));
     col = mix(col, col * 0.72, shore * 0.45 * (1.0 - uNight));
 
-    // Night: the land drops away and the built-up areas light up.
-    col *= 1.0 - uNight * 0.8;
-    vec2 cell = vWorld.xz * 90.0;
-    vec2 fc = fwidth(cell);
-    float speck = step(0.8, hash(floor(cell)));
-    float lights = mix(speck, 0.2, smoothstep(0.25, 1.0, max(fc.x, fc.y)));
-    float glow = smoothstep(0.02, 0.7, dens) * (0.18 + 1.1 * lights) * (1.0 - water);
-    col += lin(vec3(1.0, 0.70, 0.38)) * glow * uNight * 0.85;
+    // Night: the land drops away and built-up areas light up as points, at two scales so
+    // there is sparkle both up close (streetlights) and from altitude (neighbourhoods).
+    col *= 1.0 - uNight * 0.82;
+    float urban = smoothstep(0.03, 0.75, dens) * (1.0 - water);
+    float dark = smoothstep(0.3, 1.0, uNight);
+    vec2 c1 = vWorld.xz * 55.0; // ~18 m
+    vec2 f1 = fract(c1) - 0.5 + (vec2(hash(floor(c1) + 7.1), hash(floor(c1) + 3.3)) - 0.5) * 0.5;
+    float d1 = step(0.8 - 0.1 * dark, hash(floor(c1))) * (1.0 - smoothstep(0.05, 0.15, length(f1)));
+    float far1 = smoothstep(0.35, 1.2, max(fwidth(c1).x, fwidth(c1).y));
+    vec2 c2 = vWorld.xz * 7.0; // ~140 m
+    vec2 f2 = fract(c2) - 0.5 + (vec2(hash(floor(c2) + 1.7), hash(floor(c2) + 9.2)) - 0.5) * 0.6;
+    float d2 = step(0.45, hash(floor(c2) + 0.5)) * (1.0 - smoothstep(0.06, 0.2, length(f2)));
+    float far2 = smoothstep(0.35, 1.2, max(fwidth(c2).x, fwidth(c2).y));
+    float lights = mix(d1, mix(d2 * 0.55, 0.07, far2), far1);
+    col += lin(vec3(1.0, 0.74, 0.44)) * urban * (0.025 + 1.1 * lights) * dark;
 
+    // The map is a sheet on paper: its edges fade into the ground colour along an uneven,
+    // deckled line. Kept within ~8 km of the edge so the Rocket Ranch (8.8 km in) stays clear.
+    vec2 toEdge = min(vUv, 1.0 - vUv) * uRegion.zw;
+    float wob = vnoise(vWorld.xz * 0.14) * 0.7 + vnoise(vWorld.xz * 0.6) * 0.3;
+    float edge = smoothstep(0.0, 5.5, min(toEdge.x, toEdge.y) - wob * 2.2);
+    col = mix(uGround, col, edge);
     gl_FragColor = vec4(col, 1.0);
     #include <fog_fragment>
-    #ifdef USE_FOG
-      // Fade the region's edges into the haze so the map has no hard border.
-      float edge = smoothstep(0.0, 0.06, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
-      gl_FragColor.rgb = mix(fogColor, gl_FragColor.rgb, edge);
-    #endif
     #include <colorspace_fragment>
   }
 `;
@@ -162,6 +178,7 @@ export default function Terrain({ tex, segments }: { tex: AtlasTextures; segment
           uSunDir: sky.uSunDir,
           uAmbient: sky.uAmbient,
           uNight: sky.uNight,
+          uGround: sky.uGround,
         },
       }),
     [tex],

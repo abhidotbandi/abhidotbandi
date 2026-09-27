@@ -59,9 +59,11 @@ const fragment = /* glsl */ `
       vec3 t = normalize(vec3(-n.z, 0.0, n.x));
       float u = dot(vWorld, t) * 1000.0 / 3.4;
       float v = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag / 3.9;
-      float lit = step(0.3, fract(u)) * step(0.35, fract(v)) * step(0.58, hash(floor(vec2(u, v)) + vInfo.z));
+      // Fewer windows lit at dusk than at full night.
+      float dark = smoothstep(0.35, 1.0, uNight);
+      float lit = step(0.3, fract(u)) * step(0.35, fract(v)) * step(0.86 - 0.18 * dark, hash(floor(vec2(u, v)) + vInfo.z));
       float far = smoothstep(0.35, 1.1, fwidth(u));
-      col += lin(vec3(1.0, 0.8, 0.5)) * mix(lit, 0.2, far) * uNight * 0.95;
+      col += lin(vec3(1.0, 0.8, 0.5)) * mix(lit, 0.12, far) * dark * 0.9;
     }
     if (isSite) {
       float pulse = 0.5 + 0.5 * sin(uTime * 3.0);

@@ -7,6 +7,8 @@ export interface StopView {
   tilt: number;
   /** degrees clockwise from north; the direction the camera faces */
   bearing: number;
+  /** keep this exact framing instead of fitting the stop's sites */
+  fixed?: boolean;
 }
 
 export interface Stop {
@@ -18,6 +20,8 @@ export interface Stop {
   body: string;
   /** Site ids featured at this stop, in reading order */
   sites: string[];
+  /** Sites to fit in frame, when not all of `sites` (e.g. one is far away) */
+  frame?: string[];
   view: StopView;
   /** 0 dawn → 0.5 noon → 0.88 dusk → 1 night */
   tod: number;
@@ -34,8 +38,8 @@ export const STOPS: Stop[] = [
     title: "The Silicon Hills",
     body: "Austin's tech nickname is a pun on real hills: the Balcones Escarpment, where the Hill Country drops to the Blackland Prairie. Today the hills hold companies building warships, rockets, humanoids, reactors and the chips inside all of them.",
     sites: [],
-    view: { lon: -97.69, lat: 30.4, dist: 92, tilt: 40, bearing: -8 },
-    tod: 0.08,
+    view: { lon: -97.715, lat: 30.4, dist: 66, tilt: 40, bearing: -8, fixed: true },
+    tod: 0.13,
     dwell: 1.3,
   },
   {
@@ -45,7 +49,7 @@ export const STOPS: Stop[] = [
     title: "The Army moved into an office tower",
     body: "In 2018 the Army put its modernization command in the UT System building on 7th Street instead of on a base. In 2025 it merged with TRADOC into T2COM and stayed. Soldiers learn to ship software at ACC's Rio Grande campus, the Army's startup scouts work out of Capital Factory, and two chip companies keep their HQs a few blocks away.",
     sites: ["t2com", "army-software-factory", "army-applications-lab", "silicon-labs", "cirrus-logic", "base-power", "diligent-robotics"],
-    view: { lon: -97.7415, lat: 30.2668, dist: 3.4, tilt: 56, bearing: 18 },
+    view: { lon: -97.7415, lat: 30.2668, dist: 3.4, tilt: 56, bearing: 18, fixed: true },
     tod: 0.2,
   },
   {
@@ -55,6 +59,7 @@ export const STOPS: Stop[] = [
     title: "Hard-tech row",
     body: "A few blocks of warehouses off South Congress now hold a 3D-printed-building company, a microreactor startup, a power-semiconductor maker and a counter-drone weapons company valued at $2.2 billion. Further south in Buda, Perseus Defense is building micro-missiles to knock down drones.",
     sites: ["allen-control-systems", "icon", "last-energy", "ideal-power", "perseus-defense"],
+    frame: ["allen-control-systems", "icon", "last-energy", "ideal-power"],
     view: { lon: -97.7605, lat: 30.2165, dist: 2.6, tilt: 54, bearing: -24 },
     tod: 0.27,
   },
@@ -75,7 +80,7 @@ export const STOPS: Stop[] = [
     title: "Musk country",
     body: "Tesla's headquarters sits on about 2,500 acres by the Colorado River, with the Cortex AI training clusters under the same roofs. Twenty miles east in Bastrop, SpaceX builds Starlink kits and The Boring Company builds its tunneling machines.",
     sites: ["tesla", "spacex", "boring-company"],
-    view: { lon: -97.585, lat: 30.205, dist: 15, tilt: 64, bearing: 100 },
+    view: { lon: -97.555, lat: 30.2, dist: 23, tilt: 58, bearing: 104, fixed: true },
     tod: 0.42,
   },
   {
@@ -95,7 +100,7 @@ export const STOPS: Stop[] = [
     title: "A $37 billion bet",
     body: "Samsung's second Texas fab rose out of farmland 40 km northeast of downtown. Backed by a $4.745 billion CHIPS Act award and a $16.5 billion Tesla contract, it began producing AI chips in 2026.",
     sites: ["samsung-taylor"],
-    view: { lon: -97.452, lat: 30.531, dist: 4.4, tilt: 56, bearing: 24 },
+    view: { lon: -97.4526, lat: 30.5374, dist: 3.8, tilt: 56, bearing: 24, fixed: true },
     tod: 0.53,
   },
   {
@@ -135,7 +140,7 @@ export const STOPS: Stop[] = [
     title: "The Rocket Ranch",
     body: "An hour northwest, Firefly test-fires engines on a 200-acre ranch. In March 2025 its Blue Ghost lander made the first fully successful commercial landing on the Moon.",
     sites: ["firefly-ranch"],
-    view: { lon: -97.9255, lat: 30.8795, dist: 2.4, tilt: 60, bearing: 32 },
+    view: { lon: -97.9255, lat: 30.8805, dist: 2.2, tilt: 60, bearing: 32, fixed: true },
     tod: 0.73,
     effect: "plume",
   },
@@ -146,7 +151,7 @@ export const STOPS: Stop[] = [
     title: "Satellites in the cedar",
     body: "West of MoPac the Hill Country rises. CesiumAstro is putting $500 million into Bee Cave to build phased-array payloads and whole satellites, while AMD, NXP and Ambiq design chips in the hills.",
     sites: ["cesiumastro", "ambiq", "amd", "nxp-oak-hill"],
-    view: { lon: -97.875, lat: 30.305, dist: 17, tilt: 60, bearing: -70 },
+    view: { lon: -97.875, lat: 30.305, dist: 17, tilt: 60, bearing: -45 },
     tod: 0.79,
   },
   {
@@ -156,19 +161,19 @@ export const STOPS: Stop[] = [
     title: "Meet the bats",
     body: "On warm evenings up to 1.5 million Mexican free-tailed bats pour out from under the Congress Avenue Bridge, one of the largest urban bat colonies in North America. Base Power builds batteries in the old Statesman printing plant next door.",
     sites: ["base-power"],
-    view: { lon: -97.7448, lat: 30.2598, dist: 1.5, tilt: 66, bearing: 30 },
+    view: { lon: -97.7452, lat: 30.2634, dist: 1.8, tilt: 60, bearing: 6, fixed: true },
     tod: 0.89,
     effect: "bats",
     dwell: 1.5,
   },
   {
     id: "night",
-    name: "Explore",
+    name: "Night",
     kicker: "Your turn",
     title: "The Silicon Hills at night",
     body: "Drag the map, search for a company, or ride the Red Line from Leander to downtown.",
     sites: [],
-    view: { lon: -97.73, lat: 30.36, dist: 58, tilt: 44, bearing: 4 },
+    view: { lon: -97.74, lat: 30.37, dist: 62, tilt: 42, bearing: 4, fixed: true },
     tod: 1,
     dwell: 1.2,
   },

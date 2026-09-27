@@ -19,15 +19,30 @@ import shapely
 from shapely.geometry import Point
 
 from building_codec import encode
-from config import C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, COMPANIES_JSON, OUT, project
+from config import C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, COMPANIES_JSON, OUT, project, unproject
 
 ZONES = {
     # name: (west, south, east, north, min footprint m^2)
     "domain": (-97.7470, 30.3740, -97.6960, 30.4160, 60),
 }
 CONTEXT_MIN_KM = 0.55
+# Facilities Overture has no footprint for yet: a plausible rectangle (length m, width m,
+# height m) at the site, aligned with the buildings around it, so the office isn't a bare pin.
+PLACEHOLDERS = {
+    "saronic": (200, 100, 13),  # HQ & production plant, Eastside Commerce Center
+    "aalo": (110, 55, 11),  # factory HQ
+    "aeon-industrial": (80, 45, 9),  # HQ & missile factory
+}
 CENTRAL_MIN_M2 = 25
 FADE_KM = 1.6  # buildings thin out over this distance beyond the central patch
+
+
+def unproject_lon(x_m):
+    return unproject(x_m / 1000, 0)[0]
+
+
+def unproject_lat(z_m):
+    return unproject(0, z_m / 1000)[1]
 
 
 def to_m(lon, lat):
@@ -138,6 +153,32 @@ def record(g, h_m, site):
     return out
 
 
+def grid_angle(geoms, lon, lat, x_m, z_m):
+    """Dominant edge direction (radians, mod 90 degrees) of the buildings within ~500 m."""
+    near = np.where((np.abs(lon - unproject_lon(x_m)) < 0.005) & (np.abs(lat - unproject_lat(z_m)) < 0.005))[0]
+    acc = 0j
+    for i in near:
+        g = shapely.transform(geoms[i], lambda c: to_m(c[:, 0], c[:, 1]))
+        p = g if g.geom_type == "Polygon" else max(g.geoms, key=lambda q: q.area)
+        c = np.asarray(p.exterior.coords)
+        d = np.diff(c, axis=0)
+        ln = np.hypot(d[:, 0], d[:, 1])
+        acc += np.sum(ln * np.exp(4j * np.arctan2(d[:, 1], d[:, 0])))
+    return float(np.angle(acc) / 4) if abs(acc) > 0 else 0.0
+
+
+def placeholder(site, geoms, lon, lat):
+    """A rectangle footprint (integer scene metres) for a site Overture hasn't mapped."""
+    length, width, h = PLACEHOLDERS[site["id"]]
+    cx, cz = to_m(site["lon"], site["lat"])[0]
+    a = grid_angle(geoms, lon, lat, cx, cz)
+    ux, uz = math.cos(a), math.sin(a)
+    corners = [(-length / 2, -width / 2), (length / 2, -width / 2), (length / 2, width / 2), (-length / 2, width / 2)]
+    ring = [(int(round(cx + ux * p - uz * q)), int(round(cz + uz * p + ux * q))) for p, q in corners]
+    poly = shapely.geometry.polygon.orient(shapely.Polygon(ring), 1.0)
+    return int(h * 10), [[(int(x), int(z)) for x, z in list(poly.exterior.coords)[:-1]]]
+
+
 def height_m(heights, floors, area, i):
     return min(350.0, max(3.0, est_height(heights[i], floors[i], area[i])))
 
@@ -150,6 +191,12 @@ def build():
     for i in np.where(select)[0]:
         (out_c if central_zone[i] else out).extend(record(geoms[i], height_m(heights, floors, area, i), site_of[i]))
     n_pts = sum(len(r) for rec in out + out_c for r in rec[2])
+    matched = {r[1] for r in out + out_c if r[1] >= 0}
+    for si, site in enumerate(sites):
+        if site["id"] in PLACEHOLDERS and si not in matched:
+            h_dm, rings = placeholder(site, geoms, lon, lat)
+            out.append((h_dm, si, rings))
+            print(f"  placeholder footprint for {site['id']}")
     for name, recs in (("buildings.bin", out), ("central_buildings.bin", out_c)):
         path = OUT / name
         path.write_bytes(encode([s["id"] for s in sites], recs))

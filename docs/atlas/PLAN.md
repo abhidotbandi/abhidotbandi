@@ -470,8 +470,11 @@ using levels.fyi's atlas as the reference.
 Asked for after 2.8: more detail outside central Austin.
 
 - **Detail tiles** (`build_tiles.py`, `DetailTiles`, `src/lib/atlas/detail/`): everything the
-  always-loaded files leave out, cut into 2 km tiles and loaded around the camera once it's
-  within ~8.5 km of the ground (4.6 km on phones):
+  always-loaded files leave out, cut into 2 km tiles. They load for everything in view while
+  the camera is within 18 km of its target (up to 26 km from the camera; 8 and 11 km on
+  phones), nearest first, and around every company site in view from as far as 42 km (20 km on
+  phones), so the tour's outer stops show whole neighbourhoods around each office, as central
+  Austin does. A tile holds:
   - every other building in the region (824k footprints), rising out of the ground as its tile
     arrives
   - local streets, service roads, parking aisles, paths and tracks at their real width, with
@@ -482,10 +485,20 @@ Asked for after 2.8: more detail outside central Austin.
     forest (thinner where it's built up), a scatter over shrubland, and yard trees through the
     neighbourhoods
 - The pipeline writes 2,136 tiles, 20.6 MB in all. Most are a few KB and the densest is 75 KB.
-  A worker decodes and meshes them, so they stream in without stalling a frame. Up to 44 stay
-  loaded (14 on phones).
-- Views with tiles draw 4.7–5.4M triangles on desktop and 2.7–3.7M on phones, about what a
-  downtown view already draws (6.5M and 4.3M).
+  A worker decodes and meshes them, so they stream in without stalling a frame. At most 84 are
+  drawn at once (24 on phones). From afar, local streets fade out first, then arterials and
+  parking lots, and single trees give way to the terrain's canopy tint beyond 8 km.
+- The tour's outer stops (the industrial belt, the Domain and Cedar Park, at 11–12.5 km) now
+  draw 5.0–6.2M triangles on desktop and ~3.2M on phones, about what a downtown view already
+  draws (6.5M and 4.3M), in ~200 draw calls.
+- **Offices**:
+  - Company buildings keep their materials (glass, brick, windows) from further out than the
+    paper city around them.
+  - Saronic's plant, Aalo's factory and Aeon Industrial's HQ aren't in Overture yet, so the
+    pipeline gives each a placeholder footprint of plausible size at its address, aligned with
+    the buildings around it (`PLACEHOLDERS` in `build_buildings.py`).
+  - Base Power's planned Factory 2 is shown going up (`Construction`): a graded pad and slab, a
+    steel frame part raised and part roofed, and two tower cranes slewing over it.
 - **Traffic** (`Cars`): up to 1,400 cars (350 on phones) around the camera once it's within
   ~5.5 km, on the tiles' streets and arterials and, inside central Austin, on its roads (the
   tiles carry those as lanes that aren't drawn). They keep right, spread over the lanes of
@@ -503,6 +516,7 @@ Known limits:
   card says so).
 - The regional terrain softens the Pennybacker's bluffs, so its deck slopes gently between
   banks.
-- Outside central Austin the land cover is coarse, so woods follow generalised outlines.
+- Outside central Austin the land cover is coarse, so woods follow generalised outlines. The
+  three placeholder footprints are approximations until Overture maps the real buildings.
   Streets lie flat on the terrain (no overpasses), and buildings without an Overture height
   get one from their size.

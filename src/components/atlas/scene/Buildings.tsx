@@ -92,7 +92,9 @@ const fragment = /* glsl */ `
     float u = vU / 3.4;
     float fl = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag / 3.9;
     float fw = max(fwidth(u), fwidth(fl));
-    float detail = uDetail * wall * (1.0 - smoothstep(0.3, 0.7, fw));
+    // Company buildings keep their materials from further out than the paper city around them.
+    float detailK = isSite ? max(uDetail, 0.9) : uDetail;
+    float detail = detailK * wall * (1.0 - smoothstep(0.3, 0.7, fw));
     if (!pitched && !plant && hM >= 10.0) {
       if (glass) {
         float m = fract(vU / 1.6);
@@ -110,7 +112,7 @@ const fragment = /* glsl */ `
       }
     }
 
-    vec3 base = mix(paper, mat, uDetail);
+    vec3 base = mix(paper, mat, detailK);
     if (isSite) base = mix(base, site.rgb, 0.55 + 0.4 * emph);
 
     float rel = clamp((vWorld.y - vInfo.y) / max(1e-4, hM * 0.001 * uBuildingExag), 0.0, 1.0);

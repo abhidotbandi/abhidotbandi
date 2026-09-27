@@ -24,6 +24,7 @@ import Structures from "./Structures";
 import Landmarks from "./Landmarks";
 import DetailTiles from "./DetailTiles";
 import Airport from "./Airport";
+import Construction from "./Construction";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
 
@@ -136,6 +137,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
         </>
       )}
       <Airport ground={ground} />
+      <Construction ground={ground} />
       <Plume height={ground} />
       <LabelDriver />
       <Precompile token={central} />

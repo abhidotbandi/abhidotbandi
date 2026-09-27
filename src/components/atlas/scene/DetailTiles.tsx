@@ -6,7 +6,8 @@ import * as THREE from "three";
 import { buildingGeometry } from "@/lib/atlas/buildings";
 import { tileKey, type TileMeshes } from "@/lib/atlas/detail/build";
 import type { InitMessage, TileMessage } from "@/lib/atlas/detail/worker";
-import { HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, clamp, type HeightField } from "@/lib/atlas/geo";
+import { SITES } from "@/data/atlas/companies";
+import { HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import type { TileIndex } from "@/lib/atlas/tiles";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -21,6 +22,50 @@ import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
 // and meshed in a worker; their buildings rise out of the ground as they arrive.
 
 const DEG = Math.PI / 180;
+
+/**
+ * How far detail reaches (km). `view`: load everything in view while the camera is within this
+ * distance of its target; `far`: but nothing further than this from the camera; `siteView` and
+ * `siteFar`: company sites in view keep their surroundings out to these; `siteContext`: how much
+ * surrounding (beyond the site's radius); `tiles`: at most this many wanted at once; `keep`: at
+ * most this many held.
+ */
+const LIMITS = {
+  desktop: { view: 18, far: 26, siteView: 45, siteFar: 42, siteContext: 0.9, tiles: 84, keep: 110 },
+  phone: { view: 8, far: 11, siteView: 24, siteFar: 20, siteContext: 0.6, tiles: 24, keep: 32 },
+};
+
+/** Screen-frame points (NDC) whose rays outline the ground in view. */
+const FRAME: [number, number][] = [
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+];
+const _v = new THREE.Vector3();
+
+/** Distance (km) from (x, z) to a polygon given as x, z pairs; 0 inside. */
+function polyDistance(poly: number[], x: number, z: number): number {
+  let inside = false;
+  let best = Infinity;
+  const n = poly.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = poly[j * 2];
+    const az = poly[j * 2 + 1];
+    const bx = poly[i * 2];
+    const bz = poly[i * 2 + 1];
+    if (bz > z !== az > z && x < ((ax - bx) * (z - bz)) / (az - bz) + bx) inside = !inside;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1e-9)));
+    best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
+  }
+  return inside ? 0 : best;
+}
 
 const LIT = /* glsl */ `
   uniform vec3 uSunColor;
@@ -49,9 +94,11 @@ const ribbonVertex = /* glsl */ `
   varying float vSide;
   varying vec3 vLine;
   varying float vHalfM;
+  varying float vDepth;
   #include <fog_pars_vertex>
   void main() {
     vec4 c = viewMatrix * vec4(position, 1.0);
+    vDepth = -c.z;
     // Never much thinner than a pixel, so streets don't break up from afar.
     float hw = max(aShape.w, 0.6 * uPxK * max(-c.z, 1e-3));
     vec3 p = position + vec3(aShape.x, 0.0, aShape.y) * (aShape.z * hw);
@@ -72,6 +119,7 @@ const ribbonFragment = /* glsl */ `
   varying float vSide;
   varying vec3 vLine;
   varying float vHalfM;
+  varying float vDepth;
   #include <fog_pars_fragment>
   void main() {
     float cls = vLine.x;
@@ -128,7 +176,9 @@ const ribbonFragment = /* glsl */ `
       lit += lin(vec3(1.0, 0.72, 0.4)) * mix(0.14, exp(-d * d / (pool * pool)), crowd) * dark;
     }
     float aa = max(fwidth(vSide), 1e-4) * 1.5;
-    gl_FragColor = vec4(lit, uFade * uAppear * (1.0 - smoothstep(1.0 - aa, 1.0, e)));
+    // From afar the local streets go first, then the arterials and runways.
+    float far = cls < 19.5 ? 1.0 - smoothstep(6.0, 13.0, vDepth) : 1.0 - smoothstep(24.0, 40.0, vDepth);
+    gl_FragColor = vec4(lit, uFade * uAppear * far * (1.0 - smoothstep(1.0 - aa, 1.0, e)));
     #include <fog_fragment>
     #include <colorspace_fragment>
   }
@@ -139,6 +189,7 @@ const areaVertex = /* glsl */ `
   uniform float uLift;
   varying vec3 vWorld;
   varying float vKind;
+  varying float vDepth;
   #include <fog_pars_vertex>
   void main() {
     vec3 p = position;
@@ -146,6 +197,7 @@ const areaVertex = /* glsl */ `
     vWorld = p;
     vKind = aKind;
     vec4 mvPosition = viewMatrix * vec4(p, 1.0);
+    vDepth = -mvPosition.z;
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }
@@ -156,6 +208,7 @@ const areaFragment = /* glsl */ `
   uniform float uTime;
   varying vec3 vWorld;
   varying float vKind;
+  varying float vDepth;
   #include <fog_pars_fragment>
   void main() {
     float k = vKind;
@@ -176,7 +229,7 @@ const areaFragment = /* glsl */ `
       lit += lin(vec3(0.9, 0.97, 1.0)) * smoothstep(0.75, 1.0, ripple) * 0.18 * (1.0 - uNight);
       lit += lin(vec3(0.25, 0.8, 0.95)) * 0.45 * smoothstep(0.4, 1.0, uNight);
     }
-    gl_FragColor = vec4(lit, uFade * uAppear);
+    gl_FragColor = vec4(lit, uFade * uAppear * (1.0 - smoothstep(16.0, 32.0, vDepth)));
     #include <fog_fragment>
     #include <colorspace_fragment>
   }
@@ -511,49 +564,88 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
     const persp = state.camera as THREE.PerspectiveCamera;
     const cam = runtime.cam;
     const now = performance.now();
-    const maxDist = st.lowPower ? 4.6 : 8.5;
     const sh = st.shared;
-    sh.uFade.value = 1 - THREE.MathUtils.smoothstep(cam.dist, maxDist * 0.78, maxDist);
+    sh.uFade.value = 1;
     sh.uLift.value = 0.0008 + 0.00012 * cam.dist;
     // km per device pixel, per km of depth
     sh.uPxK.value = (2 * Math.tan((persp.fov * DEG) / 2)) / Math.max(1, state.size.height * state.gl.getPixelRatio());
-    const on = cam.dist < maxDist;
+    const lim = st.lowPower ? LIMITS.phone : LIMITS.desktop;
+    const on = cam.dist < lim.siteView;
     g.visible = on;
     if (!on) return;
 
-    // Which tiles: a disc around what the camera looks at, pushed a little ahead of the target.
     const { size, origin } = st.index;
-    const R = clamp(cam.dist * 1.35, 1.2, st.lowPower ? 3.2 : 6.5);
-    const b = cam.bearing * DEG;
-    const cx = cam.x + Math.sin(b) * R * 0.3;
-    const cz = cam.z - Math.cos(b) * R * 0.3;
     if (now - st.picked > 150) {
       st.picked = now;
-      const want: { t: Tile; d: number }[] = [];
-      const ix0 = Math.floor((cx - R - origin[0]) / size);
-      const ix1 = Math.floor((cx + R - origin[0]) / size);
-      const iz0 = Math.floor((cz - R - origin[1]) / size);
-      const iz1 = Math.floor((cz + R - origin[1]) / size);
-      for (let iz = iz0; iz <= iz1; iz++) {
-        for (let ix = ix0; ix <= ix1; ix++) {
-          const key = tileKey(ix, iz);
-          if (!st.have.has(key)) continue;
-          const x0 = origin[0] + ix * size;
-          const z0 = origin[1] + iz * size;
-          const d = Math.hypot(Math.max(x0 - cx, 0, cx - x0 - size), Math.max(z0 - cz, 0, cz - z0 - size));
-          if (d > R) continue;
-          let t = st.tiles.get(key);
-          if (!t) {
-            t = { key, ix, iz, status: 0, group: null, trees: null, appear: { value: 0 }, seen: 0, failedAt: 0 };
-            st.tiles.set(key, t);
+      // What the camera sees of the ground: its frame's edges cast onto the ground plane.
+      persp.updateMatrixWorld();
+      const gy = groundY(st.ground, cam.x, cam.z);
+      const cp = persp.position;
+      const poly: number[] = [];
+      for (const [nx, ny] of FRAME) {
+        _v.set(nx, ny, 0.5).unproject(persp).sub(cp).normalize();
+        let t = _v.y < -1e-4 ? (gy - cp.y) / _v.y : Infinity;
+        const horiz = Math.hypot(_v.x, _v.z) || 1;
+        if (!(t * horiz < lim.far)) t = lim.far / horiz;
+        poly.push(cp.x + _v.x * t, cp.z + _v.z * t);
+      }
+      const wanted = new Map<number, { t: Tile; d: number }>();
+      const add = (ix: number, iz: number, weight: number) => {
+        const key = tileKey(ix, iz);
+        if (!st.have.has(key)) return;
+        const tx = origin[0] + (ix + 0.5) * size;
+        const tz = origin[1] + (iz + 0.5) * size;
+        const d = Math.hypot(tx - cp.x, gy - cp.y, tz - cp.z) * weight;
+        const w = wanted.get(key);
+        if (w) {
+          w.d = Math.min(w.d, d);
+          return;
+        }
+        let t = st.tiles.get(key);
+        if (!t) {
+          t = { key, ix, iz, status: 0, group: null, trees: null, appear: { value: 0 }, seen: 0, failedAt: 0 };
+          st.tiles.set(key, t);
+        }
+        wanted.set(key, { t, d });
+      };
+      // Everything in view within reach of the camera, nearest first...
+      if (cam.dist < lim.view) {
+        let x0 = Infinity;
+        let x1 = -Infinity;
+        let z0 = Infinity;
+        let z1 = -Infinity;
+        for (let i = 0; i < poly.length; i += 2) {
+          x0 = Math.min(x0, poly[i]);
+          x1 = Math.max(x1, poly[i]);
+          z0 = Math.min(z0, poly[i + 1]);
+          z1 = Math.max(z1, poly[i + 1]);
+        }
+        for (let iz = Math.floor((z0 - origin[1]) / size); iz <= Math.floor((z1 - origin[1]) / size); iz++) {
+          for (let ix = Math.floor((x0 - origin[0]) / size); ix <= Math.floor((x1 - origin[0]) / size); ix++) {
+            const tx = origin[0] + (ix + 0.5) * size;
+            const tz = origin[1] + (iz + 0.5) * size;
+            if (polyDistance(poly, tx, tz) > size * 0.75) continue;
+            if (Math.hypot(tx - cp.x, gy - cp.y, tz - cp.z) > lim.far) continue;
+            add(ix, iz, 1);
           }
-          t.seen = now;
-          want.push({ t, d });
         }
       }
-      want.sort((p, q) => p.d - q.d);
+      // ...and every company site in view, from much further out: offices never sit on bare map.
+      for (const site of SITES) {
+        if (polyDistance(poly, site.x, site.z) > 0.5) continue;
+        if (Math.hypot(site.x - cp.x, gy - cp.y, site.z - cp.z) > lim.siteFar) continue;
+        const r = site.radius + lim.siteContext;
+        for (let iz = Math.floor((site.z - r - origin[1]) / size); iz <= Math.floor((site.z + r - origin[1]) / size); iz++) {
+          for (let ix = Math.floor((site.x - r - origin[0]) / size); ix <= Math.floor((site.x + r - origin[0]) / size); ix++) {
+            add(ix, iz, 0.4);
+          }
+        }
+      }
+      // Nearest first; over budget, the furthest wait (and aren't drawn) until the view comes closer.
+      const want = [...wanted.values()].sort((p, q) => p.d - q.d).slice(0, lim.tiles);
+      for (const { t } of want) t.seen = now;
       for (const { t } of want) {
-        if (st.inflight >= 4) break;
+        if (st.inflight >= 6) break;
         if (t.status === 3 && now - t.failedAt > 20000) t.status = 0;
         if (t.status !== 0) continue;
         t.status = 1;
@@ -583,7 +675,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
           });
       }
       // Keep what was seen recently; beyond the cap, let the longest-unseen tiles go.
-      const cap = st.lowPower ? 14 : 44;
+      const cap = lim.keep;
       const ready = [...st.tiles.values()].filter((t) => t.status === 2);
       if (ready.length > cap) {
         ready.sort((p, q) => p.seen - q.seen);
@@ -609,7 +701,10 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
         if (t.appear.value >= 1) st.version++; // up: its trees can join the pool
       }
     }
-    fillTrees(st, cam, visible.filter((t) => t.appear.value >= 1));
+    // From afar single trees read as speckle; the terrain's canopy tint carries the woods.
+    const treesOn = cam.dist < 8;
+    st.pool.round.visible = st.pool.cone.visible = treesOn;
+    if (treesOn) fillTrees(st, cam, visible.filter((t) => t.appear.value >= 1));
 
     const carMax = st.lowPower ? 3.6 : 5.5;
     st.cars.root.visible = cam.dist < carMax;

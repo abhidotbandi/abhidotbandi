@@ -332,3 +332,75 @@ The atlas is live at `/atlas` (the Grid site at `/` is untouched). Everything in
 2. If phones struggle, add adaptive quality (DPR, then effects) and chunked building extrusion.
 3. Keep the data fresh. Figures carry as-of dates in `companies.json`, and `scripts/atlas/` rebuilds
    geodata from new Overture releases.
+
+---
+
+## Phase 2 — Living Austin (planned 2026-09-27)
+
+Goal: at street scale, central Austin should feel alive and unmistakably Austin: the river through
+downtown with its rowers and paddleboarders, Zilker and Barton Springs, Rainey Street, and the
+landmarks locals navigate by. The hard-tech story stays the spine; this is the city around it.
+
+### 2.1 Central detail patch
+A high-resolution layer over central Austin, from Red Bud Isle to Longhorn Dam and from South
+Congress to the UT Tower (lon −97.795…−97.705, lat 30.236…30.296, 8.7 × 6.6 km):
+- `central_terrain.webp`: z14 Terrarium (~8 m/px) elevation, so Barton Creek's valley, the Zilker
+  hillside and the river banks have real shape.
+- `central_surface.webp`: 4 m/px. R = water signed distance (crisp shores at any zoom), G = lawns
+  and parks, B = tree canopy (clipped land cover plus park woods), A = sand, plazas and pitches.
+- Its own terrain mesh (~16 m grid; coarser on low-power devices). The base terrain discards
+  fragments inside it; the patch blends to the base heights in its border band and carries a
+  skirt, so there are no cracks.
+- `central.json`: trails (Butler loop, Boardwalk, greenbelts), docks and piers, bridge decks, the
+  Zilker Eagle track, river lanes (centreline + half-width, from the SDF), and landmark points.
+
+### 2.2 Living water
+Animated ripples, sun glints and a sky-tinted Fresnel sheen, a lapping band at the shore, and warm
+light glints on the water at night. Wakes trail every boat.
+
+### 2.3 Life (instanced, time-of-day driven)
+| Where | What | When |
+|---|---|---|
+| Lady Bird Lake | rowing eights, fours and singles with oar strokes, in lanes | dawn and evening |
+| Rental docks (Texas Rowing Center, Rowing Dock, Zilker Park Boat Rentals, Congress Avenue Kayaks, EpicSUP) | paddleboarders, kayaks, canoes wandering near their docks | mid-morning to sunset |
+| Congress Ave Bridge | Lone Star Riverboat by day; bat boats and a crowd on the bridge at dusk | dusk |
+| Butler Hike-and-Bike Trail and Boardwalk | walkers, runners, cyclists | all day, peaks at morning and evening |
+| Barton Springs Pool | swimmers, sunbathers on the south slope | day |
+| Zilker Great Lawn | kites with tails, people on the lawn | day |
+| Zilker Park | the Zilker Eagle mini train on its track | day |
+| Rainey Street, East 6th | string lights, crowds | night |
+
+Agents are low-poly instanced meshes. Their scale is exaggerated with camera distance (true
+size up close, capped at ~6×; rowing shells at 2.5×) so they read at downtown zoom. They fade
+out beyond ~8 km and fall back to fewer instances on low-power devices.
+
+### 2.4 Landmarks (procedural low-poly models)
+- **Texas State Capitol**: wings, drum and dome in sunset-red granite.
+- **UT Tower**: glows burnt orange at night.
+- **The 13 moonlight towers**: 165 ft lattice towers whose lamp rings glow cool white at night.
+- **Bridges**: Congress Avenue (arches, with the bats), the Pfluger Pedestrian Bridge and
+  Pennybacker Bridge (steel arch over Lake Austin).
+- **Mount Bonnell**: the overlook.
+- **Barton Springs Pool**: the pool and its bathhouse.
+- **Rainey Street**: bungalows under string lights.
+
+### 2.5 Story and exploration
+- **Paddle Lady Bird Lake**: a journey mode like the Red Line ride. The camera follows a
+  paddleboarder from Red Bud Isle to Longhorn Dam, and a HUD names what you pass.
+- **Places**: landmark cards (what it is, one sourced fact) in search and in an Explore layer.
+- **Tour chapters**: morning on Lady Bird Lake, midday at Zilker and Barton Springs, and Rainey
+  Street at night, woven between the company stops.
+
+### 2.6 Budget
+- The central assets load after first paint, and the map upgrades in place.
+- The patch adds ≤ 2.5 MB compressed.
+- Detail layers render only when the camera is within ~15 km, and add about +15 draw calls.
+
+### 2.7 Build order (each step pushed with a Vercel preview)
+1. Pipeline: central assets and QA renders.
+2. Patch terrain and living water.
+3. River life and docks.
+4. Parks, trails, people and trees.
+5. Landmarks and the night city.
+6. The paddle journey, places and tour chapters.
+7. QA, perf and mobile.

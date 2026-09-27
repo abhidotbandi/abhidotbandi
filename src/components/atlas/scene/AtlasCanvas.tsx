@@ -65,7 +65,7 @@ function ReadySignal() {
 export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
   const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
-  const { assets, tex, buildings, ground } = scene;
+  const { assets, tex, buildings, ground, central } = scene;
   const highways = useMemo(() => [...assets.vectors.roads.motorway, ...assets.vectors.roads.trunk], [assets]);
 
   return (
@@ -82,26 +82,27 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <CameraDirector height={ground} />
       <Lights />
       <Sky />
-      <Terrain tex={tex} segments={scene.terrainSegments} />
-      <CentralTerrain
-        tex={scene.centralTex}
-        baseTex={tex}
-        grid={scene.patch}
-        sdfK={assets.meta.central.surface.sdfK}
-      />
-      <MapLines assets={assets} ground={ground} />
+      <Terrain tex={tex} segments={scene.terrainSegments} cutout={!!central} />
+      {central && (
+        <CentralTerrain tex={central.tex} baseTex={tex} grid={central.patch} sdfK={assets.meta.central.surface.sdfK} />
+      )}
+      <MapLines assets={assets} central={central?.data} ground={ground} />
       <Buildings geometry={buildings.geometry} />
-      <Buildings geometry={scene.centralBuildings.geometry} />
+      {central && <Buildings geometry={central.buildings.geometry} />}
       <RedLine vectors={assets.vectors} height={ground} />
       <Beacons height={ground} siteTop={scene.siteTop} />
       {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
-      <Structures central={assets.central} ground={ground} />
-      <Landmarks central={assets.central} ground={ground} />
-      <Trees trees={assets.central.trees} ground={ground} lowPower={scene.lowPower} />
-      <RiverLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
-      <ParkLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
-      <CityLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
-      <Paddle central={assets.central} ground={ground} />
+      {central && (
+        <>
+          <Structures central={central.data} ground={ground} />
+          <Landmarks central={central.data} ground={ground} />
+          <Trees trees={central.data.trees} ground={ground} lowPower={scene.lowPower} />
+          <RiverLife central={central.data} ground={ground} lowPower={scene.lowPower} />
+          <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />
+          <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />
+          <Paddle central={central.data} ground={ground} />
+        </>
+      )}
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />

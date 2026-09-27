@@ -52,10 +52,13 @@ export interface AtlasAssets {
   surface: { width: number; height: number; rgba: Uint8Array };
   vectors: Vectors;
   buildings: BuildingsRaw;
-  /** street-scale detail for central Austin */
+}
+
+/** Street-scale detail for central Austin, loaded after the regional map is up. */
+export interface CentralAssets {
   central: Central;
   /** every building in central Austin, thinning out beyond it */
-  centralBuildings: BuildingsRaw;
+  buildings: BuildingsRaw;
 }
 
 const BASE = "/atlas";
@@ -127,47 +130,32 @@ function decodeVectors(raw: RawVectors): Vectors {
   };
 }
 
-export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise<AtlasAssets> {
+const json = <T,>(name: string) =>
+  fetch(`${BASE}/${name}`).then((r) => {
+    if (!r.ok) throw new Error(`${name}: ${r.status}`);
+    return r.json() as Promise<T>;
+  });
+
+/** Progress over parallel loads, each weighted by its rough share of the bytes. */
+function progress(onProgress?: (p: number) => void) {
   let done = 0;
-  // Rough share of the bytes each file is, so the progress bar moves evenly.
-  const weights = {
-    meta: 0.01,
-    terrain: 0.24,
-    surface: 0.11,
-    vectors: 0.05,
-    buildings: 0.16,
-    cTerrain: 0.24,
-    cSurface: 0.14,
-    cVectors: 0.02,
-    cTrees: 0.03,
-    cBuildings: 0.12,
-  };
-  const tick = (w: number) => <T,>(v: T): T => {
-    done += w;
-    onProgress?.(Math.min(1, done));
-    return v;
-  };
-  const json = <T,>(name: string) =>
-    fetch(`${BASE}/${name}`).then((r) => {
-      if (!r.ok) throw new Error(`${name}: ${r.status}`);
-      return r.json() as Promise<T>;
-    });
-  const [meta, terrain, surface, vectors, buildings, cTerrain, cSurface, cVectors, cTrees, cBuildings] = await Promise.all([
-    json<Meta>("meta.json").then(tick(weights.meta)),
-    decodeImage(`${BASE}/terrain.webp`).then(tick(weights.terrain)),
-    decodeImage(`${BASE}/surface.webp`).then(tick(weights.surface)),
-    json<RawVectors>("vectors.json").then(tick(weights.vectors)),
-    json<BuildingsRaw>("buildings.json").then(tick(weights.buildings)),
-    decodeImage(`${BASE}/central_terrain.webp`).then(tick(weights.cTerrain)),
-    decodeImage(`${BASE}/central_surface.webp`).then(tick(weights.cSurface)),
-    json<CentralRaw>("central.json").then(tick(weights.cVectors)),
-    fetch(`${BASE}/central_trees.bin`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`central_trees.bin: ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then(tick(weights.cTrees)),
-    json<BuildingsRaw>("central_buildings.json").then(tick(weights.cBuildings)),
+  return (w: number) =>
+    <T,>(v: T): T => {
+      done += w;
+      onProgress?.(Math.min(1, done));
+      return v;
+    };
+}
+
+/** The regional map: enough to draw the whole Austin area. */
+export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise<AtlasAssets> {
+  const tick = progress(onProgress);
+  const [meta, terrain, surface, vectors, buildings] = await Promise.all([
+    json<Meta>("meta.json").then(tick(0.01)),
+    decodeImage(`${BASE}/terrain.webp`).then(tick(0.43)),
+    decodeImage(`${BASE}/surface.webp`).then(tick(0.37)),
+    json<RawVectors>("vectors.json").then(tick(0.07)),
+    json<BuildingsRaw>("buildings.json").then(tick(0.12)),
   ]);
 
   const n = terrain.width * terrain.height;
@@ -185,7 +173,23 @@ export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise
     surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
     vectors: decodeVectors(vectors),
     buildings,
-    central: decodeCentral(meta.central, cTerrain, cSurface, cVectors, cTrees),
-    centralBuildings: cBuildings,
   };
+}
+
+/** Central Austin's street-scale detail: terrain, surface, paths, trees and every building. */
+export async function loadCentralAssets(meta: Meta, onProgress?: (p: number) => void): Promise<CentralAssets> {
+  const tick = progress(onProgress);
+  const [cTerrain, cSurface, cVectors, cTrees, buildings] = await Promise.all([
+    decodeImage(`${BASE}/central_terrain.webp`).then(tick(0.24)),
+    decodeImage(`${BASE}/central_surface.webp`).then(tick(0.37)),
+    json<CentralRaw>("central.json").then(tick(0.03)),
+    fetch(`${BASE}/central_trees.bin`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`central_trees.bin: ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then(tick(0.07)),
+    json<BuildingsRaw>("central_buildings.json").then(tick(0.29)),
+  ]);
+  return { central: decodeCentral(meta.central, cTerrain, cSurface, cVectors, cTrees), buildings };
 }

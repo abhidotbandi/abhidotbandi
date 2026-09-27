@@ -7,7 +7,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import type { AtlasAssets, Polyline } from "@/lib/atlas/assets";
-import { inCentral } from "@/lib/atlas/central";
+import { inCentral, type Central } from "@/lib/atlas/central";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -111,18 +111,19 @@ function Layer({ positions, style, order }: { positions: Float32Array; style: La
   return <primitive ref={ref} object={line} />;
 }
 
-export function MapLines({ assets, ground }: { assets: AtlasAssets; ground: HeightField }) {
+export function MapLines({ assets, central, ground }: { assets: AtlasAssets; central?: Central; ground: HeightField }) {
   const layers = useMemo(() => {
     const v = assets.vectors;
     const h = ground;
-    const c = assets.central;
-    const butler = c.trails.edges.filter((e) => e.kind === 0).map((e) => e.line);
+    // Street-scale paths come with central Austin's detail.
+    const paths = central?.paths ?? {};
+    const butler = central ? central.trails.edges.filter((e) => e.kind === 0).map((e) => e.line) : [];
     const L: [string, Float32Array][] = [
       ["creeks", drape(v.creeks, h, 0, 0.2)],
-      ["path", drape(c.paths.path ?? [], h, 0, 0.05)],
-      ["footway", drape(c.paths.footway ?? [], h, 0, 0.05)],
-      ["pedestrian", drape(c.paths.pedestrian ?? [], h, 0, 0.05)],
-      ["cycleway", drape(c.paths.cycleway ?? [], h, 0, 0.05)],
+      ["path", drape(paths.path ?? [], h, 0, 0.05)],
+      ["footway", drape(paths.footway ?? [], h, 0, 0.05)],
+      ["pedestrian", drape(paths.pedestrian ?? [], h, 0, 0.05)],
+      ["cycleway", drape(paths.cycleway ?? [], h, 0, 0.05)],
       ["butler", drape(butler, h, 0, 0.05)],
       ["tertiary", drape(v.roads.tertiary, h, 0)],
       ["secondary", drape(v.roads.secondary, h, 0)],
@@ -132,7 +133,7 @@ export function MapLines({ assets, ground }: { assets: AtlasAssets; ground: Heig
       ["motorway", drape(v.roads.motorway, h, 0)],
     ];
     return L;
-  }, [assets, ground]);
+  }, [assets, central, ground]);
 
   return (
     <group>

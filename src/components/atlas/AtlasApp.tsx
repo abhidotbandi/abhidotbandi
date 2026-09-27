@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { PLACE_BY_ID } from "@/data/atlas/places";
 import { STOPS } from "@/data/atlas/tour";
-import { loadAtlasAssets } from "@/lib/atlas/assets";
+import { loadAtlasAssets, loadCentralAssets } from "@/lib/atlas/assets";
 import { clamp, project } from "@/lib/atlas/geo";
 import { makePaddleRoute } from "@/lib/atlas/paddle";
 import { runtime, seekPaddle, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
@@ -72,7 +72,8 @@ export default function AtlasApp() {
   const selectedPlace = useAtlas((s) => s.selectedPlace);
   const selectPlace = useAtlas((s) => s.selectPlace);
   const timeline = getTimeline();
-  const paddleRoute = useMemo(() => (scene ? makePaddleRoute(scene.assets.central) : null), [scene]);
+  const central = scene?.central?.data;
+  const paddleRoute = useMemo(() => (central ? makePaddleRoute(central) : null), [central]);
 
   // Load and prepare everything while the loader is up.
   useEffect(() => {
@@ -83,14 +84,23 @@ export default function AtlasApp() {
       return;
     }
     runtime.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // The regional map first, so the atlas opens quickly; central Austin's street-scale detail
+    // (about as many bytes again) follows, and the scene upgrades in place.
     loadAtlasAssets((p) => st.setLoadProgress(p * 0.85))
       .then(async (assets) => {
         // Let the progress bar paint before the CPU-heavy extrusion.
         await new Promise((r) => setTimeout(r, 30));
-        const { prepareScene } = await import("./scene/prepare");
+        const { prepareScene, upgradeScene } = await import("./scene/prepare");
         if (cancelled) return;
         st.setLoadProgress(0.92);
-        setScene(prepareScene(assets));
+        const base = prepareScene(assets);
+        setScene(base);
+        loadCentralAssets(assets.meta)
+          .then(async (central) => {
+            await new Promise((r) => setTimeout(r, 30));
+            if (!cancelled) setScene(upgradeScene(base, central));
+          })
+          .catch((err) => console.error("atlas: central Austin detail failed to load", err));
       })
       .catch((err) => {
         console.error("atlas: failed to load map data", err);
@@ -247,6 +257,11 @@ export default function AtlasApp() {
       {mode === "explore" && <ExplorePanel />}
       {mode === "ride" && scene && <RideHud stations={scene.assets.vectors.redLine.stations} />}
       {mode === "paddle" && paddleRoute && <PaddleHud route={paddleRoute} />}
+      {ready && scene && !scene.central && !webglFailed && (
+        <p className="detail-loading" role="status">
+          {mode === "paddle" ? "Loading the lake…" : "Loading downtown detail…"}
+        </p>
+      )}
       <CompanyPanel onShowOnMap={(id) => {
         switchMode("explore");
         flyToSite(id);

@@ -299,7 +299,10 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
         [x, y, z] = point(ground, lp);
         rank = kind === "water" ? (lp.kind === "lake" ? 1 : 2) : (lp.rank ?? 1);
       }
-      entries.push({ kind, el: node, x, y, z, rank, site, place, size: [0, 0], sizeDetail: [0, 0], on: false, detail: false });
+      // Take visibility from the DOM: when the layer re-registers (the ground changes as central
+      // Austin loads) labels already showing must still be hidden when they fall out of view.
+      const on = node.dataset.on === "1";
+      entries.push({ kind, el: node, x, y, z, rank, site, place, size: [0, 0], sizeDetail: [0, 0], on, detail: false });
     });
     labelSystem.entries = entries;
     labelSystem.measure();

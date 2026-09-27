@@ -271,7 +271,14 @@ const fragment = /* glsl */ `
   }
 `;
 
-function terrainMaterial(tex: AtlasTextures, patch: boolean, sdfK = 7.33, base?: AtlasTextures): THREE.ShaderMaterial {
+function terrainMaterial(
+  tex: AtlasTextures,
+  patch: boolean,
+  sdfK = 7.33,
+  base?: AtlasTextures,
+  /** base terrain only: leave a hole for the central patch (once it has loaded) */
+  cutout = true,
+): THREE.ShaderMaterial {
   const baseUniforms: Record<string, THREE.IUniform> = base
     ? {
         uBaseHeight: { value: base.height },
@@ -300,8 +307,13 @@ function terrainMaterial(tex: AtlasTextures, patch: boolean, sdfK = 7.33, base?:
           ? new THREE.Vector4(CX_MIN, CZ_MIN, C_WIDTH_KM, C_HEIGHT_KM)
           : new THREE.Vector4(X_MIN, Z_MIN, WIDTH_KM, HEIGHT_KM),
       },
-      // The base terrain gives way inside the patch (a hair inside, so there is never a gap).
-      uPatchRect: { value: new THREE.Vector4(CX_MIN + 0.001, CZ_MIN + 0.001, CX_MAX - 0.001, CZ_MAX - 0.001) },
+      // The base terrain gives way inside the patch (a hair inside, so there is never a gap);
+      // an empty rectangle while the patch is still loading.
+      uPatchRect: {
+        value: cutout
+          ? new THREE.Vector4(CX_MIN + 0.001, CZ_MIN + 0.001, CX_MAX - 0.001, CZ_MAX - 0.001)
+          : new THREE.Vector4(1, 1, 0, 0),
+      },
       uExag: { value: TERRAIN_EXAG },
       uBase: { value: BASE_ELEV_M },
       uSurfPxM: { value: (WIDTH_KM * 1000) / tex.surface.image.width },
@@ -322,7 +334,7 @@ function terrainMaterial(tex: AtlasTextures, patch: boolean, sdfK = 7.33, base?:
   });
 }
 
-export default function Terrain({ tex, segments }: { tex: AtlasTextures; segments: number }) {
+export default function Terrain({ tex, segments, cutout }: { tex: AtlasTextures; segments: number; cutout: boolean }) {
   const geometry = useMemo(() => {
     const segZ = Math.round((segments * HEIGHT_KM) / WIDTH_KM);
     const g = new THREE.PlaneGeometry(WIDTH_KM, HEIGHT_KM, segments, segZ);
@@ -337,7 +349,7 @@ export default function Terrain({ tex, segments }: { tex: AtlasTextures; segment
     return g;
   }, [segments]);
 
-  const material = useMemo(() => terrainMaterial(tex, false), [tex]);
+  const material = useMemo(() => terrainMaterial(tex, false, 7.33, undefined, cutout), [tex, cutout]);
 
   return <mesh geometry={geometry} material={material} frustumCulled={false} />;
 }

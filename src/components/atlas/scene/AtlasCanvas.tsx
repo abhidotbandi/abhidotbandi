@@ -116,9 +116,9 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
           <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <Paddle central={central.data} ground={ground} />
+          <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />
         </>
       )}
-      <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />
       <Precompile token={central} />

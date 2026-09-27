@@ -424,6 +424,11 @@ using levels.fyi's atlas as the reference.
     bat watchers on the Congress Avenue Bridge, and the sunset crowd on Mount Bonnell
     (`CityLife`)
   - Low-power devices get about 40% of the crowds.
+  - The bat emergence (`Bats`) is one stream of 12,000 bats (4,000 on low-power devices). They
+    pour out along the Congress Avenue Bridge, funnel down Lady Bird Lake and climb away
+    east-southeast, leaving in waves and peeling off as the ribbon disperses. Each bat faces its
+    direction of travel, beats its wings at 8-11 Hz, and is drawn a few pixels across at any
+    zoom. They're out from golden hour on, and held still under reduced motion.
 - **Landmarks** (2.4), in `Landmarks`:
   - the Capitol, the UT Tower (burnt orange at night), the 13 moonlight towers (glowing lamp
     rings), the Pennybacker arch, Mount Bonnell's pavilion, Tom Miller and Longhorn dams, and

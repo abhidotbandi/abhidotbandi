@@ -18,6 +18,7 @@ import Traffic from "./Traffic";
 import RiverLife from "./RiverLife";
 import ParkLife from "./ParkLife";
 import CityLife from "./CityLife";
+import Paddle from "./Paddle";
 import Trees from "./Trees";
 import Structures from "./Structures";
 import Landmarks from "./Landmarks";
@@ -100,6 +101,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <RiverLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <ParkLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <CityLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
+      <Paddle central={assets.central} ground={ground} />
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />

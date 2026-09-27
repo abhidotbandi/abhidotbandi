@@ -97,14 +97,16 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       // Reduced motion cuts to the new light, as it cuts the camera.
       runtime.tod += (st.exploreTod - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-2.5 * dt));
     } else {
-      // Ride: chase the train from above and behind.
-      const tp = runtime.trainPos;
+      // Ride and paddle: chase the train (or the paddleboarder) from above and behind.
+      const paddle = st.mode === "paddle";
+      const tp = paddle ? runtime.paddlePos : runtime.trainPos;
       const hdg = tp.heading;
       const d = desired.current;
-      d.x = tp.x + Math.sin(hdg) * 0.18;
-      d.z = tp.z - Math.cos(hdg) * 0.18;
-      d.dist = 1.1;
-      d.tilt = 63;
+      const lead = paddle ? 0.1 : 0.18;
+      d.x = tp.x + Math.sin(hdg) * lead;
+      d.z = tp.z - Math.cos(hdg) * lead;
+      d.dist = paddle ? 0.45 : 1.1;
+      d.tilt = paddle ? 66 : 63;
       d.bearing = (hdg * 180) / Math.PI;
       // Big jumps (boarding, skipping stops) fly rather than drag the low camera across the map.
       const far = Math.hypot(d.x - cur.x, d.z - cur.z) > 1.5 || Math.abs(Math.log(cur.dist / d.dist)) > 1.5;
@@ -133,8 +135,10 @@ export default function CameraDirector({ height }: { height: HeightField }) {
         dampCam(cur, d, 3, dt);
       }
       applyCam(camera, cur, groundY(height, cur.x, cur.z));
-      // The morning commute: early light at Leander, full morning by Downtown.
-      runtime.tod += (0.16 + 0.18 * runtime.rideS - runtime.tod) * (1 - Math.exp(-1.5 * dt));
+      // The ride is the morning commute, early light at Leander to full morning downtown; the
+      // paddle runs through golden hour to reach the Congress Avenue Bridge as the bats come out.
+      const want = paddle ? 0.74 + 0.16 * runtime.paddleS : 0.16 + 0.18 * runtime.rideS;
+      runtime.tod += (want - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-1.5 * dt));
     }
 
     // Clip planes that follow the zoom level keep depth precision where it's needed.
@@ -146,7 +150,7 @@ export default function CameraDirector({ height }: { height: HeightField }) {
     const wide = size.width >= 900;
     const wantX = st.mode === "tour" && wide ? Math.min(250, size.width * 0.15) : st.selectedSite && wide ? -170 : 0;
     const wantY =
-      st.mode === "tour" && !wide ? size.height * 0.17 : st.mode === "ride" ? Math.min(130, size.height * 0.15) : 0;
+      st.mode === "tour" && !wide ? size.height * 0.17 : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
     const k = 1 - Math.exp(-4 * dt);
     offset.current.x += (wantX - offset.current.x) * k;
     offset.current.y += (wantY - offset.current.y) * k;

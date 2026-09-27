@@ -96,7 +96,8 @@
 }
 
 .atlas[data-mode="explore"] .atlas-scroller,
-.atlas[data-mode="ride"] .atlas-scroller {
+.atlas[data-mode="ride"] .atlas-scroller,
+.atlas[data-mode="paddle"] .atlas-scroller {
   visibility: hidden;
   pointer-events: none;
 }
@@ -455,6 +456,10 @@
 
 .seg-ride[aria-pressed="true"] {
   background: #c8102e !important;
+}
+
+.seg-paddle[aria-pressed="true"] {
+  background: #1f7fa6 !important;
 }
 
 /* ---------- chapter rail ---------- */
@@ -1746,6 +1751,49 @@ button.ct-name:hover {
 
 /* The place card shares the company card; its kicker carries a pin. */
 .place-panel .cp-domain svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- paddle journey ---------- */
+
+.paddle-hud .rh-bullet {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-fill {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-stop {
+  border-color: #1f7fa6;
+}
+
+.paddle-hud .rh-stop[data-passed="1"] {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-stop[data-kind="bridge"] {
+  border-radius: 1px;
+}
+
+.rh-near-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+}
+
+.rh-near-bridge {
+  flex: none;
+  width: 14px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+
+.rh-near button > svg {
+  flex: none;
   width: 14px;
   height: 14px;
 }

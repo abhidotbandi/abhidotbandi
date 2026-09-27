@@ -65,6 +65,14 @@ export const IconRestart = () => (
   </svg>
 );
 
+export const IconPaddle = () => (
+  <svg {...base}>
+    <path d="M17 3 8.5 15.5" />
+    <path d="M8.5 15.5 6 19.5l-1.5-1 2.3-4.2Z" />
+    <path d="M3 21c1.6 0 1.6-1 3.2-1s1.6 1 3.2 1 1.6-1 3.2-1 1.6 1 3.2 1 1.6-1 3.2-1" />
+  </svg>
+);
+
 export const IconPin = () => (
   <svg {...base}>
     <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" />

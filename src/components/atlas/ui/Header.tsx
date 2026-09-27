@@ -1,7 +1,7 @@
 "use client";
 
 import { useAtlas, type AtlasMode } from "@/lib/atlas/store";
-import { IconInfo, IconList, IconSearch, IconTrain, Logomark } from "./icons";
+import { IconInfo, IconList, IconPaddle, IconSearch, IconTrain, Logomark } from "./icons";
 
 export default function Header({ onMode }: { onMode: (m: AtlasMode) => void }) {
   const mode = useAtlas((s) => s.mode);
@@ -35,6 +35,16 @@ export default function Header({ onMode }: { onMode: (m: AtlasMode) => void }) {
           >
             <IconTrain />
             <span className="hide-sm">Red Line</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "paddle"}
+            onClick={() => onMode("paddle")}
+            className="seg-ride seg-paddle"
+            aria-label="Paddle Lady Bird Lake"
+          >
+            <IconPaddle />
+            <span className="hide-sm">Paddle</span>
           </button>
         </div>
         <button type="button" className="icon-btn" onClick={() => setSearchOpen(true)} aria-label="Search companies">

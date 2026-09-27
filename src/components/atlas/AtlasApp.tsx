@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { PLACE_BY_ID } from "@/data/atlas/places";
 import { STOPS } from "@/data/atlas/tour";
 import { loadAtlasAssets } from "@/lib/atlas/assets";
 import { clamp, project } from "@/lib/atlas/geo";
-import { runtime, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
+import { makePaddleRoute } from "@/lib/atlas/paddle";
+import { runtime, seekPaddle, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
 import { getTimeline } from "@/lib/atlas/tour";
 import type { PreparedScene } from "./scene/prepare";
 import { StoryCard } from "./ui/Story";
@@ -18,6 +19,7 @@ import CompanyPanel from "./ui/CompanyPanel";
 import PlacePanel from "./ui/PlacePanel";
 import ExplorePanel from "./ui/ExplorePanel";
 import RideHud from "./ui/RideHud";
+import PaddleHud from "./ui/PaddleHud";
 import SearchPalette from "./ui/SearchPalette";
 import ListView from "./ui/ListView";
 import About from "./ui/About";
@@ -70,6 +72,7 @@ export default function AtlasApp() {
   const selectedPlace = useAtlas((s) => s.selectedPlace);
   const selectPlace = useAtlas((s) => s.selectPlace);
   const timeline = getTimeline();
+  const paddleRoute = useMemo(() => (scene ? makePaddleRoute(scene.assets.central) : null), [scene]);
 
   // Load and prepare everything while the loader is up.
   useEffect(() => {
@@ -144,6 +147,10 @@ export default function AtlasApp() {
         // With reduced motion the train waits for an explicit Play.
         useAtlas.getState().setRidePaused(runtime.reducedMotion);
       }
+      if (m === "paddle") {
+        seekPaddle(useAtlas.getState().paddleProgress >= 1 ? 0 : runtime.paddleS);
+        useAtlas.getState().setPaddlePaused(runtime.reducedMotion);
+      }
       setMode(m);
     },
     [setMode],
@@ -180,7 +187,7 @@ export default function AtlasApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Deep links: ?c=<site>, ?p=<place>, ?mode=explore, ?ride=1, ?at=lat,lon[,dist km,tilt,bearing][&tod=0..1]
+  // Deep links: ?c=<site>, ?p=<place>, ?mode=explore, ?ride=1, ?paddle=1, ?at=lat,lon[,dist km,tilt,bearing][&tod=0..1]
   useEffect(() => {
     if (!ready) return;
     const q = new URLSearchParams(window.location.search);
@@ -190,6 +197,7 @@ export default function AtlasApp() {
     const tod = Number(q.get("tod"));
     if (q.has("tod") && Number.isFinite(tod)) useAtlas.getState().setExploreTod(clamp(tod, 0, 1));
     if (q.get("ride") === "1") switchMode("ride");
+    else if (q.get("paddle") === "1") switchMode("paddle");
     else if (at && at.length >= 2 && at.every(Number.isFinite)) {
       const [lat, lon, dist = 2, tilt = 55, bearing = 0] = at;
       const [x, z] = project(lon, lat);
@@ -228,6 +236,7 @@ export default function AtlasApp() {
               top={(timeline.stopCenter(i) + cardAnchor) * vh}
               onExplore={() => switchMode("explore")}
               onRide={() => switchMode("ride")}
+              onPaddle={() => switchMode("paddle")}
             />
           ))}
         </div>
@@ -237,6 +246,7 @@ export default function AtlasApp() {
       {mode === "tour" && <ChapterRail onJump={scrollToStop} />}
       {mode === "explore" && <ExplorePanel />}
       {mode === "ride" && scene && <RideHud stations={scene.assets.vectors.redLine.stations} />}
+      {mode === "paddle" && paddleRoute && <PaddleHud route={paddleRoute} />}
       <CompanyPanel onShowOnMap={(id) => {
         switchMode("explore");
         flyToSite(id);

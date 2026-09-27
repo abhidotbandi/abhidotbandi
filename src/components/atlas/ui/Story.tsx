@@ -43,9 +43,10 @@ interface CardProps {
   top: number;
   onExplore: () => void;
   onRide: () => void;
+  onPaddle: () => void;
 }
 
-export const StoryCard = forwardRef<HTMLElement, CardProps>(function StoryCard({ stop, index, top, onExplore, onRide }, ref) {
+export const StoryCard = forwardRef<HTMLElement, CardProps>(function StoryCard({ stop, index, top, onExplore, onRide, onPaddle }, ref) {
   const isIntro = index === 0;
   const isLast = index === STOPS.length - 1;
   return (
@@ -91,6 +92,13 @@ export const StoryCard = forwardRef<HTMLElement, CardProps>(function StoryCard({
           ))}
         </ul>
       )}
+      {stop.id === "lake" && (
+        <div className="cta-row">
+          <button type="button" className="btn" onClick={onPaddle}>
+            Paddle the lake
+          </button>
+        </div>
+      )}
       {isLast && (
         <div className="cta-row">
           <button type="button" className="btn btn-primary" onClick={onExplore}>
@@ -98,6 +106,9 @@ export const StoryCard = forwardRef<HTMLElement, CardProps>(function StoryCard({
           </button>
           <button type="button" className="btn" onClick={onRide}>
             Ride the Red Line
+          </button>
+          <button type="button" className="btn" onClick={onPaddle}>
+            Paddle Lady Bird Lake
           </button>
         </div>
       )}

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { DomainId } from "@/data/atlas/domains";
 import type { CamState } from "./camera";
 
-export type AtlasMode = "tour" | "explore" | "ride";
+export type AtlasMode = "tour" | "explore" | "ride" | "paddle";
 
 interface AtlasState {
   mode: AtlasMode;
@@ -48,6 +48,12 @@ interface AtlasState {
   ridePaused: boolean;
   setRideProgress: (p: number) => void;
   setRidePaused: (v: boolean) => void;
+
+  /** Paddle Lady Bird Lake: 0..1 along the route */
+  paddleProgress: number;
+  paddlePaused: boolean;
+  setPaddleProgress: (p: number) => void;
+  setPaddlePaused: (v: boolean) => void;
 }
 
 export const useAtlas = create<AtlasState>((set, get) => ({
@@ -99,6 +105,11 @@ export const useAtlas = create<AtlasState>((set, get) => ({
   ridePaused: false,
   setRideProgress: (rideProgress) => set({ rideProgress }),
   setRidePaused: (ridePaused) => set({ ridePaused }),
+
+  paddleProgress: 0,
+  paddlePaused: false,
+  setPaddleProgress: (paddleProgress) => set({ paddleProgress }),
+  setPaddlePaused: (paddlePaused) => set({ paddlePaused }),
 }));
 
 /**
@@ -119,9 +130,18 @@ export const runtime = {
   trainPos: { x: 0, z: 0, heading: 0 },
   /** Red Line ride position, 0..1 (source of truth; the store mirrors it for the HUD) */
   rideS: 0,
+  /** the paddleboarder on Lady Bird Lake: where, facing which way (radians clockwise from north) */
+  paddlePos: { x: 0, z: 0, heading: 0 },
+  /** paddle journey position, 0..1 (source of truth; the store mirrors it for the HUD) */
+  paddleS: 0,
 };
 
 export function seekRide(s: number) {
   runtime.rideS = Math.max(0, Math.min(1, s));
   useAtlas.getState().setRideProgress(runtime.rideS);
+}
+
+export function seekPaddle(s: number) {
+  runtime.paddleS = Math.max(0, Math.min(1, s));
+  useAtlas.getState().setPaddleProgress(runtime.paddleS);
 }

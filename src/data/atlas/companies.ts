@@ -71,6 +71,19 @@ export function formatUsd(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
+/**
+ * The figure a map label carries beside the name, from the company's sourced status: its
+ * last valuation, else what it has raised, or its ticker. Undefined when there's nothing to say.
+ */
+export function labelFigure(c: Company): { text: string; kind: "money" | "ticker" } | undefined {
+  const s = c.status;
+  if (s.kind === "public") return { text: s.ticker, kind: "ticker" };
+  if (s.kind !== "private") return undefined;
+  if (s.valuation) return { text: formatUsd(s.valuation), kind: "money" };
+  if (s.raised) return { text: `${formatUsd(s.raised)} raised`, kind: "money" };
+  return undefined;
+}
+
 /** Short status line for chips and table cells. */
 export function statusLine(c: Company): string {
   const s = c.status;

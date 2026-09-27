@@ -538,6 +538,7 @@
   --chip-ink: #1c1914;
   --chip-ink-2: #5a5247;
   --chip-rule: rgba(28, 25, 20, 0.14);
+  --chip-money: #1b7a45;
   position: fixed;
   inset: 0;
   z-index: 4;
@@ -554,6 +555,7 @@
   --chip-ink: #f3efe6;
   --chip-ink-2: #b8b2a8;
   --chip-rule: rgba(255, 255, 255, 0.14);
+  --chip-money: #6fd69b;
 }
 
 .al {
@@ -701,6 +703,19 @@
 
 .al-site-sub {
   font-weight: 500;
+  color: var(--chip-ink-2);
+}
+
+.al-site-figure {
+  margin-left: 7px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--chip-money);
+}
+
+.al-site-figure[data-kind="ticker"] {
+  font: 600 10px/1.2 var(--font-num);
+  letter-spacing: 0.04em;
   color: var(--chip-ink-2);
 }
 

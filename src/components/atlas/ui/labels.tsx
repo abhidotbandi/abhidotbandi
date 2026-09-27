@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { SITES, type SiteRef } from "@/data/atlas/companies";
+import { SITES, labelFigure, type SiteRef } from "@/data/atlas/companies";
 import { DOMAINS } from "@/data/atlas/domains";
 import { STOPS } from "@/data/atlas/tour";
 import type { AtlasAssets, LabelPoint } from "@/lib/atlas/assets";
@@ -319,6 +319,7 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
       ))}
       {SITES.map((s) => {
         const d = DOMAINS[s.company.domain];
+        const fig = s.primary ? labelFigure(s.company) : undefined;
         return (
           <button
             key={s.id}
@@ -338,6 +339,11 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
               <span className="al-site-name">
                 {s.company.name}
                 {!s.primary && <span className="al-site-sub"> · {s.place}</span>}
+                {fig && (
+                  <span className="al-site-figure" data-kind={fig.kind}>
+                    {fig.text}
+                  </span>
+                )}
               </span>
               <span className="al-site-detail">{s.primary ? s.company.builds : s.label}</span>
             </span>

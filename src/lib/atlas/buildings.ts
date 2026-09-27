@@ -1,7 +1,7 @@
 import earcut from "earcut";
 import * as THREE from "three";
 import type { BuildingsRaw } from "./assets";
-import { BUILDING_EXAG, elevToY, type RegionRaster } from "./geo";
+import { BUILDING_EXAG, elevToY, type HeightField } from "./geo";
 
 export interface BuildingMesh {
   geometry: THREE.BufferGeometry;
@@ -16,7 +16,7 @@ export interface BuildingMesh {
  */
 export function buildBuildings(
   raw: BuildingsRaw,
-  height: RegionRaster,
+  height: HeightField,
   siteIndexOf: (id: string) => number,
   siteCount: number,
   minFootprintM2 = 0,

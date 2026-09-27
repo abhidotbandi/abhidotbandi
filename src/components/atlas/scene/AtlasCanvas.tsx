@@ -5,7 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { useAtlas } from "@/lib/atlas/store";
-import Terrain from "./Terrain";
+import Terrain, { CentralTerrain } from "./Terrain";
 import Sky from "./Sky";
 import Buildings from "./Buildings";
 import { MapLines } from "./Lines";
@@ -58,7 +58,7 @@ function ReadySignal() {
 export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
   const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
-  const { assets, tex, buildings } = scene;
+  const { assets, tex, buildings, ground } = scene;
   const highways = useMemo(() => [...assets.vectors.roads.motorway, ...assets.vectors.roads.trunk], [assets]);
 
   return (
@@ -72,17 +72,24 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       }}
       style={{ position: "fixed", inset: 0 }}
     >
-      <CameraDirector height={assets.height} />
+      <CameraDirector height={ground} />
       <Lights />
       <Sky />
       <Terrain tex={tex} segments={scene.terrainSegments} />
-      <MapLines assets={assets} />
+      <CentralTerrain
+        tex={scene.centralTex}
+        baseTex={tex}
+        grid={scene.patch}
+        sdfK={assets.meta.central.surface.sdfK}
+      />
+      <MapLines assets={assets} ground={ground} />
       <Buildings geometry={buildings.geometry} />
-      <RedLine vectors={assets.vectors} height={assets.height} />
-      <Beacons height={assets.height} siteTop={buildings.siteTop} />
-      {!scene.lowPower && <Traffic lines={highways} height={assets.height} count={1400} />}
-      <Bats height={assets.height} count={scene.lowPower ? 1500 : 4000} />
-      <Plume height={assets.height} />
+      <Buildings geometry={scene.centralBuildings.geometry} />
+      <RedLine vectors={assets.vectors} height={ground} />
+      <Beacons height={ground} siteTop={scene.siteTop} />
+      {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
+      <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
+      <Plume height={ground} />
       <LabelDriver />
       <ReadySignal />
     </Canvas>

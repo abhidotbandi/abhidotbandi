@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Polyline } from "@/lib/atlas/assets";
-import { groundY, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 
@@ -14,7 +14,7 @@ interface Path {
   len: number;
 }
 
-function toPath(l: Polyline, height: RegionRaster): Path {
+function toPath(l: Polyline, height: HeightField): Path {
   const n = l.length / 2;
   const pts = new Float32Array(n * 3);
   const cum = new Float32Array(n);
@@ -46,7 +46,7 @@ interface Sim {
   v: Float32Array;
 }
 
-function makeTraffic(lines: Polyline[], height: RegionRaster, count: number): THREE.Points {
+function makeTraffic(lines: Polyline[], height: HeightField, count: number): THREE.Points {
   const paths = lines.map((l) => toPath(l, height)).filter((p) => p.len > 0.4);
   const total = paths.reduce((a, p) => a + p.len, 0);
   const car = new Int32Array(count);
@@ -84,7 +84,7 @@ function makeTraffic(lines: Polyline[], height: RegionRaster, count: number): TH
 }
 
 /** Headlights and taillights crawling along the highways after dark. */
-export default function Traffic({ lines, height, count }: { lines: Polyline[]; height: RegionRaster; count: number }) {
+export default function Traffic({ lines, height, count }: { lines: Polyline[]; height: HeightField; count: number }) {
   const ref = useRef<THREE.Points>(null);
   const points = useMemo(() => makeTraffic(lines, height, count), [lines, height, count]);
 

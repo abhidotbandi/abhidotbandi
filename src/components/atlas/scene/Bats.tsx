@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { groundY, project, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 
@@ -79,7 +79,7 @@ function batGeometry(count: number): THREE.InstancedBufferGeometry {
   return g;
 }
 
-export default function Bats({ height, count }: { height: RegionRaster; count: number }) {
+export default function Bats({ height, count }: { height: HeightField; count: number }) {
   const mesh = useRef<THREE.Mesh>(null);
   const { geometry, material } = useMemo(() => {
     const geometry = batGeometry(count);

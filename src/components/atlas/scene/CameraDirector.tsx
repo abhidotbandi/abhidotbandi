@@ -16,7 +16,7 @@ import {
   type CamState,
   type Flight,
 } from "@/lib/atlas/camera";
-import { clamp, groundY, X_MAX, X_MIN, Z_MAX, Z_MIN, type RegionRaster } from "@/lib/atlas/geo";
+import { clamp, groundY, X_MAX, X_MIN, Z_MAX, Z_MIN, type HeightField } from "@/lib/atlas/geo";
 import { runtime, useAtlas } from "@/lib/atlas/store";
 import { applyTimeOfDay, sky } from "@/lib/atlas/timeOfDay";
 import { getTimeline } from "@/lib/atlas/tour";
@@ -24,7 +24,7 @@ import { updateSiteState } from "./siteState";
 
 const target = new THREE.Vector3();
 
-export default function CameraDirector({ height }: { height: RegionRaster }) {
+export default function CameraDirector({ height }: { height: HeightField }) {
   const mode = useAtlas((s) => s.mode);
   const controls = useRef<MapControlsImpl>(null);
   const desired = useRef<CamState>(cloneCam(runtime.cam));
@@ -94,7 +94,8 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
         }
         Object.assign(cur, camFromPose(camera.position, c.target));
       }
-      runtime.tod += (st.exploreTod - runtime.tod) * (1 - Math.exp(-2.5 * dt));
+      // Reduced motion cuts to the new light, as it cuts the camera.
+      runtime.tod += (st.exploreTod - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-2.5 * dt));
     } else {
       // Ride: chase the train from above and behind.
       const tp = runtime.trainPos;
@@ -189,7 +190,7 @@ export default function CameraDirector({ height }: { height: RegionRaster }) {
           enableDamping
           dampingFactor={0.09}
           screenSpacePanning={false}
-          minDistance={0.35}
+          minDistance={0.18}
           maxDistance={150}
           maxPolarAngle={1.32}
           zoomSpeed={1.1}

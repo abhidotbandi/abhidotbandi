@@ -1,8 +1,10 @@
+import { decodeCentral, type Central, type CentralMeta, type CentralRaw } from "./central";
 import { RegionRaster } from "./geo";
 
 export interface Meta {
   terrain: { width: number; height: number; min: number; max: number };
   surface: { width: number; height: number; sdfLevelsPerPx: number };
+  central: CentralMeta;
 }
 
 /** A decoded polyline: x,z pairs in km. */
@@ -50,6 +52,10 @@ export interface AtlasAssets {
   surface: { width: number; height: number; rgba: Uint8Array };
   vectors: Vectors;
   buildings: BuildingsRaw;
+  /** street-scale detail for central Austin */
+  central: Central;
+  /** every building in central Austin, thinning out beyond it */
+  centralBuildings: BuildingsRaw;
 }
 
 const BASE = "/atlas";
@@ -123,18 +129,45 @@ function decodeVectors(raw: RawVectors): Vectors {
 
 export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise<AtlasAssets> {
   let done = 0;
-  const weights = { meta: 0.02, terrain: 0.38, surface: 0.2, vectors: 0.12, buildings: 0.28 };
+  // Rough share of the bytes each file is, so the progress bar moves evenly.
+  const weights = {
+    meta: 0.01,
+    terrain: 0.24,
+    surface: 0.11,
+    vectors: 0.05,
+    buildings: 0.16,
+    cTerrain: 0.24,
+    cSurface: 0.14,
+    cVectors: 0.02,
+    cTrees: 0.03,
+    cBuildings: 0.12,
+  };
   const tick = (w: number) => <T,>(v: T): T => {
     done += w;
     onProgress?.(Math.min(1, done));
     return v;
   };
-  const [meta, terrain, surface, vectors, buildings] = await Promise.all([
-    fetch(`${BASE}/meta.json`).then((r) => r.json() as Promise<Meta>).then(tick(weights.meta)),
+  const json = <T,>(name: string) =>
+    fetch(`${BASE}/${name}`).then((r) => {
+      if (!r.ok) throw new Error(`${name}: ${r.status}`);
+      return r.json() as Promise<T>;
+    });
+  const [meta, terrain, surface, vectors, buildings, cTerrain, cSurface, cVectors, cTrees, cBuildings] = await Promise.all([
+    json<Meta>("meta.json").then(tick(weights.meta)),
     decodeImage(`${BASE}/terrain.webp`).then(tick(weights.terrain)),
     decodeImage(`${BASE}/surface.webp`).then(tick(weights.surface)),
-    fetch(`${BASE}/vectors.json`).then((r) => r.json() as Promise<RawVectors>).then(tick(weights.vectors)),
-    fetch(`${BASE}/buildings.json`).then((r) => r.json() as Promise<BuildingsRaw>).then(tick(weights.buildings)),
+    json<RawVectors>("vectors.json").then(tick(weights.vectors)),
+    json<BuildingsRaw>("buildings.json").then(tick(weights.buildings)),
+    decodeImage(`${BASE}/central_terrain.webp`).then(tick(weights.cTerrain)),
+    decodeImage(`${BASE}/central_surface.webp`).then(tick(weights.cSurface)),
+    json<CentralRaw>("central.json").then(tick(weights.cVectors)),
+    fetch(`${BASE}/central_trees.bin`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`central_trees.bin: ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then(tick(weights.cTrees)),
+    json<BuildingsRaw>("central_buildings.json").then(tick(weights.cBuildings)),
   ]);
 
   const n = terrain.width * terrain.height;
@@ -152,5 +185,7 @@ export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise
     surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
     vectors: decodeVectors(vectors),
     buildings,
+    central: decodeCentral(meta.central, cTerrain, cSurface, cVectors, cTrees),
+    centralBuildings: cBuildings,
   };
 }

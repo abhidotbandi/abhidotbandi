@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { AtlasAssets } from "@/lib/atlas/assets";
-import { HEIGHT_KM, TERRAIN_EXAG, WIDTH_KM } from "@/lib/atlas/geo";
+import type { Central } from "@/lib/atlas/central";
+import { C_HEIGHT_KM, C_WIDTH_KM, HEIGHT_KM, TERRAIN_EXAG, WIDTH_KM } from "@/lib/atlas/geo";
 
 export interface AtlasTextures {
   /** RG half-float: elevation (m), built-up density (0..1). No mips (not renderable everywhere). */
@@ -11,25 +12,25 @@ export interface AtlasTextures {
   surface: THREE.DataTexture;
 }
 
-export function makeTextures(a: AtlasAssets): AtlasTextures {
-  const { width: w, height: h, data: elev } = a.height;
+/** RG half-float: elevation (m) and a 0..1 second channel. */
+function heightTexture(elev: Float32Array, second: Uint8Array, w: number, h: number): THREE.DataTexture {
   const n = w * h;
-
   const hf = new Uint16Array(n * 2);
   for (let i = 0; i < n; i++) {
     hf[i * 2] = THREE.DataUtils.toHalfFloat(elev[i]);
-    hf[i * 2 + 1] = THREE.DataUtils.toHalfFloat(a.density[i] / 255);
+    hf[i * 2 + 1] = THREE.DataUtils.toHalfFloat(second[i] / 255);
   }
-  const height = new THREE.DataTexture(hf, w, h, THREE.RGFormat, THREE.HalfFloatType);
-  height.minFilter = THREE.LinearFilter;
-  height.magFilter = THREE.LinearFilter;
-  height.wrapS = height.wrapT = THREE.ClampToEdgeWrapping;
-  height.needsUpdate = true;
+  const t = new THREE.DataTexture(hf, w, h, THREE.RGFormat, THREE.HalfFloatType);
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.needsUpdate = true;
+  return t;
+}
 
-  // Central differences in km, with the same exaggeration the mesh uses.
-  const cellX = WIDTH_KM / w;
-  const cellZ = HEIGHT_KM / h;
-  const nrm = new Uint8Array(n * 4);
+/** RGBA8 normals from central differences in km, with the mesh's exaggeration. Mipmapped. */
+function normalTexture(elev: Float32Array, w: number, h: number, cellX: number, cellZ: number): THREE.DataTexture {
+  const nrm = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++) {
     const y0 = Math.max(0, y - 1);
     const y1 = Math.min(h - 1, y + 1);
@@ -46,20 +47,40 @@ export function makeTextures(a: AtlasAssets): AtlasTextures {
       nrm[o + 3] = 255;
     }
   }
-  const normal = new THREE.DataTexture(nrm, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
-  normal.generateMipmaps = true;
-  normal.minFilter = THREE.LinearMipmapLinearFilter;
-  normal.magFilter = THREE.LinearFilter;
-  normal.anisotropy = 4;
-  normal.needsUpdate = true;
+  const t = new THREE.DataTexture(nrm, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
 
-  const s = a.surface;
-  const surface = new THREE.DataTexture(s.rgba, s.width, s.height, THREE.RGBAFormat, THREE.UnsignedByteType);
-  surface.generateMipmaps = true;
-  surface.minFilter = THREE.LinearMipmapLinearFilter;
-  surface.magFilter = THREE.LinearFilter;
-  surface.anisotropy = 4;
-  surface.needsUpdate = true;
+function surfaceTexture(s: { width: number; height: number; rgba: Uint8Array }): THREE.DataTexture {
+  const t = new THREE.DataTexture(s.rgba, s.width, s.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
 
-  return { height, normal, surface };
+export function makeTextures(a: AtlasAssets): AtlasTextures {
+  const { width: w, height: h, data: elev } = a.height;
+  return {
+    height: heightTexture(elev, a.density, w, h),
+    normal: normalTexture(elev, w, h, WIDTH_KM / w, HEIGHT_KM / h),
+    surface: surfaceTexture(a.surface),
+  };
+}
+
+/** Textures for the central detail patch: elevation + canopy, normals, water/park surface. */
+export function makeCentralTextures(c: Central): AtlasTextures {
+  const { width: w, height: h } = c.meta.terrain;
+  return {
+    height: heightTexture(c.elev, c.canopy, w, h),
+    normal: normalTexture(c.elev, w, h, C_WIDTH_KM / w, C_HEIGHT_KM / h),
+    surface: surfaceTexture(c.surface),
+  };
 }

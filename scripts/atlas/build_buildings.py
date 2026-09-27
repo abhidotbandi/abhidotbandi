@@ -1,6 +1,9 @@
-"""3D building footprints for downtown, the Domain and every company site.
+"""3D building footprints: central Austin in full, the Domain and every company site.
 
-Output: public/atlas/buildings.json
+Outputs (same format):
+  public/atlas/central_buildings.json  every building in the central detail patch, thinning out
+                                       over a ring beyond its edge so detail dissolves gradually
+  public/atlas/buildings.json          the rest: the Domain and the context around company sites
   {"sites": [siteId, ...],
    "b": [[height_dm, siteIndex|-1, nOuter, x0, z0, dx1, dz1, ..., nHole, x0, z0, ...], ...]}
 
@@ -16,14 +19,15 @@ import pyarrow.parquet as pq
 import shapely
 from shapely.geometry import Point
 
-from config import CACHE, COMPANIES_JSON, OUT, project
+from config import C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, COMPANIES_JSON, OUT, project
 
 ZONES = {
     # name: (west, south, east, north, min footprint m^2)
-    "downtown": (-97.7760, 30.2340, -97.7040, 30.3010, 35),
     "domain": (-97.7470, 30.3740, -97.6960, 30.4160, 60),
 }
 CONTEXT_MIN_KM = 0.55
+CENTRAL_MIN_M2 = 25
+FADE_KM = 1.6  # buildings thin out over this distance beyond the central patch
 
 
 def to_m(lon, lat):
@@ -68,6 +72,18 @@ def build():
     for w, s, e, n, min_a in ZONES.values():
         select |= (lon > w) & (lon < e) & (lat > s) & (lat < n) & (area >= min_a)
 
+    # Central Austin in full, then a ring where a shrinking random share survives.
+    in_central = (lon >= C_WEST) & (lon <= C_EAST) & (lat >= C_SOUTH) & (lat <= C_NORTH)
+    klon0 = 111.320 * math.cos(math.radians(30.27))
+    dxk = np.maximum.reduce([C_WEST - lon, np.zeros_like(lon), lon - C_EAST]) * klon0
+    dzk = np.maximum.reduce([C_SOUTH - lat, np.zeros_like(lat), lat - C_NORTH]) * 110.574
+    ring_d = np.hypot(dxk, dzk)
+    ring = ~in_central & (ring_d < FADE_KM)
+    u = np.random.default_rng(11).random(len(geoms))
+    select |= in_central & (area >= CENTRAL_MIN_M2)
+    select |= ring & (area >= 50) & (u < np.clip(1 - ring_d / FADE_KM, 0, 1) ** 1.3)
+    central_zone = in_central | ring
+
     companies = json.loads(COMPANIES_JSON.read_text())
     sites = [s for c in companies for s in c["sites"]]
     site_of = np.full(len(geoms), -1, dtype=int)
@@ -95,8 +111,9 @@ def build():
                 select[i] = True
     select &= ~under
 
-    out, n_pts = [], 0
+    out, out_c, n_pts = [], [], 0
     for i in np.where(select)[0]:
+        dest = out_c if central_zone[i] else out
         g = shapely.transform(geoms[i], lambda c: to_m(c[:, 0], c[:, 1])).simplify(0.6)
         polys = g.geoms if g.geom_type == "MultiPolygon" else [g]
         h = min(350.0, max(3.0, est_height(heights[i], floors[i], area[i])))
@@ -113,14 +130,14 @@ def build():
                     if r:
                         rec += r
             n_pts += (len(rec) - 2) // 2
-            out.append(rec)
-    data = {"units": "m", "sites": [s["id"] for s in sites], "b": out}
-    path = OUT / "buildings.json"
-    path.write_text(json.dumps(data, separators=(",", ":")))
-    hi = sum(1 for r in out if r[1] >= 0)
-    print(f"  buildings.json: {len(out):,} footprints ({hi} company), ~{n_pts:,} pts, "
-          f"{path.stat().st_size / 1e6:.2f} MB")
-    matched = {sites[r[1]]["id"] for r in out if r[1] >= 0}
+            dest.append(rec)
+    for name, recs in (("buildings.json", out), ("central_buildings.json", out_c)):
+        path = OUT / name
+        path.write_text(json.dumps({"units": "m", "sites": [s["id"] for s in sites], "b": recs}, separators=(",", ":")))
+        hi = sum(1 for r in recs if r[1] >= 0)
+        print(f"  {name}: {len(recs):,} footprints ({hi} company), {path.stat().st_size / 1e6:.2f} MB")
+    print(f"  ~{n_pts:,} points in all")
+    matched = {sites[r[1]]["id"] for r in out + out_c if r[1] >= 0}
     print("  sites without a footprint:", sorted({s["id"] for s in sites} - matched))
 
 

@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
-STEPS = ["fetch.py", "build_terrain.py", "build_surface.py", "build_vectors.py", "build_buildings.py"]
+STEPS = ["fetch.py", "build_terrain.py", "build_surface.py", "build_vectors.py", "build_buildings.py",
+         "build_central.py"]
 
 if __name__ == "__main__":
     for step in STEPS:

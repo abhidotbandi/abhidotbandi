@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { SITES } from "@/data/atlas/companies";
-import { groundY, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { useAtlas } from "@/lib/atlas/store";
 import { siteColor, siteEmphasis } from "./siteState";
@@ -18,7 +18,7 @@ const dummy = new THREE.Object3D();
 const color = new THREE.Color();
 const white = new THREE.Color("#ffffff");
 
-export default function Beacons({ height, siteTop }: { height: RegionRaster; siteTop: Float32Array }) {
+export default function Beacons({ height, siteTop }: { height: HeightField; siteTop: Float32Array }) {
   const stems = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
   const rings = useRef<THREE.InstancedMesh>(null);

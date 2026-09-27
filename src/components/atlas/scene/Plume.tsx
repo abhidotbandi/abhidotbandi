@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { SITE_BY_ID } from "@/data/atlas/companies";
-import { groundY, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 
@@ -67,7 +67,7 @@ function points(n: number, origin: THREE.Vector3): THREE.BufferGeometry {
 }
 
 /** Firefly's Rocket Ranch: an engine on the test stand, firing on a loop at the Briggs stop. */
-export default function Plume({ height }: { height: RegionRaster }) {
+export default function Plume({ height }: { height: HeightField }) {
   const smoke = useRef<THREE.Points>(null);
   const flame = useRef<THREE.Points>(null);
   const site = SITE_BY_ID.get("firefly-ranch")!;

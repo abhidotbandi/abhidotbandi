@@ -7,7 +7,7 @@ import { SITES, type SiteRef } from "@/data/atlas/companies";
 import { DOMAINS } from "@/data/atlas/domains";
 import { STOPS } from "@/data/atlas/tour";
 import type { AtlasAssets, LabelPoint } from "@/lib/atlas/assets";
-import { groundY } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime, useAtlas } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { siteAnchors } from "../scene/Beacons";
@@ -228,12 +228,12 @@ export function LabelDriver() {
   return null;
 }
 
-function point(assets: AtlasAssets, l: LabelPoint, lift = 0.02): [number, number, number] {
-  return [l.x, groundY(assets.height, l.x, l.z) + lift, l.z];
+function point(ground: HeightField, l: LabelPoint, lift = 0.02): [number, number, number] {
+  return [l.x, groundY(ground, l.x, l.z) + lift, l.z];
 }
 
 /** Every map label as DOM, positioned by the label system. Decorative: the same content is in the cards and list. */
-export function LabelLayer({ assets }: { assets: AtlasAssets }) {
+export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: HeightField }) {
   const root = useRef<HTMLDivElement>(null);
   const selectSite = useAtlas((s) => s.selectSite);
   const hoverSite = useAtlas((s) => s.hoverSite);
@@ -256,11 +256,11 @@ export function LabelLayer({ assets }: { assets: AtlasAssets }) {
         site = SITES[idx];
       } else if (kind === "station") {
         const st = assets.vectors.redLine.stations[idx];
-        [x, y, z] = point(assets, { text: st.name, x: st.x, z: st.z }, 0.03);
+        [x, y, z] = point(ground, { text: st.name, x: st.x, z: st.z }, 0.03);
       } else {
         const list = { town: L.towns, hood: L.neighborhoods, water: L.water, landmark: L.landmarks, shield: L.shields }[kind];
         const lp = list[idx];
-        [x, y, z] = point(assets, lp);
+        [x, y, z] = point(ground, lp);
         rank = kind === "water" ? (lp.kind === "lake" ? 1 : 2) : (lp.rank ?? 1);
       }
       entries.push({ kind, el: node, x, y, z, rank, site, size: [0, 0], sizeDetail: [0, 0], on: false, detail: false });
@@ -276,7 +276,7 @@ export function LabelLayer({ assets }: { assets: AtlasAssets }) {
       labelSystem.entries = [];
       labelSystem.root = null;
     };
-  }, [assets, L]);
+  }, [assets, L, ground]);
 
   // Wheel over a label should still scroll the story (tour) or zoom the map (explore).
   const onWheel = (e: React.WheelEvent) => {

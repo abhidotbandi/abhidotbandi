@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { STOPS } from "@/data/atlas/tour";
 import { loadAtlasAssets } from "@/lib/atlas/assets";
-import { clamp } from "@/lib/atlas/geo";
+import { clamp, project } from "@/lib/atlas/geo";
 import { runtime, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
 import { getTimeline } from "@/lib/atlas/tour";
 import type { PreparedScene } from "./scene/prepare";
@@ -166,13 +166,21 @@ export default function AtlasApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Deep links: ?c=<site>, ?mode=explore, ?ride=1
+  // Deep links: ?c=<site>, ?mode=explore, ?ride=1, ?at=lat,lon[,dist km,tilt,bearing][&tod=0..1]
   useEffect(() => {
     if (!ready) return;
     const q = new URLSearchParams(window.location.search);
     const c = q.get("c");
+    const at = q.get("at")?.split(",").map(Number);
+    const tod = Number(q.get("tod"));
+    if (q.has("tod") && Number.isFinite(tod)) useAtlas.getState().setExploreTod(clamp(tod, 0, 1));
     if (q.get("ride") === "1") switchMode("ride");
-    else if (c && SITE_BY_ID.has(c)) {
+    else if (at && at.length >= 2 && at.every(Number.isFinite)) {
+      const [lat, lon, dist = 2, tilt = 55, bearing = 0] = at;
+      const [x, z] = project(lon, lat);
+      switchMode("explore");
+      runtime.flyTo = { x, z, dist: clamp(dist, 0.2, 150), tilt: clamp(tilt, 0, 75), bearing };
+    } else if (c && SITE_BY_ID.has(c)) {
       switchMode("explore");
       selectSite(c);
       flyToSite(c);
@@ -186,7 +194,7 @@ export default function AtlasApp() {
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
         {scene && !webglFailed && <AtlasCanvas scene={scene} />}
       </div>
-      {scene && !webglFailed && <LabelLayer assets={scene.assets} />}
+      {scene && !webglFailed && <LabelLayer assets={scene.assets} ground={scene.ground} />}
 
       <div id="atlas-scroller" ref={scroller} className="atlas-scroller" onScroll={onScroll} tabIndex={-1}>
         <div className="story-track" style={{ height: trackHeight }}>

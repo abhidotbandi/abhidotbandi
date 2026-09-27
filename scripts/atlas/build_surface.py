@@ -2,7 +2,7 @@
 
   R: signed distance to water (128 = shoreline, >128 = on water), 4 levels / px
   G: parks, preserves and golf courses
-  B: unused
+  B: tree and shrub cover (Hill Country woodland), 16 levels
 
 Built-up density lives in the terrain texture's B channel (lower resolution is
 fine for a glow). Both are sampled in the terrain fragment shader.
@@ -115,9 +115,31 @@ def parks(w, h):
     return (np.round(v * 7) * (255 / 7)).astype(np.uint8)
 
 
+def canopy(w, h):
+    """Forest and shrub cover from Overture land_cover (ESA WorldCover-derived)."""
+    t = pq.read_table(CACHE / "land_cover.parquet", columns=["geometry", "subtype"]).to_pylist()
+    region = shapely.box(*unproject_box())
+    ss = 2
+    img = Image.new("L", (w * ss, h * ss), 0)
+    d = ImageDraw.Draw(img)
+    for sub, val in (("shrub", 130), ("forest", 255)):
+        geoms = [shapely.from_wkb(r["geometry"]).intersection(region) for r in t if r["subtype"] == sub]
+        for g in to_px(shapely.GeometryCollection([g for g in geoms if not g.is_empty]).geoms, w * ss, h * ss):
+            if g.geom_type in ("Polygon", "MultiPolygon"):
+                draw_polys(d, g, val)
+    a = np.asarray(img, dtype=np.float32).reshape(h, ss, w, ss).mean(axis=(1, 3)) / 255
+    a = ndimage.gaussian_filter(a, 0.6)
+    return (np.round(np.clip(a, 0, 1) * 15) * 17).astype(np.uint8)
+
+
+def unproject_box():
+    from config import EAST, NORTH, SOUTH, WEST
+    return WEST, SOUTH, EAST, NORTH
+
+
 def build():
     w, h = size()
-    rgb = np.stack([water_sdf(w, h), parks(w, h), np.zeros((h, w), np.uint8)], axis=-1)
+    rgb = np.stack([water_sdf(w, h), parks(w, h), canopy(w, h)], axis=-1)
     Image.fromarray(rgb, "RGB").save(OUT / "surface.webp", lossless=True, method=6)
     print(f"  surface.webp {w}x{h}, {(OUT / 'surface.webp').stat().st_size / 1e6:.2f} MB")
     return {"width": w, "height": h, "sdfLevelsPerPx": SDF_LEVELS_PER_PX}

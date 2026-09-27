@@ -7,7 +7,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import type { Vectors } from "@/lib/atlas/assets";
-import { groundY, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime, useAtlas } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 
@@ -20,7 +20,7 @@ export interface Track {
   length: number;
 }
 
-export function buildTrack(line: Float32Array, height: RegionRaster): Track {
+export function buildTrack(line: Float32Array, height: HeightField): Track {
   // Resample every ~40 m so the train follows the terrain smoothly.
   const out: number[] = [];
   for (let i = 0; i + 3 < line.length; i += 2) {
@@ -70,7 +70,7 @@ export function trackAt(tr: Track, s: number, out: THREE.Vector3): number {
 const pos = new THREE.Vector3();
 const ahead = new THREE.Vector3();
 
-export default function RedLine({ vectors, height }: { vectors: Vectors; height: RegionRaster }) {
+export default function RedLine({ vectors, height }: { vectors: Vectors; height: HeightField }) {
   const train = useRef<THREE.Group>(null);
   const stations = useRef<THREE.InstancedMesh>(null);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;

@@ -20,7 +20,8 @@ import pyarrow.dataset as ds
 import pyarrow.fs as pafs
 import pyarrow.parquet as pq
 
-from config import CACHE, EAST, NORTH, OVERTURE_BUCKET, OVERTURE_RELEASE, SOUTH, WEST
+from config import (C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, EAST, NORTH, OVERTURE_BUCKET,
+                    OVERTURE_RELEASE, SOUTH, WEST)
 
 TERRAIN_ZOOM = 12
 PAD = 0.02  # degrees of slack around the region for everything we fetch
@@ -42,7 +43,18 @@ def bbox_filter():
     )
 
 
-def overture(theme, kind, columns, out_name, extra=None):
+def central_filter():
+    """The central detail patch plus slack (covers Pennybacker Bridge and Mount Bonnell)."""
+    w, s, e, n = C_WEST - 0.07, C_SOUTH - 0.026, C_EAST + 0.035, C_NORTH + 0.045
+    return (
+        (pc.field("bbox", "xmax") >= w)
+        & (pc.field("bbox", "xmin") <= e)
+        & (pc.field("bbox", "ymax") >= s)
+        & (pc.field("bbox", "ymin") <= n)
+    )
+
+
+def overture(theme, kind, columns, out_name, extra=None, area=None):
     out = CACHE / out_name
     if out.exists():
         print(f"  cached {out.name}")
@@ -50,8 +62,8 @@ def overture(theme, kind, columns, out_name, extra=None):
     t = time.time()
     path = f"{OVERTURE_BUCKET}/release/{OVERTURE_RELEASE}/theme={theme}/type={kind}"
     dataset = ds.dataset(path, filesystem=s3(), format="parquet")
-    cols = [c for c in columns if c in dataset.schema.names]
-    flt = bbox_filter() if extra is None else bbox_filter() & extra
+    cols = [c for c in columns if c in dataset.schema.names] if columns else None
+    flt = (area or bbox_filter()) if extra is None else (area or bbox_filter()) & extra
     table = dataset.to_table(filter=flt, columns=cols)
     pq.write_table(table, out, compression="zstd")
     print(f"  {out.name}: {table.num_rows:,} rows in {time.time() - t:.0f}s")
@@ -79,6 +91,14 @@ def fetch_overture(which):
     if "divisions" in which:
         overture("divisions", "division", ["id", "geometry", "bbox", "names", "subtype", "class",
                                            "population"], "divisions.parquet")
+    if "landcover" in which:
+        overture("base", "land_cover", ["subtype", "geometry", "bbox"], "land_cover.parquet",
+                 extra=pc.field("subtype").isin(["forest", "shrub"]))
+    if "central" in which:
+        # Every path class, piers and towers, and land cover for the central detail patch.
+        overture("transportation", "segment", None, "segments_central.parquet", area=central_filter())
+        overture("base", "infrastructure", None, "infrastructure_central.parquet", area=central_filter())
+        overture("base", "land_cover", None, "land_cover_central.parquet", area=central_filter())
 
 
 def tile_range(zoom):
@@ -120,7 +140,7 @@ def fetch_terrain():
 if __name__ == "__main__":
     CACHE.mkdir(parents=True, exist_ok=True)
     targets = set(sys.argv[1:]) or {"terrain", "places", "addresses", "buildings", "roads",
-                                     "water", "landuse", "divisions"}
+                                     "water", "landuse", "divisions", "landcover", "central"}
     if "terrain" in targets:
         fetch_terrain()
     fetch_overture(targets)

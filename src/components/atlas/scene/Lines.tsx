@@ -7,11 +7,11 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import type { AtlasAssets, Polyline } from "@/lib/atlas/assets";
-import { groundY, type RegionRaster } from "@/lib/atlas/geo";
+import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { sky } from "@/lib/atlas/timeOfDay";
 
 /** Segment pairs draped on the terrain, subdividing long spans so lines don't cut through hills. */
-export function drape(lines: Polyline[], height: RegionRaster, yOff: number, maxStep = 0.12): Float32Array {
+export function drape(lines: Polyline[], height: HeightField, yOff: number, maxStep = 0.12): Float32Array {
   const out: number[] = [];
   for (const l of lines) {
     for (let i = 0; i + 3 < l.length; i += 2) {
@@ -92,10 +92,10 @@ function Layer({ positions, style, order }: { positions: Float32Array; style: La
   return <primitive ref={ref} object={line} />;
 }
 
-export function MapLines({ assets }: { assets: AtlasAssets }) {
+export function MapLines({ assets, ground }: { assets: AtlasAssets; ground: HeightField }) {
   const layers = useMemo(() => {
     const v = assets.vectors;
-    const h = assets.height;
+    const h = ground;
     const L: [string, Float32Array][] = [
       ["creeks", drape(v.creeks, h, STYLES.creeks.yOff, 0.2)],
       ["tertiary", drape(v.roads.tertiary, h, STYLES.tertiary.yOff)],
@@ -106,7 +106,7 @@ export function MapLines({ assets }: { assets: AtlasAssets }) {
       ["motorway", drape(v.roads.motorway, h, STYLES.motorway.yOff)],
     ];
     return L;
-  }, [assets]);
+  }, [assets, ground]);
 
   return (
     <group>

@@ -39,3 +39,12 @@ X_MIN, Z_MAX = project(WEST, SOUTH)
 X_MAX, Z_MIN = project(EAST, NORTH)
 WIDTH_KM = X_MAX - X_MIN
 HEIGHT_KM = Z_MAX - Z_MIN
+
+
+# Central Austin detail patch: Red Bud Isle and Mount Bonnell (W/N) to Longhorn Dam (E) and
+# South Congress (S). Everything in it gets high-resolution terrain, surface and vectors.
+C_WEST, C_SOUTH, C_EAST, C_NORTH = -97.800, 30.236, -97.705, 30.325
+CX_MIN, CZ_MAX = project(C_WEST, C_SOUTH)
+CX_MAX, CZ_MIN = project(C_EAST, C_NORTH)
+C_WIDTH_KM = CX_MAX - CX_MIN
+C_HEIGHT_KM = CZ_MAX - CZ_MIN

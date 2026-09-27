@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { useAtlas } from "@/lib/atlas/store";
@@ -62,6 +62,21 @@ function ReadySignal() {
   return null;
 }
 
+/**
+ * Compile every material in the scene, visible or not, whenever its contents change. Without this
+ * each layer compiles the first time it comes into view (zooming into downtown, the first night),
+ * stalling that frame; with KHR_parallel_shader_compile it happens off the main thread.
+ */
+function Precompile({ token }: { token: unknown }) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    gl.compileAsync(scene, camera).catch(() => {});
+  }, [gl, scene, camera, token]);
+  return null;
+}
+
 export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
   const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
@@ -106,6 +121,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />
+      <Precompile token={central} />
       <ReadySignal />
     </Canvas>
   );

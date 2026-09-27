@@ -404,3 +404,58 @@ out beyond ~8 km and fall back to fewer instances on low-power devices.
 5. Landmarks and the night city.
 6. The paddle journey, places and tour chapters.
 7. QA, perf and mobile.
+
+### 2.8 Status (2026-09-27): built
+
+Everything in 2.1–2.5 is in, plus an offices-and-skyline pass that the owner asked for mid-way,
+using levels.fyi's atlas as the reference.
+
+- **Patch and water** (2.1, 2.2): the central patch covers lon −97.800…−97.705,
+  lat 30.236…30.325, so it reaches Mount Bonnell and Tom Miller Dam, a little larger than
+  planned.
+- **Life** (2.3), all instanced and driven by time of day:
+  - rowing shells, paddleboards, kayaks, canoes on Barton Creek, the Lone Star Riverboat and bat
+    boats (`RiverLife`)
+  - ~700 trail users on the Butler trail graph, swimmers and sunbathers at Barton Springs and
+    Deep Eddy, and picnics, canopy tents, kites, frisbees, strollers and dogs on the Great Lawn
+    (`ParkLife`)
+  - the Zilker Eagle on its track
+  - crowds on Rainey Street (under string lights), East 6th (under neon) and South Congress,
+    bat watchers on the Congress Avenue Bridge, and the sunset crowd on Mount Bonnell
+    (`CityLife`)
+  - Low-power devices get about 40% of the crowds.
+- **Landmarks** (2.4), in `Landmarks`:
+  - the Capitol, the UT Tower (burnt orange at night), the 13 moonlight towers (glowing lamp
+    rings), the Pennybacker arch, Mount Bonnell's pavilion, Tom Miller and Longhorn dams, and
+    arches under the Congress Avenue Bridge
+  - Frost Bank Tower's crown, The Independent's stacked blocks, Block 185's sail, the DKR
+    stadium bowl and Moody Center, found by their Overture names in the pipeline
+    (`NAMED_LANDMARKS`)
+  - Their plain extrusions are left out of the building mesh.
+- **Buildings**:
+  - Walls carry a stable facade coordinate (`aU`), which fixed shimmering lit windows and drives
+    daytime detail: curtain-wall glass with mullions and reflected sky on towers, punched
+    windows in stone, stucco and brick.
+  - Houses get hip or gable roofs, and larger roofs get HVAC plant and penthouses.
+  - All of it fades back to the paper look beyond ~14 km.
+- **Story and exploration** (2.5):
+  - Paddle Lady Bird Lake: a fourth mode following a paddleboarder from Red Bud Isle to Longhorn
+    Dam through golden hour, with a HUD of landmarks and bridges ahead.
+  - 17 place cards, each fact checked against the listed Wikipedia article. They open from map
+    labels, search and `?p=`.
+  - Three new tour chapters (lake in the morning, Zilker and Barton Springs at midday, Rainey
+    Street after dark).
+  - Company labels carry a sourced figure (valuation, amount raised, or ticker).
+- **Budget** (2.6):
+  - The regional map (~2.9 MB compressed) opens the atlas. Central Austin (~4.0 MB: patch
+    terrain 0.95, surface 1.47, trees 0.35, paths 0.09, buildings 1.15) loads behind it, and the
+    scene upgrades in place.
+  - That's over the 2.5 MB target for the patch. The biggest wins left are a binary building
+    format and a coarser surface texture on phones.
+
+Known limits:
+- Crowds, boats and the tower shapes are impressions, not surveys.
+- The UT Tower is shown orange every night, while the real tower is orange for occasions (its
+  card says so).
+- The regional terrain softens the Pennybacker's bluffs, so its deck slopes gently between
+  banks.

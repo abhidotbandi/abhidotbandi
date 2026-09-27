@@ -15,6 +15,7 @@ import CameraDirector from "./CameraDirector";
 import Bats from "./Bats";
 import Plume from "./Plume";
 import Traffic from "./Traffic";
+import RiverLife from "./RiverLife";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
 
@@ -88,6 +89,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <RedLine vectors={assets.vectors} height={ground} />
       <Beacons height={ground} siteTop={scene.siteTop} />
       {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
+      <RiverLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />

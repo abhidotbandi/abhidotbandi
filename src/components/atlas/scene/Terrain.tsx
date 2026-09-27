@@ -218,7 +218,7 @@ const fragment = /* glsl */ `
       wcol = mix(wcol, skyc, clamp(fres, 0.0, 1.0) * 0.55);
       vec3 Hs = normalize(uSunDir + V);
       float nh = max(dot(wn, Hs), 0.0);
-      float glint = pow(nh, 420.0) * 7.0 + pow(nh, 60.0) * 0.18;
+      float glint = pow(nh, 420.0) * 4.5 + pow(nh, 60.0) * 0.14;
       float sunUp = smoothstep(-0.02, 0.08, uSunDir.y);
       wcol += uSunColor * glint * sunUp * (1.0 - uNight);
 
@@ -229,7 +229,7 @@ const fragment = /* glsl */ `
       float shimmer = pow(vnoise(vec2(wp.x * 0.22, wp.y * 1.3) + vec2(0.0, uTime * 0.6) + g * 3.0), 4.0);
       float nightK = smoothstep(0.4, 1.0, uNight);
       wcol += lin(vec3(1.0, 0.72, 0.42)) * nearCity * (0.1 + 2.4 * shimmer) * nightK;
-      wcol += lin(vec3(0.55, 0.62, 0.95)) * pow(vnoise(wp * 0.5 + uTime * 0.4), 8.0) * 0.25 * nightK;
+      wcol += lin(vec3(0.55, 0.62, 0.95)) * pow(vnoise(wp * 0.08 + uTime * 0.15), 6.0) * 0.06 * nightK;
 
       // Lapping at the shoreline, visible when close.
       float lapW = 1.1 + 0.7 * sin(uTime * 1.6 + vnoise(wp * 0.05) * 12.0);

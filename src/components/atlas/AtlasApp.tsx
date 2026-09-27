@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
+import { PLACE_BY_ID } from "@/data/atlas/places";
 import { STOPS } from "@/data/atlas/tour";
 import { loadAtlasAssets } from "@/lib/atlas/assets";
 import { clamp, project } from "@/lib/atlas/geo";
@@ -14,6 +15,7 @@ import { LabelLayer } from "./ui/labels";
 import Header from "./ui/Header";
 import ChapterRail from "./ui/ChapterRail";
 import CompanyPanel from "./ui/CompanyPanel";
+import PlacePanel from "./ui/PlacePanel";
 import ExplorePanel from "./ui/ExplorePanel";
 import RideHud from "./ui/RideHud";
 import SearchPalette from "./ui/SearchPalette";
@@ -45,6 +47,14 @@ export function flyToSite(id: string) {
   };
 }
 
+/** Camera view for a place, in the light it looks best in. */
+export function flyToPlace(id: string) {
+  const p = PLACE_BY_ID.get(id);
+  if (!p) return;
+  runtime.flyTo = { x: p.x, z: p.z, dist: p.view.dist, tilt: p.view.tilt, bearing: p.view.bearing };
+  if (p.view.tod !== undefined) useAtlas.getState().setExploreTod(p.view.tod);
+}
+
 export default function AtlasApp() {
   const [scene, setScene] = useState<PreparedScene | null>(null);
   const [vh, setVh] = useState(900);
@@ -57,6 +67,8 @@ export default function AtlasApp() {
   const webglFailed = useAtlas((s) => s.webglFailed);
   const selectSite = useAtlas((s) => s.selectSite);
   const selected = useAtlas((s) => s.selectedSite);
+  const selectedPlace = useAtlas((s) => s.selectedPlace);
+  const selectPlace = useAtlas((s) => s.selectPlace);
   const timeline = getTimeline();
 
   // Load and prepare everything while the loader is up.
@@ -142,6 +154,7 @@ export default function AtlasApp() {
     () =>
       useAtlas.subscribe((s, prev) => {
         if (s.selectedSite && s.selectedSite !== prev.selectedSite && s.mode === "explore") flyToSite(s.selectedSite);
+        if (s.selectedPlace && s.selectedPlace !== prev.selectedPlace && s.mode === "explore") flyToPlace(s.selectedPlace);
       }),
     [],
   );
@@ -159,6 +172,7 @@ export default function AtlasApp() {
         else if (st.listOpen) st.setListOpen(false);
         else if (st.aboutOpen) st.setAboutOpen(false);
         else if (st.selectedSite) st.selectSite(null);
+        else if (st.selectedPlace) st.selectPlace(null);
         else if (st.mode !== "tour") st.setMode("tour");
       }
     };
@@ -166,11 +180,12 @@ export default function AtlasApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Deep links: ?c=<site>, ?mode=explore, ?ride=1, ?at=lat,lon[,dist km,tilt,bearing][&tod=0..1]
+  // Deep links: ?c=<site>, ?p=<place>, ?mode=explore, ?ride=1, ?at=lat,lon[,dist km,tilt,bearing][&tod=0..1]
   useEffect(() => {
     if (!ready) return;
     const q = new URLSearchParams(window.location.search);
     const c = q.get("c");
+    const p = q.get("p");
     const at = q.get("at")?.split(",").map(Number);
     const tod = Number(q.get("tod"));
     if (q.has("tod") && Number.isFinite(tod)) useAtlas.getState().setExploreTod(clamp(tod, 0, 1));
@@ -180,17 +195,21 @@ export default function AtlasApp() {
       const [x, z] = project(lon, lat);
       switchMode("explore");
       runtime.flyTo = { x, z, dist: clamp(dist, 0.2, 150), tilt: clamp(tilt, 0, 75), bearing };
+    } else if (p && PLACE_BY_ID.has(p)) {
+      switchMode("explore");
+      selectPlace(p);
+      flyToPlace(p);
     } else if (c && SITE_BY_ID.has(c)) {
       switchMode("explore");
       selectSite(c);
       flyToSite(c);
     } else if (q.get("mode") === "explore") switchMode("explore");
-  }, [ready, selectSite, switchMode]);
+  }, [ready, selectSite, selectPlace, switchMode]);
 
   const trackHeight = (timeline.total + 1) * vh;
 
   return (
-    <div className="atlas" data-mode={mode} data-ready={ready ? "1" : "0"} data-selected={selected ? "1" : "0"}>
+    <div className="atlas" data-mode={mode} data-ready={ready ? "1" : "0"} data-selected={selected || selectedPlace ? "1" : "0"}>
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
         {scene && !webglFailed && <AtlasCanvas scene={scene} />}
       </div>
@@ -222,11 +241,22 @@ export default function AtlasApp() {
         switchMode("explore");
         flyToSite(id);
       }} />
-      <SearchPalette onPick={(id) => {
+      <PlacePanel onShowOnMap={(id) => {
         switchMode("explore");
-        selectSite(id);
-        flyToSite(id);
+        flyToPlace(id);
       }} />
+      <SearchPalette
+        onPick={(id) => {
+          switchMode("explore");
+          selectSite(id);
+          flyToSite(id);
+        }}
+        onPickPlace={(id) => {
+          switchMode("explore");
+          selectPlace(id);
+          flyToPlace(id);
+        }}
+      />
       <ListView onPick={(id) => {
         switchMode("explore");
         selectSite(id);

@@ -622,6 +622,25 @@
   color: var(--label-ink-2);
 }
 
+/* Labels that open a place's card. */
+.al-clickable {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.al-clickable[data-on="1"] {
+  pointer-events: auto;
+}
+
+.al-clickable:hover {
+  color: var(--label-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .al-landmark::before {
   content: "";
   width: 5px;
@@ -1300,6 +1319,12 @@
   cursor: pointer;
 }
 
+.sp-results button > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+
 .sp-results [aria-selected="true"] button {
   background: rgba(28, 25, 20, 0.07);
 }
@@ -1717,4 +1742,10 @@ button.ct-name:hover {
     min-width: 30px;
     padding: 0 5px;
   }
+}
+
+/* The place card shares the company card; its kicker carries a pin. */
+.place-panel .cp-domain svg {
+  width: 14px;
+  height: 14px;
 }

@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SITES, labelFigure, type SiteRef } from "@/data/atlas/companies";
 import { DOMAINS } from "@/data/atlas/domains";
+import { PLACES, PLACE_BY_LABEL, type PlaceRef } from "@/data/atlas/places";
 import { STOPS } from "@/data/atlas/tour";
 import type { AtlasAssets, LabelPoint } from "@/lib/atlas/assets";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
@@ -14,7 +15,7 @@ import { siteAnchors } from "../scene/Beacons";
 import { siteEmphasis } from "../scene/siteState";
 import { DomainGlyph } from "./glyphs";
 
-type Kind = "site" | "town" | "hood" | "water" | "landmark" | "shield" | "station";
+type Kind = "site" | "town" | "hood" | "water" | "landmark" | "shield" | "station" | "place";
 
 interface Entry {
   kind: Kind;
@@ -24,6 +25,7 @@ interface Entry {
   z: number;
   rank: number;
   site?: SiteRef;
+  place?: PlaceRef;
   /** measured sizes: [w, h] compact and with the detail line */
   size: [number, number];
   sizeDetail: [number, number];
@@ -88,6 +90,8 @@ class LabelSystem {
         return dist < 48 && dist > 1.2;
       case "station":
         return mode === "ride" || dist < 20;
+      case "place":
+        return dist < 9;
     }
   }
 
@@ -113,6 +117,8 @@ class LabelSystem {
         return 65;
       case "hood":
         return 40;
+      case "place":
+        return 110;
     }
     return 0;
   }
@@ -237,7 +243,33 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
   const root = useRef<HTMLDivElement>(null);
   const selectSite = useAtlas((s) => s.selectSite);
   const hoverSite = useAtlas((s) => s.hoverSite);
+  const selectPlace = useAtlas((s) => s.selectPlace);
   const L = assets.vectors.labels;
+  /** A map label that opens a place's card, or plain text. */
+  const named = (kind: Kind, i: number, cls: string, text: string, extra: Record<string, string | number | undefined> = {}) => {
+    const place = PLACE_BY_LABEL.get(text);
+    if (!place) {
+      return (
+        <span key={`${kind}${i}`} data-label={kind} data-idx={i} className={cls} {...extra}>
+          {text}
+        </span>
+      );
+    }
+    return (
+      <button
+        key={`${kind}${i}`}
+        type="button"
+        tabIndex={-1}
+        data-label={kind}
+        data-idx={i}
+        className={`${cls} al-clickable`}
+        onClick={() => selectPlace(place.id)}
+        {...extra}
+      >
+        {text}
+      </button>
+    );
+  };
 
   useEffect(() => {
     const el = root.current;
@@ -252,8 +284,12 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
       let z = 0;
       let rank = 1;
       let site: SiteRef | undefined;
+      let place: PlaceRef | undefined;
       if (kind === "site") {
         site = SITES[idx];
+      } else if (kind === "place") {
+        place = PLACES[idx];
+        [x, y, z] = point(ground, { text: place.name, x: place.x, z: place.z }, 0.02);
       } else if (kind === "station") {
         const st = assets.vectors.redLine.stations[idx];
         [x, y, z] = point(ground, { text: st.name, x: st.x, z: st.z }, 0.03);
@@ -263,7 +299,7 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
         [x, y, z] = point(ground, lp);
         rank = kind === "water" ? (lp.kind === "lake" ? 1 : 2) : (lp.rank ?? 1);
       }
-      entries.push({ kind, el: node, x, y, z, rank, site, size: [0, 0], sizeDetail: [0, 0], on: false, detail: false });
+      entries.push({ kind, el: node, x, y, z, rank, site, place, size: [0, 0], sizeDetail: [0, 0], on: false, detail: false });
     });
     labelSystem.entries = entries;
     labelSystem.measure();
@@ -287,11 +323,7 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
 
   return (
     <div ref={root} className="atlas-labels" aria-hidden="true" onWheel={onWheel}>
-      {L.water.map((l, i) => (
-        <span key={`w${i}`} data-label="water" data-idx={i} className="al al-water">
-          {l.text}
-        </span>
-      ))}
+      {L.water.map((l, i) => named("water", i, "al al-water", l.text))}
       {L.towns.map((l, i) => (
         <span key={`t${i}`} data-label="town" data-idx={i} className="al al-town" data-rank={l.rank}>
           {l.text}
@@ -302,10 +334,19 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
           {l.text}
         </span>
       ))}
-      {L.landmarks.map((l, i) => (
-        <span key={`l${i}`} data-label="landmark" data-idx={i} className="al al-landmark">
-          {l.text}
-        </span>
+      {L.landmarks.map((l, i) => named("landmark", i, "al al-landmark", l.text))}
+      {PLACES.filter((p) => !p.label).map((p) => (
+        <button
+          key={`p${p.index}`}
+          type="button"
+          tabIndex={-1}
+          data-label="place"
+          data-idx={p.index}
+          className="al al-landmark al-clickable"
+          onClick={() => selectPlace(p.id)}
+        >
+          {p.name}
+        </button>
       ))}
       {L.shields.map((l, i) => (
         <span key={`s${i}`} data-label="shield" data-idx={i} className="al al-shield">

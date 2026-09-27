@@ -16,6 +16,9 @@ interface AtlasState {
   hoveredSite: string | null;
   selectSite: (id: string | null) => void;
   hoverSite: (id: string | null) => void;
+  /** a landmark, park or other place whose card is open (not a company site) */
+  selectedPlace: string | null;
+  selectPlace: (id: string | null) => void;
 
   domains: Set<DomainId>;
   toggleDomain: (d: DomainId) => void;
@@ -58,10 +61,12 @@ export const useAtlas = create<AtlasState>((set, get) => ({
 
   selectedSite: null,
   hoveredSite: null,
-  selectSite: (selectedSite) => set({ selectedSite }),
+  selectSite: (selectedSite) => set(selectedSite ? { selectedSite, selectedPlace: null } : { selectedSite }),
   hoverSite: (hoveredSite) => {
     if (get().hoveredSite !== hoveredSite) set({ hoveredSite });
   },
+  selectedPlace: null,
+  selectPlace: (selectedPlace) => set(selectedPlace ? { selectedPlace, selectedSite: null } : { selectedPlace }),
 
   domains: new Set<DomainId>(["defense-space", "chips-compute", "energy-mobility", "robotics-mfg"]),
   toggleDomain: (d) => {

@@ -49,9 +49,9 @@ export function instanced(g: THREE.BufferGeometry, m: THREE.Material, n: number)
   return mesh;
 }
 
-/** Exaggeration for people: true size up close, growing with distance so they stay visible. */
+/** Exaggeration for people: near true size up close, growing with distance so a crowd still reads. */
 export function figureScale(dist: number): number {
-  return Math.min(9, Math.max(1.5, dist / 0.28));
+  return Math.min(9, Math.max(1.5, dist / 0.13));
 }
 
 /** 0 outside a time-of-day window, 1 inside, with soft edges. */

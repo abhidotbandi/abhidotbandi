@@ -236,20 +236,11 @@ function poolMeshes(pools: { poly: Polyline; level: number }[]): THREE.Group {
     uniforms: { uTime: sky.uTime, uNight: sky.uNight },
     transparent: true,
     depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
   });
   const rg = new THREE.BufferGeometry();
   rg.setAttribute("position", new THREE.Float32BufferAttribute(rim, 3));
   rg.computeVertexNormals();
-  const rm = new THREE.MeshLambertMaterial({
-    color: "#e6e0d4",
-    side: THREE.DoubleSide,
-    polygonOffset: true,
-    polygonOffsetFactor: -3,
-    polygonOffsetUnits: -3,
-  });
+  const rm = new THREE.MeshLambertMaterial({ color: "#e6e0d4", side: THREE.DoubleSide });
   const group = new THREE.Group();
   group.add(new THREE.Mesh(wg, wm), new THREE.Mesh(rg, rm));
   return group;
@@ -484,9 +475,10 @@ function makeSim(c: Central, ground: HeightField, lowPower: boolean): THREE.Grou
       const x = ax.cx + u * ax.ux - v * ax.uz;
       const z = ax.cz + u * ax.uz + v * ax.ux;
       // The south hillside is shaded by big pecans; people lie out under and between them.
-      if (pointInPoly(poly, x, z) || sampleWaterKm(c, x, z) > -0.004 || sampleCanopy(c, x, z) > (south ? 0.9 : 0.55)) continue;
+      if (pointInPoly(poly, x, z) || sampleWaterKm(c, x, z) > -0.004 || (!south && sampleCanopy(c, x, z) > 0.8)) continue;
       if (bathhouse && (pointInPoly(bathhouse, x, z) || edgeDist(bathhouse, x, z) < 0.005)) continue;
-      if (sunbathers.some((o) => Math.hypot(o.x - x, o.z - z) < 0.0026)) continue;
+      // Towels are drawn larger than life from afar, so leave room between them.
+      if (sunbathers.some((o) => Math.hypot(o.x - x, o.z - z) < 0.0045)) continue;
       const two = rnd() < 0.3;
       const yaw = Math.atan2(ax.ux, ax.uz) + Math.PI / 2 + (rnd() - 0.5) * 0.9 + (rnd() < 0.5 ? 0 : Math.PI);
       const person = () => ({
@@ -590,12 +582,12 @@ function makeSim(c: Central, ground: HeightField, lowPower: boolean): THREE.Grou
 
   // The Zilker Eagle: the longest stretch of its track.
   let train: Sim["train"] = null;
-  const track = c.train.reduce<Polyline | null>((best, l) => (!best || l.length > best.length ? l : best), null);
-  if (track && track.length >= 4) {
-    const n = track.length / 2;
-    const closed = Math.hypot(track[0] - track[n * 2 - 2], track[1] - track[n * 2 - 1]) < 0.03;
-    const path = new Path(track, closed);
-    train = { path, closed, d: 0.02 + rnd() * (path.length - 0.04), dir: 1 };
+  const longest = c.train.reduce<Polyline | null>((best, l) => (!best || l.length > best.length ? l : best), null);
+  if (longest && longest.length >= 4) {
+    const n = longest.length / 2;
+    const closed = Math.hypot(longest[0] - longest[n * 2 - 2], longest[1] - longest[n * 2 - 1]) < 0.03;
+    const path = new Path(longest, closed);
+    train = { path, closed, d: path.length * 0.3, dir: 1 };
   }
 
   // Meshes.
@@ -666,11 +658,22 @@ function makeSim(c: Central, ground: HeightField, lowPower: boolean): THREE.Grou
   const segs = kites.length * 8 + 2;
   lineGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs * 6), 3));
   lineGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(segs * 6), 3));
-  const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }));
+  const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5 }));
   lines.frustumCulled = false;
 
+  // The Eagle's narrow-gauge track, draped just above the grass.
+  const rails: number[] = [];
+  for (const l of c.train) {
+    for (let i = 0; i + 1 < l.length / 2; i++) {
+      for (const j of [i, i + 1]) rails.push(l[j * 2], groundY(ground, l[j * 2], l[j * 2 + 1]) + 0.0004, l[j * 2 + 1]);
+    }
+  }
+  const railGeo = new THREE.BufferGeometry();
+  railGeo.setAttribute("position", new THREE.Float32BufferAttribute(rails, 3));
+  const track = new THREE.LineSegments(railGeo, new THREE.LineBasicMaterial({ color: "#6d5a48", transparent: true, opacity: 0.7 }));
+
   const root = new THREE.Group();
-  root.add(...Object.values(meshes), loco, lines, poolMeshes(pools));
+  root.add(...Object.values(meshes), loco, lines, track, poolMeshes(pools));
   root.userData.loco = loco;
   root.userData.sim = {
     central: c,
@@ -827,8 +830,9 @@ export default function ParkLife({ central, ground, lowPower }: { central: Centr
           const yaw = Math.atan2(ax.ux * sw.dir, ax.uz * sw.dir);
           const hx = Math.sin(yaw);
           const hz = Math.cos(yaw);
-          put("lying", placeAt(x, y - 0.14 * kk, z, yaw, kk, kk, kk), sw.suit);
-          put("heads", placeAt(x + hx * 0.85 * kk, y + 0.04 * kk, z + hz * 0.85 * kk, yaw, kk, kk, kk), sw.skin);
+          // Backs and heads break the surface; the clear water hides the rest.
+          put("lying", placeAt(x, y - 0.1 * kk, z, yaw, kk, kk, kk), sw.suit);
+          put("heads", placeAt(x + hx * 0.85 * kk, y + 0.02 * kk, z + hz * 0.85 * kk, yaw, kk, kk, kk), sw.skin);
         } else {
           const bob = Math.sin(t * 1.6 + sw.phase) * 0.05;
           put("standing", placeAt(x, y - (1.3 - bob) * kk, z, sw.phase, kk, kk, kk), sw.suit);
@@ -885,6 +889,7 @@ export default function ParkLife({ central, ground, lowPower }: { central: Centr
         }
       }
       const yawDown = Math.atan2(WIND.x, WIND.z);
+      const ke = Math.min(E, 2.2) * M * lawnOn; // kites and strings stay nearer true scale than people
       for (const kt of sim.kites) {
         const y = gy(kt.fx, kt.fz);
         put("standing", placeAt(kt.fx, y, kt.fz, yawDown, kk, kk, kk, -0.1), kt.shirt);
@@ -892,10 +897,10 @@ export default function ParkLife({ central, ground, lowPower }: { central: Centr
         // The kite rides the wind, swaying and bobbing; string and tail as lines.
         const sway = Math.sin(t * 0.9 + kt.phase) * 4;
         const bob = Math.sin(t * 1.3 + kt.phase * 2) * 2.5;
-        const kx = kt.fx + (WIND.x * kt.reach - WIND.z * sway) * kk;
-        const kz = kt.fz + (WIND.z * kt.reach + WIND.x * sway) * kk;
-        const ky = y + (kt.height + bob) * kk;
-        const kScale = kk * 2.4;
+        const kx = kt.fx + (WIND.x * kt.reach - WIND.z * sway) * ke;
+        const kz = kt.fz + (WIND.z * kt.reach + WIND.x * sway) * ke;
+        const ky = y + (kt.height + bob) * ke;
+        const kScale = ke * 2.4;
         put("kites", placeAt(kx, ky, kz, yawDown + Math.PI, kScale, kScale, kScale, 0.5 + Math.sin(t * 2 + kt.phase) * 0.15, Math.sin(t * 1.7 + kt.phase) * 0.3), kt.color);
         line(kt.fx, y + 1.3 * kk, kt.fz, kx, ky - 0.1 * kScale, kz, STRING);
         let px = kx;
@@ -992,11 +997,20 @@ export default function ParkLife({ central, ground, lowPower }: { central: Centr
       if (loco.instanceColor) loco.instanceColor.needsUpdate = true;
     }
 
+    // Upload only the live part of each buffer; the parks hold well over a thousand people.
     for (const key of Object.keys(meshes) as (keyof Meshes)[]) {
       const mesh = meshes[key];
-      mesh.count = Math.min(count[key], mesh.instanceMatrix.count);
+      const n = Math.min(count[key], mesh.instanceMatrix.count);
+      mesh.count = n;
+      if (n === 0) continue;
+      mesh.instanceMatrix.clearUpdateRanges();
+      mesh.instanceMatrix.addUpdateRange(0, n * 16);
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.clearUpdateRanges();
+        mesh.instanceColor.addUpdateRange(0, n * 3);
+        mesh.instanceColor.needsUpdate = true;
+      }
     }
   });
 

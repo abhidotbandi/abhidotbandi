@@ -17,8 +17,10 @@ import Plume from "./Plume";
 import Traffic from "./Traffic";
 import RiverLife from "./RiverLife";
 import ParkLife from "./ParkLife";
+import CityLife from "./CityLife";
 import Trees from "./Trees";
 import Structures from "./Structures";
+import Landmarks from "./Landmarks";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
 
@@ -93,9 +95,11 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <Beacons height={ground} siteTop={scene.siteTop} />
       {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
       <Structures central={assets.central} ground={ground} />
+      <Landmarks central={assets.central} ground={ground} />
       <Trees trees={assets.central.trees} ground={ground} lowPower={scene.lowPower} />
       <RiverLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <ParkLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
+      <CityLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />

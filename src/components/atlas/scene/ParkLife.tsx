@@ -8,6 +8,7 @@ import type { Polyline } from "@/lib/atlas/assets";
 import { sampleCanopy, sampleWaterKm, type Central } from "@/lib/atlas/central";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { Path } from "@/lib/atlas/paths";
+import { pointInPoly } from "@/lib/atlas/polygon";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import {
@@ -49,19 +50,6 @@ function ring(poly: Polyline): Float32Array {
   const n = poly.length / 2;
   const closed = n > 3 && poly[0] === poly[n * 2 - 2] && poly[1] === poly[n * 2 - 1];
   return closed ? poly.subarray(0, n * 2 - 2) : poly;
-}
-
-function pointInPoly(poly: Polyline, x: number, z: number): boolean {
-  let inside = false;
-  const n = poly.length / 2;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = poly[i * 2];
-    const zi = poly[i * 2 + 1];
-    const xj = poly[j * 2];
-    const zj = poly[j * 2 + 1];
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
-  }
-  return inside;
 }
 
 /** Centroid and principal axes of a polygon's vertices, with extents along them. */

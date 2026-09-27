@@ -9,6 +9,22 @@ export interface BuildingMesh {
   siteTop: Float32Array;
 }
 
+/** Mean vertex of a record's outer ring, km. */
+function outerCentre(rec: number[]): [number, number] {
+  const n = rec[2];
+  let x = 0;
+  let z = 0;
+  let sx = 0;
+  let sz = 0;
+  for (let j = 0; j < n; j++) {
+    x += rec[3 + j * 2];
+    z += rec[4 + j * 2];
+    sx += x;
+    sz += z;
+  }
+  return [sx / n / 1000, sz / n / 1000];
+}
+
 /**
  * Extrude footprints into one merged geometry. Walls and roofs share vertices; the
  * shader derives flat normals from screen-space derivatives, so no normals are stored.
@@ -20,14 +36,17 @@ export function buildBuildings(
   siteIndexOf: (id: string) => number,
   siteCount: number,
   minFootprintM2 = 0,
+  /** leave out footprints whose centre (km) this accepts: landmarks modelled separately */
+  skip?: (x: number, z: number) => boolean,
 ): BuildingMesh {
   const siteMap = raw.sites.map(siteIndexOf);
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
+  const records = skip ? raw.b.filter((rec) => !skip(...outerCentre(rec))) : raw.b;
 
   // First pass: sizes.
   let nVerts = 0;
   let nIdx = 0;
-  for (const rec of raw.b) {
+  for (const rec of records) {
     let i = 2;
     let rings = 0;
     let pts = 0;
@@ -49,7 +68,7 @@ export function buildBuildings(
   const flat: number[] = [];
   const holes: number[] = [];
 
-  for (const rec of raw.b) {
+  for (const rec of records) {
     const hM = rec[0] / 10;
     const site = rec[1] >= 0 ? siteMap[rec[1]] : -1;
 

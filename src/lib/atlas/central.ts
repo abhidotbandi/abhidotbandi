@@ -12,6 +12,9 @@ import {
   type HeightField,
 } from "./geo";
 
+/** Landmark footprints drawn as models (scene/Landmarks.tsx) instead of plain extrusions. */
+export const MODELLED_LANDMARKS = ["capitol", "ut-tower"] as const;
+
 export interface CentralMeta {
   bounds: [number, number, number, number];
   terrain: { width: number; height: number };

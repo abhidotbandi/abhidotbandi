@@ -103,6 +103,58 @@ function column(b: Builder, x: number, z: number, yTop: number, yBottom: number,
   }
 }
 
+/**
+ * Concrete arches under a straight deck: spandrel walls from each arch up to the deck, the
+ * barrel's underside, and piers between spans. For the Congress Avenue Bridge, whose crevices
+ * under the deck house the bats.
+ */
+function arches(
+  b: Builder,
+  line: Polyline,
+  halfW: number,
+  bottom: (t: number) => number,
+  water: number,
+  spans: number,
+  face: THREE.Color,
+  shade: THREE.Color,
+) {
+  const n = line.length / 2;
+  const x0 = line[0];
+  const z0 = line[1];
+  const L = Math.hypot(line[n * 2 - 2] - x0, line[n * 2 - 1] - z0);
+  if (L < 0.05) return;
+  const tx = (line[n * 2 - 2] - x0) / L;
+  const tz = (line[n * 2 - 1] - z0) / L;
+  const P = (t: number, lat: number, y: number) => [x0 + tx * L * t - tz * lat, y, z0 + tz * L * t + tx * lat];
+  const pier = 2.4 * M / L; // half a pier, in t
+  const spring = water + 0.0012;
+  const steps = 12;
+  for (let k = 0; k < spans; k++) {
+    const ta = k / spans + (k === 0 ? 0 : pier);
+    const tb = (k + 1) / spans - (k === spans - 1 ? 0 : pier);
+    const crown = bottom((ta + tb) / 2) - 0.0012;
+    if (crown <= spring) continue;
+    const archY = (u: number) => spring + (crown - spring) * Math.sin(Math.PI * u);
+    for (let j = 0; j < steps; j++) {
+      const u0 = j / steps;
+      const u1 = (j + 1) / steps;
+      const t0 = ta + (tb - ta) * u0;
+      const t1 = ta + (tb - ta) * u1;
+      const a0 = archY(u0);
+      const a1 = archY(u1);
+      for (const lat of [-halfW, halfW]) quad(b, P(t0, lat, a0), P(t1, lat, a1), P(t1, lat, bottom(t1)), P(t0, lat, bottom(t0)), face);
+      quad(b, P(t0, -halfW, a0), P(t0, halfW, a0), P(t1, halfW, a1), P(t1, -halfW, a1), shade);
+    }
+    if (k < spans - 1) {
+      const p0 = (k + 1) / spans - pier;
+      const p1 = (k + 1) / spans + pier;
+      const yb = water - 0.002;
+      for (const lat of [-halfW, halfW]) quad(b, P(p0, lat, yb), P(p1, lat, yb), P(p1, lat, bottom(p1)), P(p0, lat, bottom(p0)), face);
+      for (const t of [p0, p1]) quad(b, P(t, -halfW, yb), P(t, halfW, yb), P(t, halfW, spring), P(t, -halfW, spring), shade);
+    }
+  }
+}
+
 function build(c: Central, ground: HeightField): THREE.BufferGeometry {
   const b: Builder = { pos: [], col: [] };
   const concrete = new THREE.Color("#dcd6cb");
@@ -124,6 +176,13 @@ function build(c: Central, ground: HeightField): THREE.BufferGeometry {
     const rise = Math.min(0.004, span * 0.012);
     const yAt = (_i: number, t: number) => Math.max(y0 + (y1 - y0) * t + rise * Math.sin(Math.PI * t), water + 0.006);
     const { cum, total } = deck(b, line, halfW, yAt, 1.6 * M, concrete, concreteSide);
+    if (br.name === "South Congress Avenue") {
+      // The Ann W. Richards Congress Avenue Bridge stands on shallow concrete arches.
+      const mid = Math.floor(n / 2);
+      const wl = n > 2 ? groundY(ground, line[mid * 2], line[mid * 2 + 1]) : groundY(ground, (line[0] + line[2]) / 2, (line[1] + line[3]) / 2);
+      arches(b, line, halfW, (t) => yAt(0, t) - 1.6 * M, Math.min(wl, water), 7, concreteSide, pier);
+      continue;
+    }
     const piers = Math.floor(total / 0.05);
     for (let k = 1; k <= piers; k++) {
       const s = (k / (piers + 1)) * total;

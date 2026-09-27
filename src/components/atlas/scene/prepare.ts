@@ -1,7 +1,8 @@
 import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
 import type { AtlasAssets } from "@/lib/atlas/assets";
 import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
-import { buildPatchGrid } from "@/lib/atlas/central";
+import { pointInPoly } from "@/lib/atlas/polygon";
+import { MODELLED_LANDMARKS, buildPatchGrid } from "@/lib/atlas/central";
 import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
 import { makeCentralTextures, makeTextures, type AtlasTextures } from "./textures";
 
@@ -39,7 +40,11 @@ export function prepareScene(assets: AtlasAssets): PreparedScene {
   const siteIndex = (id: string) => SITE_BY_ID.get(id)?.index ?? -1;
   const minArea = lowPower ? 120 : 0;
   const buildings = buildBuildings(assets.buildings, ground, siteIndex, SITES.length, minArea);
-  const centralBuildings = buildBuildings(assets.centralBuildings, ground, siteIndex, SITES.length, minArea);
+  // The Capitol and the UT Tower are modelled in Landmarks; drop their plain extrusions.
+  const modelled = MODELLED_LANDMARKS.flatMap((k) => assets.central.landmarks[k]?.outline ?? []);
+  const centralBuildings = buildBuildings(assets.centralBuildings, ground, siteIndex, SITES.length, minArea, (x, z) =>
+    modelled.some((o) => pointInPoly(o, x, z)),
+  );
   const siteTop = buildings.siteTop.map((v, i) => {
     const c = centralBuildings.siteTop[i];
     return Number.isNaN(v) ? c : Number.isNaN(c) ? v : Math.max(v, c);

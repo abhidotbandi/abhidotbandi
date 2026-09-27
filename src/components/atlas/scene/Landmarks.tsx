@@ -801,6 +801,114 @@ function moody(ms: Mesher, c: Central, ground: HeightField) {
   }
 }
 
+/**
+ * Tom Miller Dam (1940), where Lake Austin steps down into Lady Bird Lake: a granite wall
+ * across the river with a sloped spillway face and a row of gate piers on its crest.
+ */
+function tomMillerDam(ms: Mesher, c: Central, ground: HeightField) {
+  const r = c.rivers.ladybird;
+  if (!r || r.line.length < 12) return;
+  const l = r.line;
+  const x0 = l[0];
+  const z0 = l[1];
+  let dx = l[10] - x0;
+  let dz = l[11] - z0;
+  const dl = Math.hypot(dx, dz);
+  dx /= dl;
+  dz /= dl;
+  const nx = -dz;
+  const nz = dx;
+  const w = r.half[0] + 0.04;
+  const yUp = groundY(ground, x0 - dx * 0.04, z0 - dz * 0.04);
+  const yDown = groundY(ground, x0 + dx * 0.04, z0 + dz * 0.04);
+  const yTop = Math.max(yUp, yDown) + 0.006;
+  const yBot = Math.min(yUp, yDown) - 0.003;
+  const P = (s: number, q: number, y: number) => [x0 + dx * s + nx * q, y, z0 + dz * s + nz * q];
+  const granite = new THREE.Color("#c3b8a8");
+  const face = new THREE.Color("#d6cdbf");
+  const pier = new THREE.Color("#9d9285");
+  const up = -0.004;
+  const crest = 0.006;
+  const toe = 0.03;
+  // Upstream face, crest, spillway, and the ends.
+  ms.quad(P(up, -w, yBot), P(up, w, yBot), P(up, w, yTop), P(up, -w, yTop), granite);
+  ms.quad(P(up, -w, yTop), P(up, w, yTop), P(crest, w, yTop), P(crest, -w, yTop), granite);
+  ms.quad(P(crest, -w, yTop), P(crest, w, yTop), P(toe, w, yBot), P(toe, -w, yBot), face);
+  for (const q of [-w, w]) {
+    ms.tri(P(up, q, yBot), P(up, q, yTop), P(crest, q, yTop), granite);
+    ms.tri(P(up, q, yBot), P(crest, q, yTop), P(toe, q, yBot), granite);
+  }
+  // Gate piers along the crest.
+  const ph = 0.0045;
+  for (let q = -w + 0.012; q < w - 0.006; q += 0.016) {
+    const a = 0.0012;
+    const b0 = P(up, q - a, yTop);
+    const b1 = P(up, q + a, yTop);
+    const b2 = P(crest + 0.004, q + a, yTop);
+    const b3 = P(crest + 0.004, q - a, yTop);
+    const t = (p: number[]) => [p[0], p[1] + ph, p[2]];
+    ms.quad(b0, b1, t(b1), t(b0), pier);
+    ms.quad(b1, b2, t(b2), t(b1), pier);
+    ms.quad(b2, b3, t(b3), t(b2), pier);
+    ms.quad(b3, b0, t(b0), t(b3), pier);
+    ms.quad(t(b0), t(b1), t(b2), t(b3), pier);
+  }
+}
+
+/**
+ * Longhorn Dam (1960), which holds Lady Bird Lake at its east end: Pleasant Valley Road runs
+ * along its crest over a row of spillway gates.
+ */
+function longhornDam(ms: Mesher, ground: HeightField) {
+  // Pleasant Valley Road's crossing; the river leaves the lake eastward here.
+  const [ax, az] = project(-97.71343, 30.25107);
+  const [bx, bz] = project(-97.71357, 30.24964);
+  let tx = bx - ax;
+  let tz = bz - az;
+  const L = Math.hypot(tx, tz);
+  tx /= L;
+  tz /= L;
+  let dx = -tz;
+  let dz = tx;
+  const mx = (ax + bx) / 2;
+  const mz = (az + bz) / 2;
+  if (dx < 0) {
+    dx = -dx;
+    dz = -dz;
+  }
+  const off = 0;
+  const P = (s: number, q: number, y: number) => [mx + dx * (off + q) + tx * s, y, mz + dz * (off + q) + tz * s];
+  const half = L / 2 + 0.01;
+  const water = groundY(ground, mx + dx * off, mz + dz * off);
+  const end = (s: number) => {
+    const [x, , z] = P(s, 0, 0);
+    return groundY(ground, x, z);
+  };
+  const deckY = Math.max(end(-half), end(half), water + 0.012);
+  const conc = new THREE.Color("#cfc8bb");
+  const gate = new THREE.Color("#8d8a84");
+  const foam = new THREE.Color("#e2eeee");
+  // Deck.
+  ms.quad(P(-half, -0.004, deckY), P(half, -0.004, deckY), P(half, 0.006, deckY), P(-half, 0.006, deckY), conc);
+  ms.quad(P(-half, 0.006, deckY), P(half, 0.006, deckY), P(half, 0.006, deckY - 0.0018), P(-half, 0.006, deckY - 0.0018), conc);
+  // Piers, with a gate between each pair, and the spillway apron below.
+  const step = 0.012;
+  for (let s = -half + 0.004; s < half - 0.002; s += step) {
+    const w = 0.0008;
+    const y0 = water - 0.003;
+    const y1 = deckY - 0.0018;
+    ms.quad(P(s - w, 0.006, y0), P(s + w, 0.006, y0), P(s + w, 0.006, y1), P(s - w, 0.006, y1), conc);
+    ms.quad(P(s - w, -0.004, y0), P(s - w, 0.006, y0), P(s - w, 0.006, y1), P(s - w, -0.004, y1), conc);
+    ms.quad(P(s + w, 0.006, y0), P(s + w, -0.004, y0), P(s + w, -0.004, y1), P(s + w, 0.006, y1), conc);
+    if (s + step < half - 0.002) {
+      ms.quad(P(s + w, 0.003, water + 0.0012), P(s + step - w, 0.003, water + 0.0012), P(s + step - w, 0.003, y1), P(s + w, 0.003, y1), gate);
+    }
+  }
+  // White water on the tailwater below the gates.
+  const tail = groundY(ground, mx + dx * 0.02, mz + dz * 0.02) + 0.0005;
+  ms.quad(P(-half, 0.006, tail), P(half, 0.006, tail), P(half, 0.02, tail), P(-half, 0.02, tail), foam);
+}
+
 // ---------------------------------------------------------------- assembly
 
 interface Parts {
@@ -849,6 +957,8 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   block185(glassOut, c, ground);
   stadium(stone, c, ground);
   moody(stone, c, ground);
+  tomMillerDam(stone, c, ground);
+  longhornDam(stone, ground);
 
   const mat = () => new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   const parts: Parts = {

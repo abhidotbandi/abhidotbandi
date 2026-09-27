@@ -16,6 +16,7 @@ import Bats from "./Bats";
 import Plume from "./Plume";
 import Traffic from "./Traffic";
 import RiverLife from "./RiverLife";
+import ParkLife from "./ParkLife";
 import Trees from "./Trees";
 import Structures from "./Structures";
 import { LabelDriver } from "../ui/labels";
@@ -94,6 +95,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <Structures central={assets.central} ground={ground} />
       <Trees trees={assets.central.trees} ground={ground} lowPower={scene.lowPower} />
       <RiverLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
+      <ParkLife central={assets.central} ground={ground} lowPower={scene.lowPower} />
       <Bats height={ground} count={scene.lowPower ? 1500 : 4000} />
       <Plume height={ground} />
       <LabelDriver />

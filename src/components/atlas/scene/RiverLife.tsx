@@ -7,6 +7,7 @@ import { sampleWaterKm, type Central, type Dock } from "@/lib/atlas/central";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { Path, nearestIndex, rowingLoop } from "@/lib/atlas/paths";
 import { runtime } from "@/lib/atlas/store";
+import { SHIRTS, SKIN, bodyGeo, box, headGeo, inWindow, merge, pick, standGeo } from "./figures";
 
 // Life on Lady Bird Lake: rowing crews on their loops (busiest at dawn), paddleboards, kayaks
 // and canoes wandering out from the rental docks, the Lone Star Riverboat by day and bat-watching
@@ -64,17 +65,11 @@ interface Boat {
   lastPhase: number;
 }
 
-const SKIN = ["#f1c6a6", "#d9a47f", "#b87b56", "#8d5a3b", "#5c3a26"].map((c) => new THREE.Color(c));
-const SHIRTS = ["#1d2b4f", "#bf5700", "#f4f1ea", "#20242b", "#c8352e", "#2f6fb0", "#e8c34a", "#3a8f5c"];
 const SHELL_HULLS = ["#f4f1ea", "#f4f1ea", "#e8c34a", "#c8352e", "#1d2b4f"];
 const BLADES = ["#bf5700", "#f4f1ea", "#1d2b4f", "#c8352e", "#e8c34a"];
 const BOARDS = ["#f4f1ea", "#3fb7b0", "#f07a5a", "#f2c230", "#8fd3e8"];
 const KAYAKS = ["#d9412f", "#f2c230", "#f28c28", "#8cc63f", "#2a9d8f", "#3b6fd1"];
 const CANOES = ["#2f6b4f", "#b8bdc2", "#c8352e"];
-
-function pick<T>(list: T[], r: number): T {
-  return list[Math.floor(r * list.length) % list.length];
-}
 
 function col(hex: string): THREE.Color {
   return new THREE.Color(hex);
@@ -269,31 +264,6 @@ function hullGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-function box(w: number, h: number, d: number, x: number, y: number, z: number): THREE.BufferGeometry {
-  const g = new THREE.BoxGeometry(w, h, d);
-  g.translate(x, y, z);
-  return g;
-}
-
-function merge(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const pos: number[] = [];
-  const nrm: number[] = [];
-  for (const p of parts) {
-    const g = p.index ? p.toNonIndexed() : p;
-    pos.push(...(g.attributes.position.array as Float32Array));
-    nrm.push(...(g.attributes.normal.array as Float32Array));
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  out.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
-  return out;
-}
-
-/** Torso (seated): origin at the seat. */
-const bodyGeo = () => merge([box(0.42, 0.55, 0.26, 0, 0.3, 0)]);
-/** Standing: legs and torso, origin at the feet. */
-const standGeo = () => merge([box(0.3, 0.82, 0.2, 0, 0.41, 0), box(0.44, 0.6, 0.26, 0, 1.12, 0)]);
-const headGeo = () => new THREE.IcosahedronGeometry(0.12, 0);
 /** Oar or paddle: shaft along +x from the pivot, blade at the end; unit length. */
 function oarGeo(): THREE.BufferGeometry {
   return merge([box(1, 0.02, 0.02, 0.5, 0, 0), box(0.16, 0.012, 0.09, 0.92, 0, 0)]);
@@ -447,12 +417,6 @@ function makePools(nBoats: number): Pools {
   riverboat.add(wheel);
   riverboat.visible = false;
   return { hulls, bodies, standing, heads, oars, wakes, rings, canopies, riverboat, wheel };
-}
-
-/** 0 outside a boat's time window, 1 inside, with soft edges. */
-function inWindow(tod: number, w: [number, number]): number {
-  const e = 0.015;
-  return THREE.MathUtils.smoothstep(tod, w[0] - e, w[0] + e) * (1 - THREE.MathUtils.smoothstep(tod, w[1] - e, w[1] + e));
 }
 
 /** Oar sweep angle (+ toward the bow) and blade lift through one stroke. */

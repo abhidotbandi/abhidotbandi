@@ -37,7 +37,7 @@ export interface Company {
 
 export interface SiteRef extends Site {
   company: Company;
-  /** position in SITES; matches the site index baked into buildings.json */
+  /** position in SITES; the building files tag footprints by site id, mapped to this */
   index: number;
   /** first site listed for the company */
   primary: boolean;

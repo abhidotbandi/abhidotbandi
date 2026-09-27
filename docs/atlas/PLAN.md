@@ -167,7 +167,7 @@ and checked visually in debug renders.
 | Parks/green | Overture `base/land_use` | rasterize | B channel of `surface.png` |
 | Roads | Overture `transportation/segment` (motorway → secondary) | simplify, quantize | `roads.json` |
 | Red Line | Overture rail segments + station points | graph path Leander → Downtown | `rail.json` |
-| Buildings | Overture buildings (downtown + every company site) | clean, height fill-in, quantize | `buildings.json` (footprints; extruded on client) |
+| Buildings | Overture buildings (downtown + every company site) | clean, height fill-in, quantize | `buildings.bin` (footprints; extruded on client) |
 | Labels | Overture `divisions` + curated landmarks/water names | — | `labels.json` |
 
 Projection: local equirectangular around (30.27°N, 97.74°W), 1 scene unit = 1 km, north = −z.
@@ -447,11 +447,14 @@ using levels.fyi's atlas as the reference.
     Street after dark).
   - Company labels carry a sourced figure (valuation, amount raised, or ticker).
 - **Budget** (2.6):
-  - The regional map (~2.9 MB compressed) opens the atlas. Central Austin (~4.0 MB: patch
-    terrain 0.95, surface 1.47, trees 0.35, paths 0.09, buildings 1.15) loads behind it, and the
+  - The regional map (~2.85 MB on the wire) opens the atlas. Central Austin (~3.6 MB: patch
+    terrain 0.95, surface 1.48, trees 0.35, paths 0.10, buildings 0.76) loads behind it, and the
     scene upgrades in place.
-  - That's over the 2.5 MB target for the patch. The biggest wins left are a binary building
-    format and a coarser surface texture on phones.
+  - Buildings use a binary format (`scripts/atlas/building_codec.py`). Footprints are ordered
+    along a Hilbert curve and stored as varint streams, which is about 40% smaller on the wire
+    than the JSON it replaced, lossless, and decoded straight into typed arrays.
+  - That's still over the 2.5 MB target for the patch. The next wins are a coarser surface
+    texture on phones and sorting the trees spatially (about 25% off that file).
 
 Known limits:
 - Crowds, boats and the tower shapes are impressions, not surveys.

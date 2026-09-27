@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 
+from building_codec import decode  # noqa: E402
 from config import COMPANIES_JSON, HEIGHT_KM, OUT, WIDTH_KM, X_MAX, X_MIN, Z_MAX, Z_MIN, project  # noqa: E402
 
 DOMAIN_COLORS = {"defense-space": "#eda100", "chips-compute": "#4a3aa7",
@@ -66,13 +67,10 @@ def main(out_dir):
     fig.savefig(out_dir / "overview.png", dpi=160, bbox_inches="tight")
     plt.close(fig)
 
-    blds = json.loads((OUT / "buildings.json").read_text())
     rings = []
-    for rec in blds["b"]:
-        n = rec[2]
-        pts = np.cumsum(np.asarray(rec[3:3 + 2 * n], dtype=float).reshape(-1, 2), axis=0) / 1000
-        rings.append((rec[1], pts))
-    site_ids = blds["sites"]
+    for name in ("buildings.bin", "central_buildings.bin"):
+        site_ids, blds = decode((OUT / name).read_bytes())
+        rings += [(si, np.asarray(r[0], dtype=float) / 1000) for _, si, r in blds]
     for c in companies:
         for s in c["sites"]:
             x, z = project(s["lon"], s["lat"])

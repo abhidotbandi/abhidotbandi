@@ -8,7 +8,7 @@ Bakes the static map assets in `public/atlas/` for the `/atlas` page from open d
 | `surface.webp`: water signed-distance field (R) + parks (G) | `build_surface.py` | Overture `base/water`, `base/land_use` |
 | `vectors.json`: roads, rail, Red Line + stations, creeks, labels | `build_vectors.py` | Overture `transportation/segment`, `base/water`, `divisions` |
 | `surface.webp` B: tree and shrub cover | `build_surface.py` | Overture `base/land_cover` (ESA WorldCover) |
-| `buildings.json`, `central_buildings.json`: footprints + heights, tagged with company sites | `build_buildings.py` | Overture `buildings/building` + `src/data/atlas/companies.json` |
+| `buildings.bin`, `central_buildings.bin`: footprints + heights, tagged with company sites (binary; the format is documented in `building_codec.py`) | `build_buildings.py` | Overture `buildings/building` + `src/data/atlas/companies.json` |
 | `central_terrain.webp`: ~8 m elevation (R/G) + tree canopy (B) for central Austin | `build_central.py` | Terrain Tiles z14 + Overture `base/land_cover` |
 | `central_surface.webp`: 4 m water SDF (sqrt-encoded), parkland, built-up density | `build_central.py` | Overture `base/water`, `base/land_use`, buildings |
 | `central.json`: paths, Butler trail graph, river bridges, piers, Zilker Eagle track, river lanes, streets, moonlight towers, docks, landmark footprints (by point, and by Overture name for the modelled towers and arenas in `NAMED_LANDMARKS`) | `build_central.py` | Overture `transportation/segment`, `base/infrastructure`, `buildings`, places |

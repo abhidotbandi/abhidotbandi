@@ -1,14 +1,13 @@
 """3D building footprints: central Austin in full, the Domain and every company site.
 
-Outputs (same format):
-  public/atlas/central_buildings.json  every building in the central detail patch, thinning out
-                                       over a ring beyond its edge so detail dissolves gradually
-  public/atlas/buildings.json          the rest: the Domain and the context around company sites
-  {"sites": [siteId, ...],
-   "b": [[height_dm, siteIndex|-1, nOuter, x0, z0, dx1, dz1, ..., nHole, x0, z0, ...], ...]}
+Outputs (same format, see building_codec.py):
+  public/atlas/central_buildings.bin  every building in the central detail patch, thinning out
+                                      over a ring beyond its edge so detail dissolves gradually
+  public/atlas/buildings.bin          the rest: the Domain and the context around company sites
 
-Coordinates are integer metres in scene space, delta-encoded per ring. The
-client extrudes them (roofs via earcut) and drapes them on the terrain.
+Each building is a height, an optional company site, and its rings (outer first, then holes) in
+integer metres in scene space. The client extrudes them (roofs via earcut) and drapes them on
+the terrain.
 """
 
 import json
@@ -19,6 +18,7 @@ import pyarrow.parquet as pq
 import shapely
 from shapely.geometry import Point
 
+from building_codec import encode
 from config import C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, COMPANIES_JSON, OUT, project
 
 ZONES = {
@@ -50,12 +50,12 @@ def est_height(h, floors, area):
 
 
 def ring_ints(coords):
-    c = np.round(np.asarray(coords)[:-1]).astype(np.int64)  # drop closing vertex
-    d = np.vstack([c[:1], np.diff(c, axis=0)])
-    keep = np.ones(len(d), bool)
-    keep[1:] = np.any(d[1:] != 0, axis=1)
-    d = d[keep]
-    return [len(d)] + d.ravel().tolist() if len(d) >= 3 else None
+    """A ring in integer metres without its closing vertex or repeated points; None if degenerate."""
+    c = np.round(np.asarray(coords)[:-1]).astype(np.int64)
+    keep = np.ones(len(c), bool)
+    keep[1:] = np.any(np.diff(c, axis=0) != 0, axis=1)
+    c = c[keep]
+    return [(int(x), int(z)) for x, z in c] if len(c) >= 3 else None
 
 
 def build():
@@ -123,17 +123,17 @@ def build():
             outer = ring_ints(shapely.geometry.polygon.orient(p, 1.0).exterior.coords)
             if not outer:
                 continue
-            rec = [int(round(h * 10)), int(site_of[i])] + outer
+            rings = [outer]
             for hole in p.interiors:
                 if shapely.Polygon(hole).area > 40:
                     r = ring_ints(hole.coords)
                     if r:
-                        rec += r
-            n_pts += (len(rec) - 2) // 2
-            dest.append(rec)
-    for name, recs in (("buildings.json", out), ("central_buildings.json", out_c)):
+                        rings.append(r)
+            n_pts += sum(len(r) for r in rings)
+            dest.append((int(round(h * 10)), int(site_of[i]), rings))
+    for name, recs in (("buildings.bin", out), ("central_buildings.bin", out_c)):
         path = OUT / name
-        path.write_text(json.dumps({"units": "m", "sites": [s["id"] for s in sites], "b": recs}, separators=(",", ":")))
+        path.write_bytes(encode([s["id"] for s in sites], recs))
         hi = sum(1 for r in recs if r[1] >= 0)
         print(f"  {name}: {len(recs):,} footprints ({hi} company), {path.stat().st_size / 1e6:.2f} MB")
     print(f"  ~{n_pts:,} points in all")

@@ -1,6 +1,6 @@
 import earcut from "earcut";
 import * as THREE from "three";
-import type { BuildingsRaw } from "./assets";
+import type { BuildingsData } from "./buildingsCodec";
 import { BUILDING_EXAG, elevToY, type HeightField } from "./geo";
 
 export interface BuildingMesh {
@@ -16,20 +16,17 @@ export const KIND_ROOF_PLANT = -2;
 /** The pitched roof of a house. */
 export const KIND_PITCHED = -3;
 
-/** Mean vertex of a record's outer ring, km. */
-function outerCentre(rec: number[]): [number, number] {
-  const n = rec[2];
-  let x = 0;
-  let z = 0;
+/** Mean vertex of a building's outer ring, km. */
+function outerCentre(d: BuildingsData, b: number): [number, number] {
+  const v0 = d.vertStart[d.ringStart[b]];
+  const v1 = d.vertStart[d.ringStart[b] + 1];
   let sx = 0;
   let sz = 0;
-  for (let j = 0; j < n; j++) {
-    x += rec[3 + j * 2];
-    z += rec[4 + j * 2];
-    sx += x;
-    sz += z;
+  for (let j = v0; j < v1; j++) {
+    sx += d.x[j];
+    sz += d.z[j];
   }
-  return [sx / n / 1000, sz / n / 1000];
+  return [sx / (v1 - v0) / 1000, sz / (v1 - v0) / 1000];
 }
 
 /** Stable 0..1 value per building, from where it stands. */
@@ -47,7 +44,7 @@ function hash(x: number, z: number): number {
  * aU = metres along the ring from its first corner, for facade detail.
  */
 export function buildBuildings(
-  raw: BuildingsRaw,
+  data: BuildingsData,
   height: HeightField,
   siteIndexOf: (id: string) => number,
   siteCount: number,
@@ -55,23 +52,18 @@ export function buildBuildings(
   /** leave out footprints whose centre (km) this accepts: landmarks modelled separately */
   skip?: (x: number, z: number) => boolean,
 ): BuildingMesh {
-  const siteMap = raw.sites.map(siteIndexOf);
+  const siteMap = data.sites.map(siteIndexOf);
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
-  const records = skip ? raw.b.filter((rec) => !skip(...outerCentre(rec))) : raw.b;
+  const { ringStart, vertStart, x: X, z: Z } = data;
+  const records: number[] = [];
+  for (let b = 0; b < data.count; b++) if (!skip || !skip(...outerCentre(data, b))) records.push(b);
 
   // Upper bounds on sizes: walls, doubled ring starts, roofs and up to four roof boxes.
   let maxV = 0;
   let maxI = 0;
-  for (const rec of records) {
-    let i = 2;
-    let rings = 0;
-    let pts = 0;
-    while (i < rec.length) {
-      const n = rec[i];
-      pts += n;
-      rings++;
-      i += 1 + n * 2;
-    }
+  for (const b of records) {
+    const rings = ringStart[b + 1] - ringStart[b];
+    const pts = vertStart[ringStart[b + 1]] - vertStart[ringStart[b]];
     maxV += pts * 2 + rings * 2 + 6 + 4 * 8;
     maxI += pts * 6 + (pts - 2 + 2 * (rings - 1)) * 3 + 18 + 4 * 30;
   }
@@ -126,29 +118,22 @@ export function buildBuildings(
     tri(base + 4, base + 6, base + 7);
   };
 
-  for (const rec of records) {
-    const hM = rec[0] / 10;
-    const site = rec[1] >= 0 ? siteMap[rec[1]] : -1;
+  for (const b of records) {
+    const hM = data.height[b] / 10;
+    const site = data.site[b] >= 0 ? siteMap[data.site[b]] : -1;
 
-    // Decode rings (metres, delta-encoded) to km.
+    // Rings (outer, then holes) from metres to km; the building stands on its lowest corner.
     flat.length = 0;
     holes.length = 0;
-    let i = 2;
     let minElev = Infinity;
-    let first = true;
-    while (i < rec.length) {
-      const n = rec[i];
-      if (!first) holes.push(flat.length / 2);
-      let x = 0;
-      let z = 0;
-      for (let j = 0; j < n; j++) {
-        x += rec[i + 1 + j * 2];
-        z += rec[i + 2 + j * 2];
-        flat.push(x / 1000, z / 1000);
-        if (first) minElev = Math.min(minElev, height.sample(x / 1000, z / 1000));
+    for (let ri = ringStart[b]; ri < ringStart[b + 1]; ri++) {
+      if (ri > ringStart[b]) holes.push(flat.length / 2);
+      for (let j = vertStart[ri]; j < vertStart[ri + 1]; j++) {
+        const x = X[j] / 1000;
+        const z = Z[j] / 1000;
+        flat.push(x, z);
+        if (ri === ringStart[b]) minElev = Math.min(minElev, height.sample(x, z));
       }
-      first = false;
-      i += 1 + n * 2;
     }
     const nPts = flat.length / 2;
     const outerN = holes.length ? holes[0] : nPts;

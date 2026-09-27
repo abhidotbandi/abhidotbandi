@@ -9,6 +9,7 @@ import { loadAtlasAssets, loadCentralAssets } from "@/lib/atlas/assets";
 import { clamp, project } from "@/lib/atlas/geo";
 import { makePaddleRoute } from "@/lib/atlas/paddle";
 import { runtime, seekPaddle, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
+import { isLowPower } from "@/lib/atlas/tier";
 import { getTimeline } from "@/lib/atlas/tour";
 import type { PreparedScene } from "./scene/prepare";
 import { StoryCard } from "./ui/Story";
@@ -86,7 +87,8 @@ export default function AtlasApp() {
     runtime.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // The regional map first, so the atlas opens quickly; central Austin's street-scale detail
     // (about as many bytes again) follows, and the scene upgrades in place.
-    loadAtlasAssets((p) => st.setLoadProgress(p * 0.85))
+    const lowPower = isLowPower();
+    loadAtlasAssets(lowPower, (p) => st.setLoadProgress(p * 0.85))
       .then(async (assets) => {
         // Let the progress bar paint before the CPU-heavy extrusion.
         await new Promise((r) => setTimeout(r, 30));
@@ -95,7 +97,7 @@ export default function AtlasApp() {
         st.setLoadProgress(0.92);
         const base = prepareScene(assets);
         setScene(base);
-        loadCentralAssets(assets.meta)
+        loadCentralAssets(assets.meta, lowPower)
           .then(async (central) => {
             await new Promise((r) => setTimeout(r, 30));
             if (!cancelled) setScene(upgradeScene(base, central));

@@ -153,6 +153,12 @@ export function decodeCentral(
     canopy[i] = td[i * 4 + 2];
   }
   const lines = (list: number[][]) => list.map(decodeLine);
+  // The rasters may be the half-resolution ones: take their sizes from the images themselves.
+  meta = {
+    ...meta,
+    terrain: { width: terrain.width, height: terrain.height },
+    surface: { ...meta.surface, width: surface.width, height: surface.height },
+  };
   const nodes = new Float32Array(raw.trails.nodes.length * 2);
   raw.trails.nodes.forEach(([x, z], i) => {
     nodes[i * 2] = x / 1000;

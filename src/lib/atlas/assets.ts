@@ -150,15 +150,19 @@ function progress(onProgress?: (p: number) => void) {
     };
 }
 
-/** The regional map: enough to draw the whole Austin area. */
-export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise<AtlasAssets> {
+/**
+ * The regional map: enough to draw the whole Austin area. Low-power devices get the rasters at
+ * half resolution (built by scripts/atlas/build_lowres.py), matching their coarser meshes.
+ */
+export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number) => void): Promise<AtlasAssets> {
   const tick = progress(onProgress);
+  const lo = lowPower ? "_lo" : "";
   const [meta, terrain, surface, vectors, buildings] = await Promise.all([
     json<Meta>("meta.json").then(tick(0.01)),
-    decodeImage(`${BASE}/terrain.webp`).then(tick(0.46)),
-    decodeImage(`${BASE}/surface.webp`).then(tick(0.40)),
-    json<RawVectors>("vectors.json").then(tick(0.07)),
-    binary("buildings.bin").then(decodeBuildings).then(tick(0.06)),
+    decodeImage(`${BASE}/terrain${lo}.webp`).then(tick(lowPower ? 0.3 : 0.46)),
+    decodeImage(`${BASE}/surface${lo}.webp`).then(tick(lowPower ? 0.35 : 0.4)),
+    json<RawVectors>("vectors.json").then(tick(lowPower ? 0.2 : 0.07)),
+    binary("buildings.bin").then(decodeBuildings).then(tick(lowPower ? 0.14 : 0.06)),
   ]);
 
   const n = terrain.width * terrain.height;
@@ -180,11 +184,12 @@ export async function loadAtlasAssets(onProgress?: (p: number) => void): Promise
 }
 
 /** Central Austin's street-scale detail: terrain, surface, paths, trees and every building. */
-export async function loadCentralAssets(meta: Meta, onProgress?: (p: number) => void): Promise<CentralAssets> {
+export async function loadCentralAssets(meta: Meta, lowPower: boolean, onProgress?: (p: number) => void): Promise<CentralAssets> {
   const tick = progress(onProgress);
+  const lo = lowPower ? "_lo" : "";
   const [cTerrain, cSurface, cVectors, cTrees, buildings] = await Promise.all([
-    decodeImage(`${BASE}/central_terrain.webp`).then(tick(0.26)),
-    decodeImage(`${BASE}/central_surface.webp`).then(tick(0.41)),
+    decodeImage(`${BASE}/central_terrain${lo}.webp`).then(tick(0.26)),
+    decodeImage(`${BASE}/central_surface${lo}.webp`).then(tick(0.41)),
     json<CentralRaw>("central.json").then(tick(0.03)),
     binary("central_trees.bin").then(tick(0.1)),
     binary("central_buildings.bin").then(decodeBuildings).then(tick(0.2)),

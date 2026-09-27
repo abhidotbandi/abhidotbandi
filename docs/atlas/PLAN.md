@@ -458,8 +458,12 @@ using levels.fyi's atlas as the reference.
   - Buildings use a binary format (`scripts/atlas/building_codec.py`). Footprints are ordered
     along a Hilbert curve and stored as varint streams, which is about 40% smaller on the wire
     than the JSON it replaced, lossless, and decoded straight into typed arrays.
-  - That's still over the 2.5 MB target for the patch. The next wins are a coarser surface
-    texture on phones and sorting the trees spatially (about 25% off that file).
+  - Phones and other low-power devices load the four rasters at half resolution
+    (`build_lowres.py`), which matches their coarser meshes. Their regional map is ~1.1 MB and
+    central Austin ~2.1 MB, inside the target. The cost is softer hillshading when zoomed into
+    the hill country.
+  - Desktop's patch is still over the 2.5 MB target. The next win is sorting the trees
+    spatially (about 25% off that file).
 
 Known limits:
 - Crowds, boats and the tower shapes are impressions, not surveys.

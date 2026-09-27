@@ -4,6 +4,7 @@ import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
 import { pointInPoly } from "@/lib/atlas/polygon";
 import { MODELLED_LANDMARKS, buildPatchGrid, type Central } from "@/lib/atlas/central";
 import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
+import { isLowPower } from "@/lib/atlas/tier";
 import { makeCentralTextures, makeTextures, type AtlasTextures } from "./textures";
 
 /** Central Austin's detail, once it has loaded. */
@@ -37,9 +38,7 @@ const siteIndex = (id: string) => SITE_BY_ID.get(id)?.index ?? -1;
 
 /** CPU-side prep of the regional map, run once while the loader is still up. */
 export function prepareScene(assets: AtlasAssets): PreparedScene {
-  const lowPower =
-    typeof window !== "undefined" &&
-    (window.matchMedia("(pointer: coarse)").matches || (navigator.hardwareConcurrency ?? 8) <= 4);
+  const lowPower = isLowPower();
   const tex = makeTextures(assets);
   const terrainSegments = lowPower ? 320 : 560;
   // Objects and the patch edge follow the surface the base mesh draws, not the raster.

@@ -12,7 +12,7 @@ import { runtime } from "@/lib/atlas/store";
 // the trees around the camera are drawn; the terrain's canopy tint carries the rest.
 
 const CELL = 0.25; // km
-const TREE_EXAG = 1.3; // matches the buildings' gentle vertical boost
+export const TREE_EXAG = 1.3; // matches the buildings' gentle vertical boost
 
 interface Grid {
   nx: number;
@@ -40,7 +40,7 @@ function buildGrid(t: TreeData): Grid {
   return { nx, nz, start, order };
 }
 
-function crownGeometry(conical: boolean): THREE.BufferGeometry {
+export function crownGeometry(conical: boolean): THREE.BufferGeometry {
   // Unit tree standing at the origin; crown colour comes from the instance, the trunk is a
   // darker vertex colour multiplied by it.
   const crown = conical ? new THREE.ConeGeometry(1, 3.2, 7, 1) : new THREE.IcosahedronGeometry(1, 1);
@@ -68,8 +68,8 @@ function crownGeometry(conical: boolean): THREE.BufferGeometry {
   return out;
 }
 
-const ROUND = ["#50703d", "#5d7c42", "#6a8747", "#47653a", "#738f4e", "#587a4a"].map((c) => new THREE.Color(c));
-const CONE = ["#3f5f3d", "#4b6b43", "#58744a", "#6f7f45"].map((c) => new THREE.Color(c));
+export const ROUND = ["#50703d", "#5d7c42", "#6a8747", "#47653a", "#738f4e", "#587a4a"].map((c) => new THREE.Color(c));
+export const CONE = ["#3f5f3d", "#4b6b43", "#58744a", "#6f7f45"].map((c) => new THREE.Color(c));
 
 interface Layer {
   grid: Grid;

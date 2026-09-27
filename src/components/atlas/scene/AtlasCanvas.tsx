@@ -22,6 +22,8 @@ import Paddle from "./Paddle";
 import Trees from "./Trees";
 import Structures from "./Structures";
 import Landmarks from "./Landmarks";
+import DetailTiles from "./DetailTiles";
+import Airport from "./Airport";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
 
@@ -47,6 +49,19 @@ function Lights() {
       <directionalLight ref={sun} position={[20, 40, 10]} intensity={2} />
     </>
   );
+}
+
+/** `?debug` exposes the renderer and scene on window.__atlas, for measuring draw costs. */
+function DebugHandle() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("debug")) {
+      (window as unknown as { __atlas: unknown }).__atlas = { gl, scene, camera };
+    }
+  }, [gl, scene, camera]);
+  return null;
 }
 
 /** Lifts the loader once the scene has actually drawn, not just mounted. */
@@ -117,11 +132,14 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
           <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <Paddle central={central.data} ground={ground} />
           <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />
+          <DetailTiles scene={scene} />
         </>
       )}
+      <Airport ground={ground} />
       <Plume height={ground} />
       <LabelDriver />
       <Precompile token={central} />
+      <DebugHandle />
       <ReadySignal />
     </Canvas>
   );

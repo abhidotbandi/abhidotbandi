@@ -11,15 +11,21 @@ import { siteUniforms } from "./siteState";
 const vertex = /* glsl */ `
   attribute vec4 aInfo;
   attribute float aU;
+  uniform float uGrow;
   varying vec3 vWorld;
   varying vec4 vInfo;
   varying float vU;
   #include <fog_pars_vertex>
   void main() {
-    vWorld = position;
+    // Buildings rise out of the ground as a detail tile arrives (uGrow 0 -> 1). Rooftop plant
+    // stands on the roof, not the ground, so it waits below the terrain until they're up.
+    vec3 p = position;
+    p.y = aInfo.y + (p.y - aInfo.y) * uGrow;
+    if (aInfo.x < -1.5 && aInfo.x > -2.5) p.y -= step(uGrow, 0.999) * 10.0;
+    vWorld = p;
     vInfo = aInfo;
     vU = aU;
-    vec4 mvPosition = viewMatrix * vec4(position, 1.0);
+    vec4 mvPosition = viewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }
@@ -132,34 +138,36 @@ const fragment = /* glsl */ `
   }
 `;
 
-/** Shared across both building meshes: 0 = paper city (far), 1 = full detail (near). */
+/** Shared across every building mesh: 0 = paper city (far), 1 = full detail (near). */
 const detail = { value: 0 };
 
+/** The building material. Each one has its own `uGrow`; everything else is shared. */
+export function makeBuildingMaterial(grow = 1): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: vertex,
+    fragmentShader: fragment,
+    fog: true,
+    side: THREE.DoubleSide,
+    uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      uSunColor: sky.uSunColor,
+      uSunDir: sky.uSunDir,
+      uAmbient: sky.uAmbient,
+      uCamPos: sky.uCamPos,
+      uHorizon: sky.uHorizon,
+      uZenith: sky.uZenith,
+      uNight: sky.uNight,
+      uTime: sky.uTime,
+      uDetail: detail,
+      uSite: siteUniforms.uSite,
+      uBuildingExag: { value: BUILDING_EXAG },
+      uGrow: { value: grow },
+    },
+  });
+}
+
 export default function Buildings({ geometry }: { geometry: THREE.BufferGeometry }) {
-  const material = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        vertexShader: vertex,
-        fragmentShader: fragment,
-        fog: true,
-        side: THREE.DoubleSide,
-        uniforms: {
-          ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-          uSunColor: sky.uSunColor,
-          uSunDir: sky.uSunDir,
-          uAmbient: sky.uAmbient,
-          uCamPos: sky.uCamPos,
-          uHorizon: sky.uHorizon,
-          uZenith: sky.uZenith,
-          uNight: sky.uNight,
-          uTime: sky.uTime,
-          uDetail: detail,
-          uSite: siteUniforms.uSite,
-          uBuildingExag: { value: BUILDING_EXAG },
-        },
-      }),
-    [],
-  );
+  const material = useMemo(() => makeBuildingMaterial(), []);
   useFrame(() => {
     detail.value = THREE.MathUtils.clamp((14 - runtime.cam.dist) / 8, 0, 1);
   });

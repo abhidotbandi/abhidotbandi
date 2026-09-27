@@ -14,6 +14,7 @@ Bakes the static map assets in `public/atlas/` for the `/atlas` page from open d
 | `central.json`: paths, Butler trail graph, river bridges, piers, Zilker Eagle track, river lanes, streets, moonlight towers, docks, landmark footprints (by point, and by Overture name for the modelled towers and arenas in `NAMED_LANDMARKS`) | `build_central.py` | Overture `transportation/segment`, `base/infrastructure`, `buildings`, places |
 | `central_trees.bin`: 60k tree instances | `build_central.py` | canopy raster |
 | `*_lo.webp`: the four rasters above at half resolution, for phones and other low-power devices | `build_lowres.py` | the full rasters |
+| `tiles/*.bin` + `tiles/index.json`: 2 km detail tiles loaded around the camera: every other building, local streets, paths, runways and taxiways, parking lots, pools and small ponds (layout in `build_tiles.py`) | `build_tiles.py` | Overture `buildings`, `transportation/segment` (all classes), `base/infrastructure`, `base/water` |
 
 ```bash
 pip install -r scripts/atlas/requirements.txt

@@ -58,7 +58,8 @@ def ring_ints(coords):
     return [(int(x), int(z)) for x, z in c] if len(c) >= 3 else None
 
 
-def build():
+def load():
+    """Every footprint in the region: (geometries, heights, floors, underground, lon, lat, area m^2)."""
     t = pq.read_table(CACHE / "buildings.parquet", columns=["geometry", "height", "num_floors", "is_underground"])
     geoms = shapely.from_wkb(t.column("geometry").to_numpy(zero_copy_only=False))
     heights = np.array([h if h is not None else 0 for h in t.column("height").to_pylist()], dtype=float)
@@ -67,7 +68,11 @@ def build():
     cen = shapely.centroid(geoms)
     lon, lat = shapely.get_x(cen), shapely.get_y(cen)
     area = shapely.area(geoms) * (111320 * np.cos(np.radians(lat))) * 110574
+    return geoms, heights, floors, under, lon, lat, area
 
+
+def selection(geoms, lon, lat, area, under):
+    """Which footprints the two always-loaded files carry: (selected, in the central zone, site index)."""
     select = np.zeros(len(geoms), bool)
     for w, s, e, n, min_a in ZONES.values():
         select |= (lon > w) & (lon < e) & (lat > s) & (lat < n) & (area >= min_a)
@@ -110,27 +115,41 @@ def build():
                 site_of[i] = si
                 select[i] = True
     select &= ~under
+    return select, central_zone, site_of, sites
 
-    out, out_c, n_pts = [], [], 0
+
+def record(g, h_m, site):
+    """One footprint (lon/lat geometry) as building_codec records, one per polygon part."""
+    g = shapely.transform(g, lambda c: to_m(c[:, 0], c[:, 1])).simplify(0.6)
+    out = []
+    for p in g.geoms if g.geom_type == "MultiPolygon" else [g]:
+        if p.is_empty or p.geom_type != "Polygon" or p.area < 12:
+            continue
+        outer = ring_ints(shapely.geometry.polygon.orient(p, 1.0).exterior.coords)
+        if not outer:
+            continue
+        rings = [outer]
+        for hole in p.interiors:
+            if shapely.Polygon(hole).area > 40:
+                r = ring_ints(hole.coords)
+                if r:
+                    rings.append(r)
+        out.append((int(round(h_m * 10)), int(site), rings))
+    return out
+
+
+def height_m(heights, floors, area, i):
+    return min(350.0, max(3.0, est_height(heights[i], floors[i], area[i])))
+
+
+def build():
+    geoms, heights, floors, under, lon, lat, area = load()
+    select, central_zone, site_of, sites = selection(geoms, lon, lat, area, under)
+
+    out, out_c = [], []
     for i in np.where(select)[0]:
-        dest = out_c if central_zone[i] else out
-        g = shapely.transform(geoms[i], lambda c: to_m(c[:, 0], c[:, 1])).simplify(0.6)
-        polys = g.geoms if g.geom_type == "MultiPolygon" else [g]
-        h = min(350.0, max(3.0, est_height(heights[i], floors[i], area[i])))
-        for p in polys:
-            if p.is_empty or p.geom_type != "Polygon" or p.area < 12:
-                continue
-            outer = ring_ints(shapely.geometry.polygon.orient(p, 1.0).exterior.coords)
-            if not outer:
-                continue
-            rings = [outer]
-            for hole in p.interiors:
-                if shapely.Polygon(hole).area > 40:
-                    r = ring_ints(hole.coords)
-                    if r:
-                        rings.append(r)
-            n_pts += sum(len(r) for r in rings)
-            dest.append((int(round(h * 10)), int(site_of[i]), rings))
+        (out_c if central_zone[i] else out).extend(record(geoms[i], height_m(heights, floors, area, i), site_of[i]))
+    n_pts = sum(len(r) for rec in out + out_c for r in rec[2])
     for name, recs in (("buildings.bin", out), ("central_buildings.bin", out_c)):
         path = OUT / name
         path.write_bytes(encode([s["id"] for s in sites], recs))

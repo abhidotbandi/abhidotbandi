@@ -94,6 +94,17 @@ def fetch_overture(which):
     if "landcover" in which:
         overture("base", "land_cover", ["subtype", "geometry", "bbox"], "land_cover.parquet",
                  extra=pc.field("subtype").isin(["forest", "shrub"]))
+    if "streets" in which:
+        # Every street and path below the arterials, for the detail tiles.
+        overture("transportation", "segment", ["geometry", "bbox", "names", "subtype", "class", "subclass"],
+                 "segments_local.parquet",
+                 extra=pc.field("class").isin(["residential", "unclassified", "living_street", "service",
+                                               "track", "footway", "cycleway", "path", "pedestrian",
+                                               "steps", "bridleway"]))
+    if "infrastructure" in which:
+        # Runways, taxiways, aprons, dams, towers and piers across the region.
+        overture("base", "infrastructure", ["geometry", "bbox", "names", "subtype", "class", "height",
+                                            "surface"], "infrastructure.parquet")
     if "central" in which:
         # Every path class, piers and towers, and land cover for the central detail patch.
         overture("transportation", "segment", None, "segments_central.parquet", area=central_filter())
@@ -140,7 +151,8 @@ def fetch_terrain():
 if __name__ == "__main__":
     CACHE.mkdir(parents=True, exist_ok=True)
     targets = set(sys.argv[1:]) or {"terrain", "places", "addresses", "buildings", "roads",
-                                     "water", "landuse", "divisions", "landcover", "central"}
+                                     "water", "landuse", "divisions", "landcover", "central",
+                                     "streets", "infrastructure"}
     if "terrain" in targets:
         fetch_terrain()
     fetch_overture(targets)

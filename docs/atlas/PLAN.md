@@ -465,9 +465,39 @@ using levels.fyi's atlas as the reference.
   - Desktop's patch is still over the 2.5 MB target. The next win is sorting the trees
     spatially (about 25% off that file).
 
+### 2.9 Beyond downtown (2026-09-27)
+
+Asked for after 2.8: more detail outside central Austin.
+
+- **Detail tiles** (`build_tiles.py`, `DetailTiles`, `src/lib/atlas/detail/`): everything the
+  always-loaded files leave out, cut into 2 km tiles and loaded around the camera once it's
+  within ~8.5 km of the ground (4.6 km on phones):
+  - every other building in the region (824k footprints), rising out of the ground as its tile
+    arrives
+  - local streets, service roads, parking aisles, paths and tracks at their real width, with
+    kerbs, a double yellow on arterials and streetlights after dark
+  - runways and taxiways with their markings, white edge lights and green centreline lights
+  - parking lots, aprons, backyard pools (lit at night) and small ponds
+  - trees over the regional land cover, clear of roofs, streets and water: woods where it says
+    forest (thinner where it's built up), a scatter over shrubland, and yard trees through the
+    neighbourhoods
+- The pipeline writes 2,124 tiles, 20.5 MB in all. Most are a few KB and the densest is 75 KB.
+  A worker decodes and meshes them, so they stream in without stalling a frame. Up to 44 stay
+  loaded (14 on phones).
+- Views with tiles draw 4.7–5.4M triangles on desktop and 2.7–3.7M on phones, about what a
+  downtown view already draws (6.5M and 4.3M).
+- **Austin-Bergstrom** (`Airport`):
+  - airliners on final over East Austin to 17R, rolling out and turning off for the terminal
+  - departures lining up on 17L and climbing out to the south
+  - aircraft nose-in at the Barbara Jordan Terminal's gates and at the South Terminal
+  - landing lights, beacons and wingtip lights at night
+
 Known limits:
 - Crowds, boats and the tower shapes are impressions, not surveys.
 - The UT Tower is shown orange every night, while the real tower is orange for occasions (its
   card says so).
 - The regional terrain softens the Pennybacker's bluffs, so its deck slopes gently between
   banks.
+- Outside central Austin the land cover is coarse, so woods follow generalised outlines.
+  Streets lie flat on the terrain (no overpasses), and buildings without an Overture height
+  get one from their size.

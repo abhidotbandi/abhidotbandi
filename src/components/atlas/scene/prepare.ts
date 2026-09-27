@@ -1,6 +1,7 @@
 import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
 import type { AtlasAssets, CentralAssets } from "@/lib/atlas/assets";
 import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
+import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
 import { pointInPoly } from "@/lib/atlas/polygon";
 import { MODELLED_LANDMARKS, buildPatchGrid, type Central } from "@/lib/atlas/central";
 import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
@@ -15,6 +16,8 @@ export interface CentralScene {
   /** mesh-resolution heights of the central patch */
   patch: PatchGrid;
   buildings: BuildingMesh;
+  /** the footprints behind `buildings`, which the detail tiles' trees keep clear of */
+  footprints: BuildingsData;
 }
 
 export interface PreparedScene {
@@ -75,7 +78,7 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
   });
   return {
     ...scene,
-    central: { data: c.central, tex: makeCentralTextures(c.central), patch, buildings: central },
+    central: { data: c.central, tex: makeCentralTextures(c.central), patch, buildings: central, footprints: c.buildings },
     ground,
     siteTop,
   };

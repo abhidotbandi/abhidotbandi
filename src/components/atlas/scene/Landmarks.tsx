@@ -6,7 +6,10 @@ import * as THREE from "three";
 import earcut from "earcut";
 import type { Polyline } from "@/lib/atlas/assets";
 import type { Central } from "@/lib/atlas/central";
+import { LITTLEFIELD_FOUNTAIN } from "@/data/atlas/campus";
+import { KIND_PITCHED, KIND_PLAIN, STYLE_CAMPUS_TILE } from "@/lib/atlas/extrude";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
+import { coverRectangles, hipRoof } from "@/lib/atlas/roofs";
 import { sky } from "@/lib/atlas/timeOfDay";
 import Buildings from "./Buildings";
 
@@ -30,6 +33,9 @@ const TILE = "#b35a3c";
 const CLOCK = "#3d352c";
 const STEEL = "#8c4a2b";
 const CONCRETE = "#cfc8bc";
+const WINDOW_BAY = "#8a7c6a";
+const FOUNTAIN = "#6e9fae";
+const BRONZE = "#5b4a36";
 
 /** Coloured triangles from many parts, merged into one flat-shaded geometry. */
 class Mesher {
@@ -213,19 +219,58 @@ function capitol(ms: Mesher, c: Central, ground: HeightField) {
  * The University of Texas Main Building and Tower (1937): limestone under red tile, the shaft
  * rising 94 m to a colonnaded belfry and a small pyramid roof. The shaft is lit orange at night.
  */
-function utTower(ms: Mesher, soft: Mesher, hot: Mesher, c: Central, ground: HeightField) {
+function utTower(ms: Mesher, soft: Mesher, hot: Mesher, glass: GlassOut, c: Central, ground: HeightField) {
   const outline = c.landmarks["ut-tower"]?.outline;
   const [ux, uz] = project(-97.73943, 30.28619);
   const [lo, hi] = outline ? groundRange(ground, outline) : [groundY(ground, ux, uz), groundY(ground, ux, uz)];
   const roofM = 18;
   const roofY = hi + roofM * V;
-  if (outline) extrude(ms, outline, lo - 0.003, roofY, LIMESTONE, TILE);
+  if (outline) {
+    // The Main Building: limestone with punched windows under red tile hip roofs, like the campus
+    // around it (drawn by the buildings' shader in its campus style).
+    const r = ring(outline);
+    const walls = new GlassMesher(lo - 0.003, roofM, 0.1 + STYLE_CAMPUS_TILE);
+    walls.prism(r, lo - 0.003, roofY);
+    walls.append(glass);
+    const b = obb(outline);
+    const roofs = new GlassMesher(lo - 0.003, roofM, 0.1 + STYLE_CAMPUS_TILE, KIND_PITCHED);
+    for (const rect of coverRectangles(r, [0], r[0], r[1], b.ux, b.uz)) {
+      const h = hipRoof(rect, r[0], r[1], b.ux, b.uz, 0.0006, 0.42, 0.009);
+      const top = roofY + h.rise * BUILDING_EXAG;
+      const [e0, e1, e2, e3] = h.eaves.map(([x, z]) => [x, roofY, z]);
+      const [r0, r1] = h.ridge.map(([x, z]) => [x, top, z]);
+      roofs.tri(e0, e1, r1);
+      roofs.tri(e0, r1, r0);
+      roofs.tri(e2, e3, r0);
+      roofs.tri(e2, r0, r1);
+      roofs.tri(e3, e0, r0);
+      roofs.tri(e1, e2, r1);
+    }
+    roofs.append(glass);
+    // The loggia over the south steps, facing the South Mall: columns under an entablature, and
+    // the terrace in front. The side facing south is +q when the axis runs east.
+    const sq = b.ux >= 0 ? 1 : -1;
+    const [lx, lz] = b.at(0, sq * (b.B + 0.004));
+    const yaw = -Math.atan2(b.uz, b.ux);
+    const loggia = frame(lx, lo - 0.001, lz, yaw);
+    ms.add(box(44, (hi - lo) / V + 2.5, 16, 0, 0, sq * 4), LIMESTONE_SHADE, loggia);
+    const base = (hi - lo) / V + 2.5;
+    for (let i = 0; i < 8; i++) ms.add(cyl(0.75, 0.85, 10, base, 14, -15.75 + i * 4.5, -sq * 2.5), LIMESTONE, loggia);
+    ms.add(box(36, 2.2, 5.5, 0, base + 10, -sq * 2.5), LIMESTONE, loggia);
+  }
   const f = frame(ux, roofY, uz);
 
+  // The shaft on a rusticated plinth, three bays of windows up each face.
+  soft.add(box(21, 5, 21, 0, 0, 0), LIMESTONE_SHADE, f);
   soft.add(box(18, 46, 18, 0, 0, 0), LIMESTONE, f);
   for (let k = 0; k < 4; k++) {
-    // Clock faces high on the shaft.
     const a = (k / 4) * Math.PI * 2;
+    for (const t of [-5.5, 0, 5.5]) {
+      const g = box(1.9, 32, 0.4, t, 7, 9);
+      g.rotateY(a);
+      soft.add(g, WINDOW_BAY, f);
+    }
+    // Clock faces high on the shaft.
     const g = new THREE.CylinderGeometry(2.6, 2.6, 0.4, 16);
     g.rotateX(Math.PI / 2);
     g.rotateY(a);
@@ -248,10 +293,31 @@ function utTower(ms: Mesher, soft: Mesher, hot: Mesher, c: Central, ground: Heig
   hot.add(box(21, 1.6, 21, 0, 58.4, 0), LIMESTONE_SHADE, f);
   hot.add(box(15, 5, 15, 0, 60, 0), LIMESTONE, f);
   hot.add(box(8.5, 5.5, 8.5, 0, 65, 0), LIMESTONE, f);
+  for (const [x, z] of [
+    [-4.2, -4.2],
+    [4.2, -4.2],
+    [4.2, 4.2],
+    [-4.2, 4.2],
+  ]) {
+    hot.add(box(0.9, 5.5, 0.9, x, 65, z), LIMESTONE_SHADE, f);
+  }
   const roof = new THREE.ConeGeometry(6.4, 5.5, 4, 1);
   roof.rotateY(Math.PI / 4);
   roof.translate(0, 70.5 + 2.75, 0);
   ms.add(roof, TILE, f);
+  ms.add(box(0.6, 3, 0.6, 0, 76, 0), STATUE, f);
+}
+
+/** Littlefield Fountain at the foot of the South Mall: a round basin, and the bronze prow. */
+function littlefield(ms: Mesher, ground: HeightField) {
+  const [x, z] = project(...LITTLEFIELD_FOUNTAIN);
+  const f = frame(x, groundY(ground, x, z) - 0.0005, z);
+  ms.add(cyl(15, 15.4, 1.3, 0, 32), LIMESTONE_SHADE, f);
+  ms.add(cyl(14.2, 14.2, 0.2, 1.1, 32), FOUNTAIN, f);
+  ms.add(cyl(3.2, 3.8, 2.4, 1.1, 12), LIMESTONE, f);
+  ms.add(box(3, 3.4, 7, 0, 3.5, 0), BRONZE, f);
+  ms.add(box(2.2, 2.2, 2, 0, 3.5, -5.5), BRONZE, f);
+  for (const a of [0, 2.1, 4.2]) ms.add(box(1.2, 1.6, 3, Math.cos(a) * 8, 1.3, Math.sin(a) * 8), BRONZE, f);
 }
 
 // ---------------------------------------------------------------- moonlight towers
@@ -430,11 +496,13 @@ class GlassMesher {
     private yBase: number,
     private hM: number,
     private r: number,
+    /** KIND_* in extrude.ts; the style rides in r's whole part */
+    private kind = KIND_PLAIN,
   ) {}
 
   private vtx(p: number[], u: number) {
     this.pos.push(p[0], p[1], p[2]);
-    this.info.push(-1, this.yBase, this.hM, this.r);
+    this.info.push(this.kind, this.yBase, this.hM, this.r);
     this.u.push(u);
   }
 
@@ -681,92 +749,174 @@ function rayExit(r: Float32Array, cx: number, cz: number, dx: number, dz: number
 }
 
 /**
- * Darrell K Royal–Texas Memorial Stadium: a bowl of burnt-orange lower seats and grey upper
- * decks around a north–south field, tallest on the west side.
+ * Darrell K Royal–Texas Memorial Stadium: a north–south field with burnt-orange end zones, a
+ * lower bowl all round, a ring of suites, upper decks on the west (tallest, under the glass press
+ * box) and east and over the south end zone, the north end-zone building, the video board over
+ * the south stands, and LED light bars along the rims. Built around the footprint's middle and
+ * kept inside it.
  */
-function stadium(ms: Mesher, c: Central, ground: HeightField) {
+function stadium(ms: Mesher, stands: Mesher, field: Mesher, lamps: Mesher, c: Central, ground: HeightField) {
   const o = c.landmarks["dkr-stadium"];
   if (!o) return;
   const r = ring(o.outline);
   const [lo] = groundRange(ground, o.outline);
-  const n = r.length / 2;
-  let cx = 0;
-  let cz = 0;
-  for (let i = 0; i < n; i++) {
-    cx += r[i * 2];
-    cz += r[i * 2 + 1];
+  let bx0 = Infinity;
+  let bx1 = -Infinity;
+  let bz0 = Infinity;
+  let bz1 = -Infinity;
+  for (let i = 0; i < r.length; i += 2) {
+    bx0 = Math.min(bx0, r[i]);
+    bx1 = Math.max(bx1, r[i]);
+    bz0 = Math.min(bz0, r[i + 1]);
+    bz1 = Math.max(bz1, r[i + 1]);
   }
-  cx /= n;
-  cz /= n;
-  // The bowl is cut into a slope: build it from the field's level.
+  const cx = (bx0 + bx1) / 2;
+  const cz = (bz0 + bz1) / 2;
+  // The bowl is cut into a slope: the field sits at the highest ground under it.
   let yc = lo;
   for (const [fx, fz] of [
     [0, 0],
-    [-0.042, -0.07],
-    [0.042, -0.07],
-    [0.042, 0.07],
-    [-0.042, 0.07],
-    [0.042, 0],
-    [-0.042, 0],
+    [-0.03, -0.06],
+    [0.03, -0.06],
+    [0.03, 0.06],
+    [-0.03, 0.06],
   ]) {
     yc = Math.max(yc, groundY(ground, cx + fx, cz + fz));
   }
   const y = yc + 0.0005;
-  const orange = new THREE.Color("#bf5700");
-  const grey = new THREE.Color("#b9b4ab");
-  const facade = new THREE.Color("#d8d1c3");
-  const walk = new THREE.Color("#77736d");
-  const turf = new THREE.Color("#3e7a37");
-  const white = new THREE.Color("#f4f4ef");
+  const C = (hex: string) => new THREE.Color(hex);
+  const orange = C("#bf5700");
+  const orange2 = C("#cc6a1e");
+  const aisle = C("#a39d93");
+  const turf = C("#3e7a37");
+  const white = C("#f4f4ef");
+  const wall = C("#4f5a54");
+  const walk = C("#8c877f");
+  const suites = C("#2f3a46");
+  const stone = C("#d8ccb4");
+  const brick = C("#c3ab8b");
+  const P = (x: number, z: number, yy: number) => [cx + x, yy, cz + z];
 
-  // Field: 100 yards plus end zones, north–south.
+  // Field: turf, the sidelines, end zones in burnt orange, a line every five yards, and the
+  // longhorn circle at midfield.
+  field.quad(P(-0.032, -0.062, y), P(0.032, -0.062, y), P(0.032, 0.062, y), P(-0.032, 0.062, y), turf);
   const W = 0.0244;
   const Lf = 0.0549;
-  const P = (x: number, z: number, yy: number) => [cx + x, yy, cz + z];
-  ms.quad(P(-0.042, -0.07, y), P(0.042, -0.07, y), P(0.042, 0.07, y), P(-0.042, 0.07, y), turf);
-  for (const s of [-1, 1]) {
-    ms.quad(P(-W, s * 0.0457, y + 0.0002), P(W, s * 0.0457, y + 0.0002), P(W, s * Lf, y + 0.0002), P(-W, s * Lf, y + 0.0002), orange);
+  for (const sg of [-1, 1]) {
+    field.quad(P(-W, sg * 0.0457, y + 0.0002), P(W, sg * 0.0457, y + 0.0002), P(W, sg * Lf, y + 0.0002), P(-W, sg * Lf, y + 0.0002), orange);
+    field.quad(P(sg * W - 0.0004, -Lf, y + 0.0002), P(sg * W + 0.0004, -Lf, y + 0.0002), P(sg * W + 0.0004, Lf, y + 0.0002), P(sg * W - 0.0004, Lf, y + 0.0002), white);
   }
-  for (let k = -5; k <= 5; k++) {
-    const z = k * 0.00914;
-    ms.quad(P(-W, z - 0.0003, y + 0.0003), P(W, z - 0.0003, y + 0.0003), P(W, z + 0.0003, y + 0.0003), P(-W, z + 0.0003, y + 0.0003), white);
+  for (let k = -9; k <= 9; k++) {
+    const z = k * 0.00457;
+    const t = k % 2 === 0 ? 0.0003 : 0.00015;
+    field.quad(P(-W, z - t, y + 0.0003), P(W, z - t, y + 0.0003), P(W, z + t, y + 0.0003), P(-W, z + t, y + 0.0003), white);
+  }
+  const logo = new THREE.CylinderGeometry(4.6, 4.6, 0.3, 24);
+  logo.translate(0, 0.25, 0);
+  field.add(logo, "#bf5700", frame(cx, y, cz));
+
+  // The stands, lofted around a rounded rectangle just outside the field: at each point round
+  // it, a section out from the field wall, its depths and heights blended by which side it faces.
+  const AX = 0.032;
+  const AZ = 0.062;
+  const N = 88;
+  type Sec = { px: number; pz: number; nx: number; nz: number; pts: number[][] };
+  const secs: Sec[] = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const ca = Math.cos(a);
+    const sa = Math.sin(a);
+    // A superellipse (p = 4): straight sides with rounded corners.
+    const px = AX * Math.sign(ca) * Math.abs(ca) ** 0.5;
+    const pz = AZ * Math.sign(sa) * Math.abs(sa) ** 0.5;
+    let nx = (Math.sign(px) * Math.abs(px / AX) ** 3) / AX;
+    let nz = (Math.sign(pz) * Math.abs(pz / AZ) ** 3) / AZ;
+    const nl = Math.hypot(nx, nz) || 1;
+    nx /= nl;
+    nz /= nl;
+    const we = Math.max(0, nx) ** 2;
+    const ww = Math.max(0, -nx) ** 2;
+    const wn = Math.max(0, -nz) ** 2;
+    const ws = Math.max(0, nz) ** 2;
+    const sum = we + ww + wn + ws;
+    const mix = (e: number, w: number, n: number, s: number) => (e * we + w * ww + n * wn + s * ws) / sum;
+    const room = (rayExit(r, cx + px, cz + pz, nx, nz) - 0.004) * 1000;
+    const dLow = Math.min(mix(40, 40, 26, 28), room - 12);
+    const hLow = mix(19, 19, 14, 15);
+    const up = mix(1, 1, 0, 0.85);
+    const dUp = Math.max(dLow + 8, Math.min(mix(74, 80, 30, 46), room - 3));
+    const hUp = mix(40, 44, hLow + 3, 30);
+    const at = (d: number, h: number) => [cx + px + nx * d * M, h, cz + pz + nz * d * M];
+    const Y = (h: number) => yc + h * V;
+    secs.push({
+      px,
+      pz,
+      nx,
+      nz,
+      pts: [
+        at(0, y),
+        at(0, Y(2.2)),
+        at(1.5, Y(2.6)),
+        at(dLow * 0.25, Y(2.6 + (hLow - 2.6) * 0.25)),
+        at(dLow * 0.5, Y(2.6 + (hLow - 2.6) * 0.5)),
+        at(dLow * 0.75, Y(2.6 + (hLow - 2.6) * 0.75)),
+        at(dLow, Y(hLow)),
+        at(dLow + 4, Y(hLow)),
+        at(dLow + 4, Y(hLow + 6.5 * up)),
+        at(dLow + 4 + (dUp - dLow - 4) * 0.33, Y(hLow + 6.5 * up + (hUp - hLow - 6.5 * up) * 0.33)),
+        at(dLow + 4 + (dUp - dLow - 4) * 0.66, Y(hLow + 6.5 * up + (hUp - hLow - 6.5 * up) * 0.66)),
+        at(dUp, Y(hUp)),
+        at(dUp, Y(hUp + 2.5)),
+        at(dUp + 1.5, Y(hUp + 2.5)),
+        at(dUp + 1.5, Y(hUp * 0.8)),
+        at(dUp + 1.5, Y(hUp * 0.66)),
+        at(dUp + 1.5, Y(hUp * 0.4)),
+        at(dUp + 1.5, lo - 0.003),
+      ],
+    });
+  }
+  // Colours for the bands of each section, field wall to facade.
+  const bands = (i: number): THREE.Color[] => {
+    const isle = i % 6 === 0;
+    const seat = (k: number) => (isle ? aisle : k % 2 ? orange2 : orange);
+    return [wall, walk, seat(0), seat(1), seat(2), seat(3), walk, suites, seat(0), seat(1), seat(2), stone, stone, stone, suites, stone, brick];
+  };
+  // The seats go on their own mesh: under the lights after dark, they glow.
+  const SEATS = new Set([2, 3, 4, 5, 8, 9, 10]);
+  for (let i = 0; i < N; i++) {
+    const A = secs[i].pts;
+    const B = secs[(i + 1) % N].pts;
+    const cols = bands(i);
+    for (let k = 0; k + 1 < A.length; k++) (SEATS.has(k) ? stands : ms).quad(A[k], B[k], B[k + 1], A[k + 1], cols[k]);
   }
 
-  // The bowl, lofted from the field's edge out to the stadium's outline.
-  const steps = 72;
-  const ring3: number[][][] = [];
-  for (let i = 0; i <= steps; i++) {
-    const a = (i / steps) * Math.PI * 2;
-    const dx = Math.cos(a);
-    const dz = Math.sin(a);
-    const tIn = Math.min(0.042 / Math.max(1e-6, Math.abs(dx)), 0.07 / Math.max(1e-6, Math.abs(dz)));
-    const tOut = Math.max(tIn + 0.02, Math.min(rayExit(r, cx, cz, dx, dz), 0.2));
-    const we = Math.max(0, dx) ** 2;
-    const ww = Math.max(0, -dx) ** 2;
-    const wn = Math.max(0, -dz) ** 2;
-    const wsth = Math.max(0, dz) ** 2;
-    const hM = (50 * we + 62 * ww + 30 * wn + 46 * wsth) / (we + ww + wn + wsth);
-    const tMid = tIn + (tOut - tIn) * 0.5;
-    const tWalk = tMid + (tOut - tIn) * 0.06;
-    const yMid = yc + hM * 0.38 * V;
-    ring3.push([
-      [cx + dx * tIn, yc + 3 * V, cz + dz * tIn],
-      [cx + dx * tMid, yMid, cz + dz * tMid],
-      [cx + dx * tWalk, yMid + 0.6 * V, cz + dz * tWalk],
-      [cx + dx * tOut, yc + hM * V, cz + dz * tOut],
-      [cx + dx * tOut, lo - 0.003, cz + dz * tOut],
-    ]);
-  }
-  for (let i = 0; i < steps; i++) {
-    const a = ring3[i];
-    const b = ring3[i + 1];
-    ms.quad(a[0], b[0], b[1], a[1], orange);
-    ms.quad(a[1], b[1], b[2], a[2], walk);
-    ms.quad(a[2], b[2], b[3], a[3], grey);
-    ms.quad(a[3], b[3], b[4], a[4], facade);
-    // A low wall around the field.
-    ms.quad([a[0][0], y, a[0][2]], [b[0][0], y, b[0][2]], b[0], a[0], facade);
-  }
+  // The press box over the west stands, and light bars along both rims.
+  const west = secs.reduce((a, b) => (b.nx < a.nx ? b : a));
+  const wTop = west.pts[12][1];
+  const wx = west.pts[11][0] - cx + 0.004;
+  const pressBox = frame(cx + wx, wTop, cz);
+  ms.add(box(10, 12, 104, 0, 0, 0), "#2f3a46", pressBox);
+  ms.add(box(11.5, 1.2, 106, 0, 12, 0), "#d8ccb4", pressBox);
+  for (let z = -48; z <= 48; z += 8) lamps.add(box(3, 1.4, 5, 0, 13.2, z), "#e9ecef", pressBox);
+  const east = secs.reduce((a, b) => (b.nx > a.nx ? b : a));
+  const eTop = east.pts[12][1];
+  const ex = east.pts[11][0] - cx;
+  for (let z = -44; z <= 44; z += 8) lamps.add(box(3, 1.4, 5, 0, 0, z), "#e9ecef", frame(cx + ex, eTop, cz));
+
+  // The video board over the south stands, facing the field.
+  const south = secs.reduce((a, b) => (b.nz > a.nz ? b : a));
+  const sz = south.pts[11][2] - cz - 0.006;
+  const board = frame(cx, yc, cz + sz);
+  for (const lx of [-14, 14]) ms.add(box(2, 34, 2, lx, 0, 1.5), "#6d6a66", board);
+  ms.add(box(42, 18, 2.4, 0, 33, 1.5), "#23272c", board);
+  lamps.add(box(38, 14.5, 0.3, 0, 34.8, 0.2), "#3a4048", board);
+
+  // The north end zone: the athletics building closing the bowl, glass towards the field.
+  const north = secs.reduce((a, b) => (b.nz < a.nz ? b : a));
+  const nz = north.pts[11][2] - cz;
+  const nb = frame(cx, lo - 0.003, cz + nz - 0.011);
+  ms.add(box(96, (y - lo) / V + 27, 20, 0, 0, 0), "#d2c5ad", nb);
+  ms.add(box(90, 12, 0.6, 0, (y - lo) / V + 12, 10.2), "#2f3a46", nb);
 }
 
 /** Moody Center (2022): the university's arena, a glass-and-metal drum under a pale domed roof. */
@@ -913,6 +1063,12 @@ function longhornDam(ms: Mesher, ground: HeightField) {
 
 interface Parts {
   stone: THREE.MeshLambertMaterial;
+  /** the stadium and the arena: not floodlit whole, as the stone is */
+  arena: THREE.MeshLambertMaterial;
+  /** the field, under the stadium's lights after dark */
+  field: THREE.MeshLambertMaterial;
+  /** the stadium's seats, under its lights */
+  stands: THREE.MeshLambertMaterial;
   soft: THREE.MeshLambertMaterial;
   hot: THREE.MeshLambertMaterial;
   lamps: THREE.MeshLambertMaterial;
@@ -943,26 +1099,33 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   const soft = new Mesher();
   const hot = new Mesher();
   const lamps = new Mesher();
+  const arena = new Mesher();
+  const field = new Mesher();
+  const stands = new Mesher();
   const lines: number[] = [];
   const lcol: number[] = [];
   const glow: number[] = [];
 
   capitol(stone, c, ground);
-  utTower(stone, soft, hot, c, ground);
+  utTower(stone, soft, hot, glassOut, c, ground);
+  littlefield(stone, ground);
   moonlightTowers(c, ground, lines, lcol, lamps, glow);
   bonnell(stone, ground);
   pennybacker(stone, lines, lcol, ground);
   frostTower(glassOut, c, ground);
   independent(glassOut, stone, c, ground);
   block185(glassOut, c, ground);
-  stadium(stone, c, ground);
-  moody(stone, c, ground);
+  stadium(arena, stands, field, lamps, c, ground);
+  moody(arena, c, ground);
   tomMillerDam(stone, c, ground);
   longhornDam(stone, ground);
 
   const mat = () => new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   const parts: Parts = {
     stone: mat(),
+    arena: mat(),
+    field: mat(),
+    stands: mat(),
     soft: mat(),
     hot: mat(),
     lamps: mat(),
@@ -979,6 +1142,9 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   };
   const root = new THREE.Group();
   root.add(new THREE.Mesh(stone.geometry(), parts.stone));
+  root.add(new THREE.Mesh(arena.geometry(), parts.arena));
+  root.add(new THREE.Mesh(field.geometry(), parts.field));
+  root.add(new THREE.Mesh(stands.geometry(), parts.stands));
   root.add(new THREE.Mesh(soft.geometry(), parts.soft));
   root.add(new THREE.Mesh(hot.geometry(), parts.hot));
   root.add(new THREE.Mesh(lamps.geometry(), parts.lamps));
@@ -1011,6 +1177,11 @@ export default function Landmarks({ central, ground }: { central: Central; groun
     const p = g.userData.parts as Parts;
     // Floodlit stone, the Tower in burnt orange, and the moonlight towers' lamps.
     p.stone.emissive.setRGB(0.24, 0.18, 0.13).multiplyScalar(n);
+    // Under the stadium's lights: the field bright, the seats glowing burnt orange, the rest of
+    // the structure (and the arena) only just catching the light.
+    p.arena.emissive.setRGB(0.012, 0.01, 0.008).multiplyScalar(n);
+    p.stands.emissive.setRGB(0.06, 0.022, 0.004).multiplyScalar(n);
+    p.field.emissive.setRGB(0.2, 0.36, 0.18).multiplyScalar(n);
     p.soft.emissive.setRGB(0.78, 0.3, 0.04).multiplyScalar(n * 0.7);
     p.hot.emissive.setRGB(1, 0.46, 0.08).multiplyScalar(n);
     p.lamps.emissive.setRGB(0.85, 0.9, 1).multiplyScalar(n);

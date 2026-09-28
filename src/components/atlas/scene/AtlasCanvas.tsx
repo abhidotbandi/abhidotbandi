@@ -31,6 +31,9 @@ import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
 
 /** Light for the few lit (non-custom-shader) meshes: the train, bats and plume. */
+const GROUND_DAY = new THREE.Color("#8a7a66");
+const GROUND_NIGHT = new THREE.Color("#15130f");
+
 function Lights() {
   const hemi = useRef<THREE.HemisphereLight>(null);
   const sun = useRef<THREE.DirectionalLight>(null);
@@ -38,6 +41,8 @@ function Lights() {
     const n = sky.uNight.value;
     if (hemi.current) {
       hemi.current.color.copy(sky.uAmbient.value);
+      // The light bounced off the ground goes dark with the ground, or walls glow beige at night.
+      hemi.current.groundColor.copy(GROUND_DAY).lerp(GROUND_NIGHT, n);
       hemi.current.intensity = 1.6 - n * 1.1;
     }
     if (sun.current) {

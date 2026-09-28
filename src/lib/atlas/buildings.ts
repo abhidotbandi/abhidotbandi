@@ -33,7 +33,9 @@ export function buildBuildings(
   minFootprintM2 = 0,
   /** leave out footprints this accepts, by centre (km) and SITES index: modelled separately */
   skip?: (x: number, z: number, site: number) => boolean,
+  /** a building style (STYLE_* in extrude.ts) by footprint, height and area */
+  style?: (ring: number[], hM: number, areaM2: number) => number,
 ): BuildingMesh {
-  const a = extrudeBuildings(data, height, data.sites.map(siteIndexOf), siteCount, minFootprintM2, skip);
+  const a = extrudeBuildings(data, height, data.sites.map(siteIndexOf), siteCount, minFootprintM2, skip, style);
   return { geometry: buildingGeometry(a), siteTop: a.siteTop };
 }

@@ -1,6 +1,7 @@
 import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
 import type { AtlasAssets, CentralAssets } from "@/lib/atlas/assets";
 import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
+import { campusStyle } from "@/lib/atlas/campusStyle";
 import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
 import { pointInPoly } from "@/lib/atlas/polygon";
 import { MODELLED_LANDMARKS, buildPatchGrid, type Central } from "@/lib/atlas/central";
@@ -84,8 +85,14 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
   // the company sites modelled in their place.
   const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
   const sites = new Set(MODELLED_SITES.map(siteIndex));
-  const central = buildBuildings(c.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (x, z, site) =>
-    sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)),
+  const central = buildBuildings(
+    c.buildings,
+    ground,
+    siteIndex,
+    SITES.length,
+    lowPower ? 120 : 0,
+    (x, z, site) => sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)),
+    campusStyle,
   );
   // The site models again, now with central Austin's footprints too.
   const models = buildSiteModels([scene.assets.buildings, c.buildings], ground, SITES.length);

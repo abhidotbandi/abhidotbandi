@@ -3,6 +3,7 @@
 import earcut from "earcut";
 import type { BuildingsData } from "./buildingsCodec";
 import { BUILDING_EXAG, elevToY, type HeightField } from "./geo";
+import { coverRectangles, hipRoof } from "./roofs";
 
 /** Extruded buildings as the arrays of an indexed geometry. */
 export interface BuildingArrays {
@@ -22,6 +23,16 @@ export const KIND_PLAIN = -1;
 export const KIND_ROOF_PLANT = -2;
 /** The pitched roof of a house. */
 export const KIND_PITCHED = -3;
+/** A rooftop pool. */
+export const KIND_POOL = -4;
+
+/**
+ * Building styles, carried in aInfo.w's whole part (its fraction is the per-building random):
+ * UT's campus under red tile hip roofs, the campus with flat roofs, and West Campus's towers.
+ */
+export const STYLE_CAMPUS_TILE = 1;
+export const STYLE_CAMPUS_FLAT = 2;
+export const STYLE_WEST_CAMPUS = 3;
 
 /** Mean vertex of a building's outer ring, km. */
 function outerCentre(d: BuildingsData, b: number): [number, number] {
@@ -62,6 +73,8 @@ export function extrudeBuildings(
    * sites modelled separately
    */
   skip?: (x: number, z: number, site: number) => boolean,
+  /** a STYLE_* for a footprint (outer ring flat x, z km), by its height and area; 0 for none */
+  style?: (ring: number[], hM: number, areaM2: number) => number,
 ): BuildingArrays {
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
   const { ringStart, vertStart, x: X, z: Z } = data;
@@ -80,12 +93,31 @@ export function extrudeBuildings(
     maxI += pts * 6 + (pts - 2 + 2 * (rings - 1)) * 3 + 18 + 4 * 30;
   }
 
-  const pos = new Float32Array(maxV * 3);
-  const info = new Float32Array(maxV * 4);
-  const uArr = new Float32Array(maxV);
+  let pos = new Float32Array(maxV * 3);
+  let info = new Float32Array(maxV * 4);
+  let uArr = new Float32Array(maxV);
   let v = 0;
   let k = 0;
-  const idx = new Uint32Array(maxI);
+  let idx = new Uint32Array(maxI);
+  /** Room for nv more vertices and ni more indices (the styled roofs aren't in the bounds above). */
+  const ensure = (nv: number, ni: number) => {
+    if (v + nv > uArr.length) {
+      const cap = Math.max(uArr.length * 2, v + nv);
+      const grow = <T extends Float32Array>(a: T, n: number) => {
+        const b = new Float32Array(n);
+        b.set(a);
+        return b;
+      };
+      pos = grow(pos, cap * 3);
+      info = grow(info, cap * 4);
+      uArr = grow(uArr, cap);
+    }
+    if (k + ni > idx.length) {
+      const b = new Uint32Array(Math.max(idx.length * 2, k + ni));
+      b.set(idx);
+      idx = b;
+    }
+  };
   const flat: number[] = [];
   const holes: number[] = [];
   const ringU: number[] = [];
@@ -161,7 +193,10 @@ export function extrudeBuildings(
     const yTop = elevToY(minElev) + (hM / 1000) * BUILDING_EXAG;
     if (site >= 0 && !(siteTop[site] >= yTop)) siteTop[site] = yTop;
     const kind = site >= 0 ? site : KIND_PLAIN;
-    const r = hash(flat[0], flat[1]);
+    const flags = style ? style(flat.slice(0, outerN * 2), hM, areaM2) : 0;
+    const rand = hash(flat[0], flat[1]);
+    // The style rides in the whole part of the per-building random.
+    const r = rand + flags;
 
     // Facade coordinate: metres along each ring, wrapping at a doubled first corner.
     const starts = [0, ...holes, nPts];
@@ -217,7 +252,7 @@ export function extrudeBuildings(
     }
 
     // Houses get a pitched roof over the footprint's bounding rectangle, with eaves.
-    if (site < 0 && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450) {
+    if (site < 0 && !flags && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450) {
       let a0 = Infinity;
       let a1 = -Infinity;
       let b0 = Infinity;
@@ -250,7 +285,7 @@ export function extrudeBuildings(
       A += eave;
       B += eave;
       const H = Math.min(0.0045, B * 0.62) * BUILDING_EXAG;
-      const hip = r < 0.6;
+      const hip = rand < 0.6;
       const ridge = hip ? Math.max(0, A - B) : A;
       const P = (p: number, q: number, y: number) =>
         vert(cx + ax * p - az * q, y, cz + az * p + ax * q, KIND_PITCHED, yBase, hM, r, 0);
@@ -273,8 +308,61 @@ export function extrudeBuildings(
     const roofTri = earcut(flat, holes.length ? holes : undefined, 2);
     for (let t = 0; t < roofTri.length; t++) idx[k++] = top + roofTri[t];
 
+    if (flags === STYLE_CAMPUS_TILE) {
+      // Red tile hip roofs over the footprint's wings, eaves a little proud of the walls.
+      const rects = coverRectangles(flat, [0, ...holes], flat[0], flat[1], ux, uz);
+      ensure(rects.length * 6, rects.length * 18);
+      for (const rect of rects) {
+        const h = hipRoof(rect, flat[0], flat[1], ux, uz, 0.0006, 0.42, 0.009);
+        const ridgeY = yTop + h.rise * BUILDING_EXAG;
+        const e = h.eaves.map(([x, z]) => vert(x, yTop, z, KIND_PITCHED, yBase, hM, r, 0));
+        const [r0, r1] = h.ridge.map(([x, z]) => vert(x, ridgeY, z, KIND_PITCHED, yBase, hM, r, 0));
+        tri(e[0], e[1], r1);
+        tri(e[0], r1, r0);
+        tri(e[2], e[3], r0);
+        tri(e[2], r0, r1);
+        tri(e[3], e[0], r0);
+        tri(e[1], e[2], r1);
+      }
+      continue;
+    }
+
+    // West Campus towers: a pool deck on the roof, the plant at its end.
+    if (flags === STYLE_WEST_CAMPUS && hM >= 40 && areaM2 >= 700) {
+      let sx = 0;
+      let sz = 0;
+      for (let j = 0; j < outerN; j++) {
+        sx += flat[j * 2];
+        sz += flat[j * 2 + 1];
+      }
+      sx /= outerN;
+      sz /= outerN;
+      let ea = 0;
+      let eb = 0;
+      for (let j = 0; j < outerN; j++) {
+        const dx = flat[j * 2] - sx;
+        const dz = flat[j * 2 + 1] - sz;
+        ea = Math.max(ea, Math.abs(dx * ux + dz * uz));
+        eb = Math.max(eb, Math.abs(-dx * uz + dz * ux));
+      }
+      ensure(4, 6);
+      const pc = ea * 0.25;
+      const pa = ea * 0.3;
+      const pb = eb * 0.32;
+      const py = yTop + 0.0004;
+      const P = (p: number, q: number) => vert(sx + ux * p - uz * q, py, sz + uz * p + ux * q, KIND_POOL, yBase, hM, r, 0);
+      const q0 = P(pc - pa, -pb);
+      const q1 = P(pc + pa, -pb);
+      const q2 = P(pc + pa, pb);
+      const q3 = P(pc - pa, pb);
+      tri(q0, q1, q2);
+      tri(q0, q2, q3);
+      roofBox(sx - ux * ea * 0.5, sz - uz * ea * 0.5, ux, uz, ea * 0.3, eb * 0.4, yTop, 4 + rand * 2, rand);
+      continue;
+    }
+
     // Rooftop plant on larger buildings; a penthouse on towers.
-    if (hM > 10 && areaM2 >= 250) {
+    if (hM > 10 && areaM2 >= 250 && flags !== STYLE_CAMPUS_FLAT) {
       if (hM >= 45) {
         let sx = 0;
         let sz = 0;
@@ -292,10 +380,10 @@ export function extrudeBuildings(
           ea = Math.max(ea, Math.abs(dx * ux + dz * uz));
           eb = Math.max(eb, Math.abs(-dx * uz + dz * ux));
         }
-        roofBox(sx, sz, ux, uz, ea * 0.42, eb * 0.42, yTop, 5 + r * 3, r);
+        roofBox(sx, sz, ux, uz, ea * 0.42, eb * 0.42, yTop, 5 + rand * 3, rand);
       } else {
         // Boxes at the largest roof triangles.
-        const n = 1 + Math.floor(r * 3);
+        const n = 1 + Math.floor(rand * 3);
         const order: number[] = [];
         const areas: number[] = [];
         for (let t = 0; t < roofTri.length; t += 3) {
@@ -320,7 +408,7 @@ export function extrudeBuildings(
           const cx = (flat[p * 2] + flat[q * 2] + flat[s * 2]) / 3;
           const cz = (flat[p * 2 + 1] + flat[q * 2 + 1] + flat[s * 2 + 1]) / 3;
           const rr = hash(cx, cz);
-          roofBox(cx, cz, ux, uz, half * (0.8 + rr * 0.5), half * (0.6 + rr * 0.4), yTop, 2.2 + rr * 2, r);
+          roofBox(cx, cz, ux, uz, half * (0.8 + rr * 0.5), half * (0.6 + rr * 0.4), yTop, 2.2 + rr * 2, rand);
         }
       }
     }

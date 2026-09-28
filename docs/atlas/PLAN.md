@@ -617,3 +617,37 @@ By kind:
 
 Also: the detail tiles keep trees off every tile a footprint reaches into. Before, only the tile
 holding its first corner was masked, so a building across a tile edge could grow trees.
+
+### 2.12 The University of Texas (2026-09-28)
+
+Asked for after 2.11: the campus, stadium, tower and West Campus weren't looking as they should.
+
+- **Campus**: inside UT's main campus (Overture's "University of Texas at Austin" polygon,
+  `campus.ts`), buildings wear Leuders limestone and buff brick with punched windows.
+  - They sit under red clay tile hip roofs, and keep those materials from further out than the
+    city around them.
+  - `roofs.ts` builds the roofs for any footprint: it rasterises the footprint on its own axes,
+    merges the cells into rectangles, and puts a hip roof on each. Wings get their own roofs,
+    which cross where they meet.
+  - Flat roofs, by rule: towers over 40 m, halls over 12,000 m², six buildings known to be
+    flat-roofed (LBJ Library, Sid Richardson Hall, PCL, Jester, the Memorial Museum, Bass
+    Concert Hall), and everything south of MLK, where the medical school's towers are.
+  - Some modern halls north of MLK get tile roofs they don't have.
+- **Main Building and Tower**: the Main Building in the campus style under hipped tile roofs,
+  with a columned loggia over the south steps. The shaft stands on a rusticated plinth with three
+  bays of windows up each face, under the clocks, the colonnade and the temple. It is still
+  burnt orange after dark.
+  - Littlefield Fountain at the foot of the South Mall: its basin and the bronze prow.
+- **Darrell K Royal–Texas Memorial Stadium**, rebuilt inside its footprint:
+  - the field, with burnt-orange end zones, a line every five yards and a midfield circle
+  - a burnt-orange lower bowl with aisles, a concourse and a ring of suites
+  - upper decks, tallest on the west under the glass press box
+  - the north end-zone building, the video board over the south stands, and LED light bars
+    along the rims
+  - After dark the field and seats light up under the lights while the structure stays dark.
+    The Moody Center stays dark too, instead of glowing as floodlit stone.
+- **West Campus** (Guadalupe to San Gabriel, MLK to 29th St): apartment blocks from three
+  storeys up in stucco and brick, with wide windows and a balcony slab at every floor. The
+  towers get pool decks on their roofs, an impression, not a survey.
+- **Night**: the hemisphere light's ground colour now goes dark with the night. Before, walls
+  lit by it kept a beige glow after dark.

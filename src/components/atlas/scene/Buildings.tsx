@@ -64,10 +64,15 @@ const fragment = /* glsl */ `
     if (site.a < -0.5) isSite = false; // filtered out: draw as a plain building
     float emph = isSite ? max(site.a, 0.0) : 0.0;
     float hM = vInfo.z;
-    float r = vInfo.w;
+    // A style (UT's campus, West Campus) rides in the whole part of the per-building random.
+    float style = floor(vInfo.w + 1e-4);
+    float r = vInfo.w - style;
+    bool campus = style > 0.5 && style < 2.5;
+    bool westCampus = style > 2.5 && style < 3.5;
     bool plant = kind < -1.5 && kind > -2.5;
-    bool pitched = kind < -2.5;
-    bool glass = hM >= 45.0 && !plant;
+    bool pitched = kind < -2.5 && kind > -3.5;
+    bool pool = kind < -3.5 && kind > -4.5;
+    bool glass = hM >= 45.0 && !plant && !pool && style < 0.5;
 
     float roof = smoothstep(0.7, 0.9, n.y);
     float wall = 1.0 - smoothstep(0.3, 0.5, abs(n.y));
@@ -75,15 +80,28 @@ const fragment = /* glsl */ `
 
     // Materials by type.
     vec3 walls;
-    if (glass) walls = pick(r, lin(vec3(0.55, 0.64, 0.72)), lin(vec3(0.47, 0.6, 0.62)), lin(vec3(0.72, 0.74, 0.76)), lin(vec3(0.62, 0.57, 0.52)));
+    // UT's Leuders limestone and buff brick; West Campus's stucco and brick.
+    if (campus) walls = pick(r, lin(vec3(0.91, 0.85, 0.72)), lin(vec3(0.85, 0.74, 0.57)), lin(vec3(0.93, 0.88, 0.77)), lin(vec3(0.8, 0.67, 0.5)));
+    else if (westCampus) walls = pick(r, lin(vec3(0.92, 0.88, 0.8)), lin(vec3(0.71, 0.45, 0.36)), lin(vec3(0.8, 0.78, 0.74)), lin(vec3(0.87, 0.74, 0.58)));
+    else if (glass) walls = pick(r, lin(vec3(0.55, 0.64, 0.72)), lin(vec3(0.47, 0.6, 0.62)), lin(vec3(0.72, 0.74, 0.76)), lin(vec3(0.62, 0.57, 0.52)));
     else if (hM >= 10.0) walls = pick(r, lin(vec3(0.93, 0.89, 0.8)), lin(vec3(0.86, 0.79, 0.66)), lin(vec3(0.83, 0.83, 0.81)), lin(vec3(0.76, 0.58, 0.48)));
     else walls = pick(r, lin(vec3(0.96, 0.95, 0.92)), lin(vec3(0.9, 0.85, 0.75)), lin(vec3(0.8, 0.84, 0.86)), lin(vec3(0.94, 0.88, 0.72)));
     vec3 mat;
     if (pitched) {
-      vec3 shingle = pick(fract(r * 7.13), lin(vec3(0.34, 0.35, 0.37)), lin(vec3(0.46, 0.37, 0.31)), lin(vec3(0.66, 0.39, 0.29)), lin(vec3(0.68, 0.7, 0.72)));
+      vec3 shingle = campus
+        ? pick(fract(r * 7.13), lin(vec3(0.72, 0.34, 0.22)), lin(vec3(0.65, 0.29, 0.19)), lin(vec3(0.77, 0.4, 0.26)), lin(vec3(0.69, 0.36, 0.26)))
+        : pick(fract(r * 7.13), lin(vec3(0.34, 0.35, 0.37)), lin(vec3(0.46, 0.37, 0.31)), lin(vec3(0.66, 0.39, 0.29)), lin(vec3(0.68, 0.7, 0.72)));
       mat = n.y > 0.3 ? shingle : walls;
+      if (campus) {
+        // Courses of clay tile down the slope, faint, gone before they'd shimmer.
+        float tc = dot(vWorld.xz, normalize(n.xz + vec2(1e-4))) * 1000.0 / 0.6;
+        float d = 1.0 - smoothstep(0.3, 0.7, fwidth(tc));
+        mat *= 1.0 - 0.14 * smoothstep(0.6, 1.0, fract(tc)) * d;
+      }
     } else if (plant) {
       mat = lin(vec3(0.36, 0.37, 0.39));
+    } else if (pool) {
+      mat = lin(vec3(0.3, 0.68, 0.8));
     } else {
       mat = mix(walls, lin(vec3(0.8, 0.79, 0.76)), roof);
     }
@@ -93,9 +111,9 @@ const fragment = /* glsl */ `
     float fl = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag / 3.9;
     float fw = max(fwidth(u), fwidth(fl));
     // Company buildings keep their materials from further out than the paper city around them.
-    float detailK = isSite ? max(uDetail, 0.9) : uDetail;
+    float detailK = isSite || campus ? max(uDetail, 0.9) : uDetail;
     float detail = detailK * wall * (1.0 - smoothstep(0.3, 0.7, fw));
-    if (!pitched && !plant && hM >= 10.0) {
+    if (!pitched && !plant && !pool && hM >= 10.0) {
       if (glass) {
         float m = fract(vU / 1.6);
         float mull = 1.0 - smoothstep(0.0, 0.07, min(m, 1.0 - m));
@@ -105,6 +123,12 @@ const fragment = /* glsl */ `
         float fres = pow(1.0 - max(dot(view, n), 0.0), 3.0);
         mat = mix(mat, mix(uHorizon, uZenith, 0.55), (0.25 + 0.45 * fres) * detail);
         mat *= 1.0 - 0.3 * max(mull * 0.7, slab) * detail;
+      } else if (westCampus) {
+        // Apartment towers: wide windows, and a balcony slab at every floor.
+        vec2 f = vec2(fract(u), fract(fl));
+        float win = step(0.12, f.x) * step(f.x, 0.88) * step(0.2, f.y) * step(f.y, 0.92);
+        mat = mix(mat, mat * vec3(0.46, 0.53, 0.62), win * detail * 0.8);
+        mat = mix(mat, lin(vec3(0.95, 0.94, 0.9)), (1.0 - step(0.1, f.y)) * detail * 0.5);
       } else {
         vec2 f = vec2(fract(u), fract(fl));
         float win = step(0.24, f.x) * step(f.x, 0.76) * step(0.3, f.y) * step(f.y, 0.82);
@@ -122,13 +146,20 @@ const fragment = /* glsl */ `
 
     col *= 1.0 - uNight * 0.84;
     // Lit windows after dark.
-    if (wall > 0.5 && !plant && !pitched) {
+    if (wall > 0.5 && !plant && !pitched && !pool) {
       // Fewer windows lit at dusk than at full night, and fewer in houses than in towers.
       float dark = smoothstep(0.35, 1.0, uNight);
       float share = hM > 10.0 ? 0.86 - 0.18 * dark : 0.9 - 0.12 * dark;
       float lit = step(0.3, fract(u)) * step(0.35, fract(fl)) * step(share, hash(floor(vec2(u, fl)) + r * 97.0));
       float far = smoothstep(0.35, 1.1, fwidth(u));
       col += lin(vec3(1.0, 0.8, 0.5)) * mix(lit, 0.12, far) * dark * 0.9;
+    }
+    if (pool) {
+      // The sky in the water by day; lit from below after dark.
+      vec3 view = normalize(uCamPos - vWorld);
+      float fres = pow(1.0 - max(dot(view, n), 0.0), 3.0);
+      col = mix(col, mix(uHorizon, uZenith, 0.5) * (1.0 - uNight * 0.8), fres * 0.4);
+      col += lin(vec3(0.25, 0.78, 0.95)) * smoothstep(0.35, 1.0, uNight) * 0.55;
     }
     if (isSite) {
       float pulse = 0.5 + 0.5 * sin(uTime * 3.0);

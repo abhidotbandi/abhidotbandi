@@ -21,6 +21,9 @@ export const MODELLED_LANDMARKS = [
   "block-185",
   "dkr-stadium",
   "moody-center",
+  "governors-mansion",
+  "land-office",
+  "st-mary",
 ] as const;
 
 export interface CentralMeta {
@@ -118,6 +121,59 @@ export function lineLength(l: Polyline): number {
   let d = 0;
   for (let i = 2; i < l.length; i += 2) d += Math.hypot(l[i] - l[i - 2], l[i + 1] - l[i - 1]);
   return d;
+}
+
+/**
+ * Trees less those whose trunks stand in a clearing (rings as flat x, z km): the ground under a
+ * site model's plant, a landmark's paving.
+ */
+export function clearTrees(t: Trees, rings: ArrayLike<number>[]): Trees {
+  const CELL = 0.1;
+  const cells = new Map<number, number[]>();
+  const key = (ix: number, iz: number) => ix * 100003 + iz;
+  rings.forEach((r, k) => {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (let i = 0; i < r.length; i += 2) {
+      x0 = Math.min(x0, r[i]);
+      x1 = Math.max(x1, r[i]);
+      z0 = Math.min(z0, r[i + 1]);
+      z1 = Math.max(z1, r[i + 1]);
+    }
+    for (let ix = Math.floor(x0 / CELL); ix <= Math.floor(x1 / CELL); ix++) {
+      for (let iz = Math.floor(z0 / CELL); iz <= Math.floor(z1 / CELL); iz++) {
+        const c = cells.get(key(ix, iz));
+        if (c) c.push(k);
+        else cells.set(key(ix, iz), [k]);
+      }
+    }
+  });
+  const keep: number[] = [];
+  for (let i = 0; i < t.count; i++) {
+    const near = cells.get(key(Math.floor(t.x[i] / CELL), Math.floor(t.z[i] / CELL)));
+    if (!near || !near.some((k) => inRing(rings[k], t.x[i], t.z[i]))) keep.push(i);
+  }
+  if (keep.length === t.count) return t;
+  return {
+    count: keep.length,
+    x: Float32Array.from(keep, (i) => t.x[i]),
+    z: Float32Array.from(keep, (i) => t.z[i]),
+    r: Float32Array.from(keep, (i) => t.r[i]),
+    v: Uint8Array.from(keep, (i) => t.v[i]),
+  };
+}
+
+function inRing(r: ArrayLike<number>, x: number, z: number): boolean {
+  let inside = false;
+  const n = r.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const zi = r[i * 2 + 1];
+    const zj = r[j * 2 + 1];
+    if (zi > z !== zj > z && x < ((r[j * 2] - r[i * 2]) * (z - zi)) / (zj - zi) + r[i * 2]) inside = !inside;
+  }
+  return inside;
 }
 
 function decodeTrees(buf: ArrayBuffer): Trees {

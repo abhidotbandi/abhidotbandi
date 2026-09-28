@@ -637,7 +637,10 @@ Asked for after 2.11: the campus, stadium, tower and West Campus weren't looking
   with a columned loggia over the south steps. The shaft stands on a rusticated plinth with three
   bays of windows up each face, under the clocks, the colonnade and the temple. It is still
   burnt orange after dark.
-  - Littlefield Fountain at the foot of the South Mall: its basin and the bronze prow.
+  - Littlefield Fountain at the foot of the South Mall: a pool behind a limestone rim, levelled
+    on the slope, and Coppini's bronze group on a stepped island (the ship, Columbia on its prow
+    between a soldier and a sailor, three sea horses ahead). Its water used to sit exactly level
+    with the basin's top, and the two flickered against each other.
 - **Darrell K Royal–Texas Memorial Stadium**, rebuilt inside its footprint:
   - the field, with burnt-orange end zones, a line every five yards and a midfield circle
   - a burnt-orange lower bowl with aisles, a concourse and a ring of suites
@@ -651,3 +654,48 @@ Asked for after 2.11: the campus, stadium, tower and West Campus weren't looking
   towers get pool decks on their roofs, an impression, not a survey.
 - **Night**: the hemisphere light's ground colour now goes dark with the night. Before, walls
   lit by it kept a beige glow after dark.
+
+### 2.13 The Capitol, and creeks that read as creeks (2026-09-28)
+
+Asked for after 2.12: more detail around the Capitol, the fountain fixed, and the "river" between
+the campus and the stadium.
+
+- **Creeks**: the blue ribbon by San Jacinto Boulevard is Waller Creek, which runs 20-30 m from
+  the road there.
+  - Overture tags most of Austin's creeks "river", and the pipeline drew every named river line
+    14 m wide in pale lake blue, so the creeks read as rivers.
+  - Named creek lines are now 5 m (the Colorado and Barton Creek keep 14). Where banks are
+    mapped, their polygons (5-11 m for Waller Creek) give the width.
+  - The terrain shader treats water as a creek when it is nowhere more than a few metres from a
+    bank within 9 m. Creeks are drawn darker, greener and stiller, as in the shade of the trees
+    along them.
+- **The Capitol** (`capitol.ts` places everything in the building's own frame, turned 17.7° with
+  the street grid):
+  - sunset-red granite walls in a style of their own in the buildings' shader: tall windows
+    between pilasters over a rusticated ground floor, floodlit after dark
+  - the south portico (six columns, entablature, pediment) over the steps down to the Great
+    Walk, the north portico, pediments on the east and west ends, and the chambers' skylights
+  - the dome, over the rotunda: a colonnaded drum with windows, an attic, a ribbed shell with
+    lucarnes, and the lantern under the Goddess of Liberty and her gilt star, 92 m up. It
+    glows above the floodlit walls at night.
+- **The grounds** (Capitol Square):
+  - The Great Walk runs from the 11th Street gate to the steps, lamps along it, and the iron
+    fence and granite gate piers run along 11th.
+  - On the south lawn: the two fountains, and the monuments (from Overture places), each drawn
+    in a rough version of its form.
+  - On the north lawn: the Capitol Extension's skylights (in the building files they were
+    little grey blocks) and its open-air rotunda, looking down to the star on its floor.
+  - The drives and walks are cut out of the lawns.
+  - The grounds are mapped as lawns, which the canopy sampler leaves bare, so they get their own
+    planting: about 240 live oaks and pecans, clear of the Great Walk's view of the south front
+    and of the lawns over the Extension.
+  - The patch's trees now keep off every site model's and landmark's clearing. The tree
+    sampler draws its random numbers for the whole grid, so a change in one place only moves
+    the trees there.
+- **Around it**:
+  - The state's office buildings (listed by a point inside each) wear Texas limestone and pink
+    granite, their roofs clear of plant.
+  - The Governor's Mansion: Greek Revival, six columns and a gallery facing Colorado Street.
+  - The Old Land Office (the Visitors Center), with its crenellations.
+  - St. Mary Cathedral, with its tower and spire.
+

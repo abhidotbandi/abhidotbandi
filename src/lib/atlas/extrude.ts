@@ -28,11 +28,14 @@ export const KIND_POOL = -4;
 
 /**
  * Building styles, carried in aInfo.w's whole part (its fraction is the per-building random):
- * UT's campus under red tile hip roofs, the campus with flat roofs, and West Campus's towers.
+ * UT's campus under red tile hip roofs, the campus with flat roofs, West Campus's towers, the
+ * Capitol's sunset-red granite, and the state's limestone and granite offices around it.
  */
 export const STYLE_CAMPUS_TILE = 1;
 export const STYLE_CAMPUS_FLAT = 2;
 export const STYLE_WEST_CAMPUS = 3;
+export const STYLE_CAPITOL = 4;
+export const STYLE_STATE = 5;
 
 /** Mean vertex of a building's outer ring, km. */
 function outerCentre(d: BuildingsData, b: number): [number, number] {
@@ -361,8 +364,9 @@ export function extrudeBuildings(
       continue;
     }
 
-    // Rooftop plant on larger buildings; a penthouse on towers.
-    if (hM > 10 && areaM2 >= 250 && flags !== STYLE_CAMPUS_FLAT) {
+    // Rooftop plant on larger buildings; a penthouse on towers. The campus's flat roofs and the
+    // state's offices around the Capitol are kept clean, behind their parapets.
+    if (hM > 10 && areaM2 >= 250 && flags !== STYLE_CAMPUS_FLAT && flags !== STYLE_STATE) {
       if (hM >= 45) {
         let sx = 0;
         let sz = 0;

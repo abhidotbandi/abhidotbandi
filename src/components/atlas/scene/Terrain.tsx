@@ -134,6 +134,14 @@ const fragment = /* glsl */ `
     return g + chop * 0.22 * (1.0 - smoothstep(0.8, 2.5, fp));
   }
 
+  #ifdef PATCH
+    // Signed water distance (metres, + on water) from the patch's surface texture.
+    float sdfAt(vec2 uv) {
+      float sv = texture2D(uSurface, uv).r * 255.0 - 128.0;
+      return sign(sv) * pow(abs(sv) / uSdfK, 2.0);
+    }
+  #endif
+
   void main() {
     #ifndef PATCH
       // The central patch draws its own, finer terrain here.
@@ -237,6 +245,17 @@ const fragment = /* glsl */ `
     float water = smoothstep(-aa, aa, sdfM);
     if (water > 0.001) {
       vec3 body = mix(lin(vec3(0.58, 0.76, 0.76)), lin(vec3(0.36, 0.60, 0.64)), smoothstep(6.0, 160.0, sdfM));
+      // Creeks (Waller, Shoal, Boggy...): water that is nowhere more than a few metres from a bank
+      // within 9 m of here. They run in the shade of the trees along them: darker, greener and
+      // stiller than open water, so they read as creeks, not rivers.
+      float creek = 0.0;
+      #ifdef PATCH
+        vec2 du = vec2(0.009) / uRegion.zw;
+        float deep = max(sdfM, max(max(sdfAt(vUv + vec2(du.x, 0.0)), sdfAt(vUv - vec2(du.x, 0.0))),
+                                   max(sdfAt(vUv + vec2(0.0, du.y)), sdfAt(vUv - vec2(0.0, du.y)))));
+        creek = (1.0 - smoothstep(4.5, 8.0, deep)) * ew;
+      #endif
+      body = mix(body, lin(vec3(0.34, 0.45, 0.4)), creek);
       // Engraved waterlines following the shore, like an old survey map; they give way to the
       // moving surface up close.
       float wl = 0.0;
@@ -247,7 +266,7 @@ const fragment = /* glsl */ `
       wl *= (1.0 - smoothstep(8.0, 30.0, aa)) * smoothstep(0.6, 2.0, fp);
       body *= 1.0 - wl * 0.16;
 
-      vec2 g = waterSlope(wp, uTime, fp) * smoothstep(-2.0, 6.0, sdfM);
+      vec2 g = waterSlope(wp, uTime, fp) * smoothstep(-2.0, 6.0, sdfM) * (1.0 - 0.6 * creek);
       vec3 wn = normalize(vec3(-g.x, 1.0, -g.y));
       vec3 V = normalize(uCamPos - vWorld);
       float wdiff = max(dot(wn, uSunDir), 0.0);
@@ -256,12 +275,12 @@ const fragment = /* glsl */ `
       vec3 R = reflect(-V, wn);
       vec3 skyc = mix(uHorizon, uZenith, pow(clamp(R.y, 0.0, 1.0), 0.35));
       float fres = 0.02 + 0.98 * pow(1.0 - clamp(dot(wn, V), 0.0, 1.0), 5.0);
-      wcol = mix(wcol, skyc, clamp(fres, 0.0, 1.0) * 0.55);
+      wcol = mix(wcol, skyc, clamp(fres, 0.0, 1.0) * 0.55 * (1.0 - 0.6 * creek));
       vec3 Hs = normalize(uSunDir + V);
       float nh = max(dot(wn, Hs), 0.0);
       float glint = pow(nh, 420.0) * 4.5 + pow(nh, 60.0) * 0.14;
       float sunUp = smoothstep(-0.02, 0.08, uSunDir.y);
-      wcol += uSunColor * glint * sunUp * (1.0 - uNight);
+      wcol += uSunColor * glint * sunUp * (1.0 - uNight) * (1.0 - 0.8 * creek);
 
       // Night: dark water carrying the city's lights near lit shores.
       wcol = mix(wcol, lin(vec3(0.035, 0.075, 0.12)) + skyc * 0.08, uNight * 0.9);
@@ -275,7 +294,7 @@ const fragment = /* glsl */ `
       // Lapping at the shoreline, visible when close.
       float lapW = 1.1 + 0.7 * sin(uTime * 1.6 + vnoise(wp * 0.05) * 12.0);
       float lap = (1.0 - smoothstep(0.0, lapW, sdfM)) * step(0.0, sdfM) * (1.0 - smoothstep(0.8, 3.0, fp));
-      wcol = mix(wcol, lin(vec3(0.93, 0.95, 0.92)) * (uAmbient * 0.8 + uSunColor * 0.3), lap * 0.45 * (1.0 - uNight));
+      wcol = mix(wcol, lin(vec3(0.93, 0.95, 0.92)) * (uAmbient * 0.8 + uSunColor * 0.3), lap * 0.45 * (1.0 - uNight) * (1.0 - creek));
 
       col = mix(col, wcol, water);
     }

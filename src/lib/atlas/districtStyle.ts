@@ -1,17 +1,20 @@
 import { FLAT_ROOFED, TILE_ROOFS_NORTH_OF, UT_CAMPUS, WEST_CAMPUS } from "@/data/atlas/campus";
-import { STYLE_CAMPUS_FLAT, STYLE_CAMPUS_TILE, STYLE_WEST_CAMPUS } from "./extrude";
+import { STATE_BUILDINGS } from "@/data/atlas/capitol";
+import { STYLE_CAMPUS_FLAT, STYLE_CAMPUS_TILE, STYLE_STATE, STYLE_WEST_CAMPUS } from "./extrude";
 import { project } from "./geo";
 import { pointInPoly } from "./polygon";
 
-// Which of central Austin's buildings take a campus style: UT's under red tile hip roofs (not the
-// towers, the biggest halls or the ones known to be flat-roofed, and none south of MLK, where the
-// medical school's modern towers are), and West Campus's apartment towers.
+// Which of central Austin's buildings take a district's style: UT's under red tile hip roofs (not
+// the towers, the biggest halls or the ones known to be flat-roofed, and none south of MLK, where
+// the medical school's modern towers are), West Campus's apartment towers, and the state's
+// offices around the Capitol in limestone and granite.
 
 const ring = (pts: [number, number][]) => Float32Array.from(pts.flatMap(([lon, lat]) => project(lon, lat)));
 const CAMPUS = ring(UT_CAMPUS);
 const WEST = ring(WEST_CAMPUS);
 const NORTH_Z = project(-97.74, TILE_ROOFS_NORTH_OF)[1];
 const FLAT = FLAT_ROOFED.map(([lon, lat]) => project(lon, lat));
+const STATE = STATE_BUILDINGS.map(([lon, lat]) => project(lon, lat));
 
 function bounds(r: Float32Array) {
   let x0 = Infinity;
@@ -28,9 +31,11 @@ function bounds(r: Float32Array) {
 }
 const CB = bounds(CAMPUS);
 const WB = bounds(WEST);
-const inBox = (b: ReturnType<typeof bounds>, x: number, z: number) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+const SB = bounds(Float32Array.from(STATE.flat()));
+const inBox = (b: ReturnType<typeof bounds>, x: number, z: number, pad = 0) =>
+  x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad;
 
-export function campusStyle(footprint: number[], hM: number, areaM2: number): number {
+export function districtStyle(footprint: number[], hM: number, areaM2: number): number {
   let cx = 0;
   let cz = 0;
   const n = footprint.length / 2;
@@ -46,5 +51,9 @@ export function campusStyle(footprint: number[], hM: number, areaM2: number): nu
   }
   // West Campus's apartment blocks, from three storeys up (houses keep their pitched roofs).
   if (hM >= 10 && inBox(WB, cx, cz) && pointInPoly(WEST, cx, cz)) return STYLE_WEST_CAMPUS;
+  if (inBox(SB, cx, cz, 0.15)) {
+    const poly = Float32Array.from(footprint);
+    if (STATE.some(([x, z]) => pointInPoly(poly, x, z))) return STYLE_STATE;
+  }
   return 0;
 }

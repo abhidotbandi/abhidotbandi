@@ -1,10 +1,11 @@
 import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
 import type { AtlasAssets, CentralAssets } from "@/lib/atlas/assets";
 import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
-import { campusStyle } from "@/lib/atlas/campusStyle";
 import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
+import { capitolClearings, isCapitolSkylight } from "@/lib/atlas/capitol";
+import { districtStyle } from "@/lib/atlas/districtStyle";
 import { pointInPoly } from "@/lib/atlas/polygon";
-import { MODELLED_LANDMARKS, buildPatchGrid, type Central } from "@/lib/atlas/central";
+import { MODELLED_LANDMARKS, buildPatchGrid, clearTrees, type Central, type Trees } from "@/lib/atlas/central";
 import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
 import { MODELLED_SITES, buildSiteModels, type SiteModelSet } from "@/lib/atlas/siteModels";
 import { isLowPower } from "@/lib/atlas/tier";
@@ -20,6 +21,8 @@ export interface CentralScene {
   buildings: BuildingMesh;
   /** the footprints behind `buildings`, which the detail tiles' trees keep clear of */
   footprints: BuildingsData;
+  /** the patch's trees, clear of the site models' plant and the Capitol's walks and monuments */
+  trees: Trees;
 }
 
 export interface PreparedScene {
@@ -42,6 +45,17 @@ export interface PreparedScene {
 }
 
 const siteIndex = (id: string) => SITE_BY_ID.get(id)?.index ?? -1;
+
+/** Each footprint's outer ring (flat x, z km). */
+function outerRings(d: BuildingsData): number[][] {
+  const out: number[][] = [];
+  for (let b = 0; b < d.count; b++) {
+    const r: number[] = [];
+    for (let v = d.vertStart[d.ringStart[b]]; v < d.vertStart[d.ringStart[b] + 1]; v++) r.push(d.x[v] / 1000, d.z[v] / 1000);
+    out.push(r);
+  }
+  return out;
+}
 
 /** Per-site highest roofs from two sets, either of which may lack a site (NaN). */
 function maxTop(a: Float32Array, b: Float32Array): Float32Array {
@@ -81,8 +95,8 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
   // ~16 m mesh cells on desktop (the DEM is ~8 m), ~28 m on phones.
   const patch = buildPatchGrid(c.central, scene.baseSurface, lowPower ? 0.028 : 0.016);
   const ground = new Ground(scene.baseSurface, patch);
-  // The Capitol, the Tower and the other modelled landmarks drop their plain extrusions, as do
-  // the company sites modelled in their place.
+  // The Capitol, the Tower and the other modelled landmarks drop their plain extrusions (the
+  // Capitol Extension's skylights too), as do the company sites modelled in their place.
   const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
   const sites = new Set(MODELLED_SITES.map(siteIndex));
   const central = buildBuildings(
@@ -91,15 +105,22 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
     siteIndex,
     SITES.length,
     lowPower ? 120 : 0,
-    (x, z, site) => sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)),
-    campusStyle,
+    (x, z, site) => sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z),
+    districtStyle,
   );
   // The site models again, now with central Austin's footprints too.
   const models = buildSiteModels([scene.assets.buildings, c.buildings], ground, SITES.length);
   const siteTop = maxTop(maxTop(scene.buildings.siteTop, models.siteTop), central.siteTop);
   return {
     ...scene,
-    central: { data: c.central, tex: makeCentralTextures(c.central), patch, buildings: central, footprints: c.buildings },
+    central: {
+      data: c.central,
+      tex: makeCentralTextures(c.central),
+      patch,
+      buildings: central,
+      footprints: c.buildings,
+      trees: clearTrees(c.central.trees, [...outerRings(models.clearings), ...capitolClearings()]),
+    },
     ground,
     models,
     siteTop,

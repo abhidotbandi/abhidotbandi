@@ -135,7 +135,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
         <>
           <Structures central={central.data} ground={ground} />
           <Landmarks central={central.data} ground={ground} />
-          <Trees trees={central.data.trees} ground={ground} lowPower={scene.lowPower} />
+          <Trees trees={central.trees} ground={ground} lowPower={scene.lowPower} />
           <RiverLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />

@@ -7,16 +7,19 @@ import earcut from "earcut";
 import type { Polyline } from "@/lib/atlas/assets";
 import type { Central } from "@/lib/atlas/central";
 import { LITTLEFIELD_FOUNTAIN } from "@/data/atlas/campus";
-import { KIND_PITCHED, KIND_PLAIN, STYLE_CAMPUS_TILE } from "@/lib/atlas/extrude";
+import { DOME as DOME_AT, FOUNTAINS, GREAT_WALK, MONUMENTS, OPEN_ROTUNDA, SKYLIGHTS, SOUTH_FENCE, SOUTH_STEPS } from "@/data/atlas/capitol";
+import { CAPITOL_YAW, capitolAt, capitolUV } from "@/lib/atlas/capitol";
+import { KIND_PITCHED, KIND_PLAIN, STYLE_CAMPUS_TILE, STYLE_CAPITOL } from "@/lib/atlas/extrude";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { coverRectangles, hipRoof } from "@/lib/atlas/roofs";
 import { sky } from "@/lib/atlas/timeOfDay";
 import Buildings from "./Buildings";
 
 // Austin's landmarks as procedural low-poly models: the Texas State Capitol in sunset-red
-// granite, the UT Tower (lit burnt orange at night), the moonlight towers, the pavilion on
-// Mount Bonnell and the Pennybacker Bridge's steel arch over Lake Austin. Heights get the
-// buildings' vertical boost so the skyline keeps its proportions.
+// granite and its grounds, with the Governor's Mansion, the Old Land Office and St. Mary
+// Cathedral around them, the UT Tower (lit burnt orange at night), the moonlight towers, the
+// pavilion on Mount Bonnell and the Pennybacker Bridge's steel arch over Lake Austin. Heights
+// get the buildings' vertical boost so the skyline keeps its proportions.
 
 const M = 0.001; // metres -> km
 const V = M * BUILDING_EXAG; // vertical metres -> km, boosted like the buildings
@@ -24,7 +27,6 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 const GRANITE = "#c58e79";
 const GRANITE_LIGHT = "#d6a994";
-const GRANITE_ROOF = "#9f6b5a";
 const DOME = "#dcbfa9";
 const STATUE = "#6f6a5c";
 const LIMESTONE = "#e6dac3";
@@ -158,59 +160,429 @@ function extrude(ms: Mesher, outline: Polyline, y0: number, y1: number, wall: st
 
 // ---------------------------------------------------------------- the Capitol
 
-/**
- * The Texas State Capitol (1888): a cross-shaped granite block, the south portico facing
- * Congress Avenue, and the rotunda's drum, colonnade, dome and lantern under the Goddess of
- * Liberty, 92 m to the top of her star.
- */
-function capitol(ms: Mesher, c: Central, ground: HeightField) {
-  const outline = c.landmarks.capitol?.outline;
-  const [px, pz] = project(-97.74035, 30.27472);
-  const [lo, hi] = outline ? groundRange(ground, outline) : [groundY(ground, px, pz), groundY(ground, px, pz)];
-  const roofM = 26;
-  const roofY = hi + roofM * V;
-  if (outline) extrude(ms, outline, lo - 0.003, roofY, GRANITE, GRANITE_ROOF);
-  const f = frame(px, roofY, pz);
+const GRANITE_DARK = "#a9725f";
+const DOME_SHADE = "#cdb09b";
+const SKY_GLASS = "#9fb4b9";
+const IRON = "#34302c";
+const GOLD = "#d9ab3f";
+const PAVING = "#e6dfd2";
+const PAVING_EDGE = "#b8ad9b";
+const MANSION = "#f0e8d6";
+const WHITE = "#f5f2eb";
+const SLATE = "#6f6964";
 
-  // The south portico, on the facade where the centre line meets the outline.
-  let south = pz + 0.045;
+/** Metres in the Capitol's frame, for parts placed by `capitolFrame` (+x along u, -z along v). */
+const capitolFrame = (y: number) => {
+  const [x, z] = capitolAt(0, 0);
+  return frame(x, y, z, CAPITOL_YAW);
+};
+
+/** A triangular pediment w wide and h high, d deep, on y, centred on (x, z); turned faces +-x. */
+function pediment(w: number, h: number, d: number, y: number, x: number, z: number, turn = false): THREE.BufferGeometry {
+  const g = gable(w, h, d, y, 0);
+  if (turn) g.rotateY(Math.PI / 2);
+  g.translate(x, 0, z);
+  return g;
+}
+
+/** Highest ground under a rectangle in the Capitol's frame (u0..u1, v0..v1). */
+function capitolGroundMax(ground: HeightField, u0: number, u1: number, v0: number, v1: number): number {
+  let hi = -Infinity;
+  for (const u of [u0, (u0 + u1) / 2, u1]) for (const v of [v0, (v0 + v1) / 2, v1]) hi = Math.max(hi, groundY(ground, ...capitolAt(u, v)));
+  return hi;
+}
+
+/**
+ * The Texas State Capitol (1888), in sunset-red granite: the long east-west block with its end
+ * pavilions, windows between pilasters over a rusticated ground floor (drawn by the buildings'
+ * shader, in the Capitol's style), the south portico over the steps down to the Great Walk, the
+ * north portico, pediments on the ends, the legislative chambers' skylights, and the dome: a
+ * colonnaded drum, a ribbed shell with lucarnes, and the lantern under the Goddess of Liberty,
+ * 92 m up. Floodlit after dark, the dome brightest.
+ */
+function capitol(ms: Mesher, lit: Mesher, warm: Mesher, glass: GlassOut, c: Central, ground: HeightField) {
+  const outline = c.landmarks.capitol?.outline;
+  const [ax, az] = capitolAt(0, 0);
+  const [lo, hi] = outline ? groundRange(ground, outline) : [groundY(ground, ax, az), groundY(ground, ax, az)];
+  const roofM = 24;
+  const roofY = hi + roofM * V;
   if (outline) {
     const r = ring(outline);
+    const walls = new GlassMesher(lo, roofM + (hi - lo) / V, 0.1 + STYLE_CAPITOL);
+    walls.prism(r, lo - 0.003, roofY);
+    walls.append(glass);
+    // The balustrade along the roofline.
     const n = r.length / 2;
-    let best = -Infinity;
+    const cb = new THREE.Color(GRANITE_LIGHT);
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      const x0 = r[i * 2];
-      const x1 = r[j * 2];
-      if ((x0 - px) * (x1 - px) > 0 || x0 === x1) continue;
-      const t = (px - x0) / (x1 - x0);
-      best = Math.max(best, r[i * 2 + 1] + (r[j * 2 + 1] - r[i * 2 + 1]) * t);
+      const a = [r[i * 2], r[i * 2 + 1]];
+      const b = [r[j * 2], r[j * 2 + 1]];
+      ms.quad([a[0], roofY, a[1]], [b[0], roofY, b[1]], [b[0], roofY + 1.5 * V, b[1]], [a[0], roofY + 1.5 * V, a[1]], cb);
     }
-    if (Number.isFinite(best)) south = best;
   }
-  const sz = (south - pz) / M; // metres south of the rotunda
-  const baseM = (groundY(ground, px, south + 0.008) - roofY) / V; // ground below the roof, metres
-  ms.add(box(30, -baseM, 9, 0, baseM, sz + 4.5), GRANITE_LIGHT, f);
-  for (let i = 0; i < 6; i++) ms.add(box(1.3, -baseM, 1.3, -12.5 + i * 5, baseM, sz + 9.6), GRANITE_LIGHT, f);
-  ms.add(box(31, 1.6, 10.6, 0, 0, sz + 5.3), GRANITE, f);
-  ms.add(gable(31, 6, 10.6, 1.6, sz + 5.3), GRANITE_ROOF, f);
+  const f = capitolFrame(roofY);
+  const rel = (y: number) => (y - roofY) / V; // world y -> metres from the roofline
 
-  // Rotunda block, drum and colonnade, attic, dome, lantern and statue.
-  ms.add(box(46, 8, 46, 0, 0, 0), GRANITE, f);
-  ms.add(cyl(16, 16, 13, 8), GRANITE_LIGHT, f);
+  // The south portico: an arcaded ground floor, six columns up two storeys, the entablature and
+  // the pediment, over the steps down to the Great Walk.
+  const gS = rel(capitolGroundMax(ground, -13, 17, -46, -42));
+  const deck = gS + 6.5;
+  ms.add(box(30, deck - gS + 3, 4, 2, gS - 3, 43.8), GRANITE_DARK, f);
+  for (let i = 0; i < 6; i++) ms.add(cyl(0.75, 0.85, -2.5 - deck, deck, 12, -10.5 + i * 5, 44.9), GRANITE_LIGHT, f);
+  ms.add(box(31, 2.5, 4.6, 2, -2.5, 43.8), GRANITE, f);
+  ms.add(pediment(31, 6.5, 4.6, 0, 2, 43.8), GRANITE, f);
+  // The south steps, six flights wide.
+  const st = SOUTH_STEPS;
+  const gFoot = rel(groundY(ground, ...capitolAt(2, st.from)));
+  const rise = Math.max(0.2, (gS + 1.6 - gFoot) / 6);
+  for (let i = 0; i < 6; i++) {
+    const v0 = st.from + ((st.to - st.from) * i) / 6;
+    ms.add(box(st.width, gFoot + rise * (i + 1) - (gFoot - 2), st.to - v0, 2, gFoot - 2, -(v0 + st.to) / 2), LIMESTONE_SHADE, f);
+  }
+  // The north portico, smaller.
+  const gN = rel(capitolGroundMax(ground, -7, 11, 47, 51));
+  ms.add(box(19, gN + 5.5 - (gN - 3), 3.2, 1.8, gN - 3, -48.9), GRANITE_DARK, f);
+  for (let i = 0; i < 4; i++) ms.add(cyl(0.65, 0.75, -2.2 - (gN + 5.5), gN + 5.5, 12, -4.2 + i * 4, -49.8), GRANITE_LIGHT, f);
+  ms.add(box(19, 2.2, 3.4, 1.8, -2.2, -48.9), GRANITE, f);
+  ms.add(pediment(19, 4.6, 3.4, 0, 1.8, -48.9), GRANITE, f);
+  // Pediments over the east and west ends, and the chambers' skylights in the end pavilions:
+  // the Senate's to the east, the House's to the west.
+  for (const [u, s] of [
+    [84.8, 1],
+    [-82.2, -1],
+  ]) {
+    ms.add(pediment(26, 5.2, 1.6, 0, u - s * 0.8, 4.6, true), GRANITE, f);
+    const sky = new THREE.ConeGeometry(1, 2.6, 4, 1);
+    sky.rotateY(Math.PI / 4);
+    sky.scale(8.5, 1, 6);
+    sky.translate(u - s * 16, 1.3 + 0.9, 4.6);
+    warm.add(sky, SKY_GLASS, f);
+    ms.add(box(13, 0.9, 9.4, u - s * 16, 0, 4.6), GRANITE_LIGHT, f);
+  }
+
+  // The dome, over the rotunda.
+  const dx = DOME_AT[0];
+  const dz = -DOME_AT[1];
+  const at = (g: THREE.BufferGeometry) => g.translate(dx, 0, dz);
+  ms.add(box(36, 5, 36, dx, 0, dz), GRANITE, f);
+  ms.add(box(38, 1.2, 38, dx, 5, dz), GRANITE_LIGHT, f);
+  lit.add(cyl(15.6, 15.6, 14.2, 6.2, 36, dx, dz), DOME_SHADE, f);
+  for (let i = 0; i < 12; i++) {
+    const a = ((i + 0.5) / 12) * Math.PI * 2;
+    const w = box(1.9, 7.5, 0.6, 0, 9.4, 15.5);
+    w.rotateY(a);
+    ms.add(at(w), CLOCK, f);
+  }
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * Math.PI * 2;
-    ms.add(box(1.2, 13, 1.2, Math.cos(a) * 17.6, 8, Math.sin(a) * 17.6), GRANITE_LIGHT, f);
+    lit.add(cyl(0.62, 0.7, 14.2, 6.2, 10, dx + Math.cos(a) * 17.3, dz + Math.sin(a) * 17.3), DOME, f);
   }
-  ms.add(cyl(18.6, 18.6, 1.6, 21), GRANITE, f);
-  ms.add(cyl(15.6, 16.2, 4.6, 22.6), GRANITE_LIGHT, f);
-  ms.add(dome(15.6, 22, 27.2), DOME, f);
-  ms.add(cyl(3.2, 3.5, 7, 49), DOME, f);
-  ms.add(dome(3.6, 2.6, 56, 12, 4), DOME, f);
-  ms.add(box(1.5, 1.4, 1.5, 0, 58.4, 0), STATUE, f);
-  ms.add(cyl(0.55, 0.8, 4.6, 59.8, 8), STATUE, f);
-  ms.add(dome(0.55, 0.9, 64.4, 8, 3), STATUE, f);
-  ms.add(box(0.35, 2.4, 0.35, 0.75, 63.2, 0), STATUE, f); // her raised arm and star
+  lit.add(cyl(18.4, 18.4, 1.4, 20.4, 36, dx, dz), DOME, f);
+  lit.add(cyl(15.2, 15.8, 4.5, 21.8, 36, dx, dz), DOME, f);
+  for (let i = 0; i < 12; i++) {
+    const w = box(1.5, 1.1, 0.5, 0, 23.5, 15.4);
+    w.rotateY((i / 12) * Math.PI * 2);
+    ms.add(at(w), CLOCK, f);
+  }
+  // The shell in gores, alternately lit, so its ribs show; lucarnes round its foot.
+  for (let k = 0; k < 16; k++) {
+    const g = new THREE.SphereGeometry(15.2, 2, 8, (k / 16) * Math.PI * 2, Math.PI / 8, 0, Math.PI / 2);
+    g.scale(1, 21.2 / 15.2, 1);
+    g.translate(0, 26.3, 0);
+    lit.add(at(g), k % 2 ? DOME : DOME_SHADE, f);
+  }
+  for (let i = 0; i < 8; i++) {
+    const g = box(1.6, 2.4, 2.2, 0, 28.6, 15);
+    g.rotateY(((i + 0.5) / 8) * Math.PI * 2);
+    lit.add(at(g), DOME, f);
+  }
+  // The lantern: a colonnaded cupola, its cap, and the Goddess of Liberty with her gilt star.
+  lit.add(cyl(4.4, 4.8, 1.2, 47.2, 16, dx, dz), DOME, f);
+  lit.add(cyl(2.7, 2.7, 5.8, 48.4, 12, dx, dz), DOME_SHADE, f);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    lit.add(cyl(0.3, 0.34, 5.8, 48.4, 8, dx + Math.cos(a) * 3.6, dz + Math.sin(a) * 3.6), DOME, f);
+  }
+  lit.add(cyl(4.4, 4.4, 1, 54.2, 16, dx, dz), DOME, f);
+  lit.add(at(dome(3.8, 3, 55.2, 16, 5)), DOME, f);
+  lit.add(cyl(0.9, 1.2, 1.6, 58.2, 8, dx, dz), DOME, f);
+  ms.add(cyl(0.45, 0.8, 3.6, 59.8, 8, dx, dz), STATUE, f);
+  ms.add(at(dome(0.5, 0.9, 63.4, 8, 3)), STATUE, f);
+  ms.add(box(0.3, 2.3, 0.3, dx + 0.75, 62.6, dz), STATUE, f); // her raised arm
+  const star = new THREE.OctahedronGeometry(0.75, 0);
+  star.translate(dx + 0.75, 65.3, dz);
+  lit.add(star, GOLD, f);
+}
+
+/**
+ * The Capitol's grounds: the Great Walk from the south gate to the steps, lamps along it, the
+ * iron fence on 11th Street, the south lawn's two fountains, the monuments (each a rough version
+ * of its form), and on the north lawn the Capitol Extension's skylights and its open-air
+ * rotunda, three storeys down to a star.
+ */
+function capitolGrounds(ms: Mesher, pave: Mesher, warm: Mesher, glow: number[], ground: HeightField) {
+  const lift = 0.0004;
+  // The Great Walk, draped on the slope, with its kerbs.
+  const w = GREAT_WALK;
+  const cp = new THREE.Color(PAVING);
+  const ck = new THREE.Color(PAVING_EDGE);
+  const pt = (u: number, v: number, dy = 0) => {
+    const [x, z] = capitolAt(u, v);
+    return [x, groundY(ground, x, z) + lift + dy, z];
+  };
+  for (let v = w.from; v < w.to; v += 6) {
+    const v1 = Math.min(w.to, v + 6);
+    const [a, b, c2, d] = [pt(w.u - w.width / 2, v), pt(w.u + w.width / 2, v), pt(w.u + w.width / 2, v1), pt(w.u - w.width / 2, v1)];
+    pave.quad(a, b, c2, d, cp);
+    for (const [p, q] of [
+      [a, d],
+      [b, c2],
+    ]) {
+      pave.quad(p, q, [q[0], q[1] - 0.0007, q[2]], [p[0], p[1] - 0.0007, p[2]], ck);
+    }
+  }
+  // Lamps along it, and at the gate.
+  for (let v = -204; v <= -62; v += 15.8) {
+    for (const s of [-1, 1]) {
+      const [x, z] = capitolAt(w.u + s * 5.4, v);
+      const y = groundY(ground, x, z);
+      pave.add(box(0.18, 4.2, 0.18, 0, 0, 0), IRON, frame(x, y, z));
+      warm.add(box(0.5, 0.75, 0.5, 0, 4.2, 0), "#f3e3c3", frame(x, y, z));
+      glow.push(x, y + 4.6 * V, z);
+    }
+  }
+  // The fence along 11th Street: iron pickets between granite piers, and the gates.
+  const fz = SOUTH_FENCE;
+  const inGate = (u: number, pad = 0) => fz.gates.some(([g, gw]) => Math.abs(u - g) < gw / 2 + pad);
+  for (let u = fz.from; u <= fz.to; u += 2.5) {
+    if (inGate(u)) continue;
+    const [x, z] = capitolAt(u, fz.v);
+    const y = groundY(ground, x, z);
+    const f = frame(x, y, z, CAPITOL_YAW);
+    pave.add(box(0.12, 2.1, 0.12, 0, 0, 0), IRON, f);
+    if (u + 2.5 <= fz.to && !inGate(u + 2.5)) {
+      pave.add(box(2.5, 0.09, 0.09, 1.25, 1.95, 0), IRON, f);
+      pave.add(box(2.5, 0.09, 0.09, 1.25, 0.35, 0), IRON, f);
+    }
+  }
+  for (const [g, gw] of fz.gates) {
+    for (const s of [-1, 1]) {
+      const [x, z] = capitolAt(g + s * (gw / 2 + 0.7), fz.v);
+      const y = groundY(ground, x, z);
+      const big = g === GREAT_WALK.u;
+      const f = frame(x, y, z, CAPITOL_YAW);
+      ms.add(box(big ? 1.4 : 1, big ? 4.4 : 3, big ? 1.4 : 1, 0, -0.5, 0), GRANITE, f);
+      ms.add(box(big ? 1.7 : 1.3, 0.4, big ? 1.7 : 1.3, 0, big ? 3.9 : 2.5, 0), GRANITE_LIGHT, f);
+      if (big) {
+        warm.add(box(0.6, 0.9, 0.6, 0, 4.3, 0), "#f3e3c3", f);
+        glow.push(x, y + 4.8 * V, z);
+      }
+    }
+  }
+  // The south lawn's fountains.
+  for (const [u, v] of FOUNTAINS) {
+    const [x, z] = capitolAt(u, v);
+    let lo2 = Infinity;
+    let hi2 = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const y = groundY(ground, x + Math.cos(a) * 6 * M, z + Math.sin(a) * 6 * M);
+      lo2 = Math.min(lo2, y);
+      hi2 = Math.max(hi2, y);
+    }
+    const f = frame(x, lo2 - 0.0003, z, CAPITOL_YAW);
+    const w0 = (hi2 - lo2) / V + 0.5;
+    pave.add(cyl(6, 6.2, w0 - 0.25, 0, 28), PAVING, f);
+    ms.add(rim(3, 3.6, w0 + 0.45, 0, 28), GRANITE_LIGHT, f);
+    ms.add(cyl(3, 3, w0, 0, 28), FOUNTAIN, f);
+    ms.add(cyl(0.9, 1.1, w0 + 0.7, 0, 12), GRANITE, f);
+    ms.add(cyl(1.5, 0.9, 0.35, w0 + 0.7, 14), GRANITE_LIGHT, f);
+    ms.add(cyl(0.18, 0.24, 0.9, w0 + 1.05, 8), GRANITE, f);
+  }
+  // The monuments.
+  for (const m of MONUMENTS) {
+    const [x, z] = project(...m.at);
+    const f = frame(x, groundY(ground, x, z) - 0.0003, z, CAPITOL_YAW);
+    const h = m.h;
+    if (m.kind === "column") {
+      ms.add(box(h > 10 ? 6 : 4.2, 1.4, h > 10 ? 6 : 4.2, 0, 0, 0), GRANITE_DARK, f);
+      ms.add(box(2.6, 2.6, 2.6, 0, 1.4, 0), GRANITE, f);
+      ms.add(cyl(0.7, 0.95, h - 5.6, 4, 10), GRANITE_LIGHT, f);
+      ms.add(cyl(0.34, 0.45, 1.8, h - 1.6, 8), BRONZE, f);
+      if (h > 10) for (const [sx, sz] of [[-2.3, -2.3], [2.3, -2.3], [2.3, 2.3], [-2.3, 2.3]]) ms.add(cyl(0.3, 0.36, 1.8, 1.4, 8, sx, sz), BRONZE, f);
+    } else if (m.kind === "statue") {
+      ms.add(box(2.4, 1.8, 2.4, 0, 0, 0), GRANITE, f);
+      ms.add(cyl(0.34, 0.45, h - 1.8, 1.8, 8), BRONZE, f);
+    } else if (m.kind === "rider") {
+      ms.add(box(2.6, 2.2, 4.2, 0, 0, 0), GRANITE, f);
+      ms.add(box(1, 1.4, 2.8, 0, 2.2, 0), BRONZE, f);
+      ms.add(box(0.7, 1.2, 0.8, 0, 3.2, -1.3), BRONZE, f);
+      ms.add(cyl(0.28, 0.34, 1.4, 3.4, 8, 0, 0.3), BRONZE, f);
+    } else if (m.kind === "group") {
+      ms.add(box(8, 1.2, 5, 0, 0, 0), GRANITE_DARK, f);
+      ms.add(box(3.6, h - 1.2, 1.4, 0, 1.2, 1.2), GRANITE, f);
+      for (const [sx, sz, sh] of [[-2.6, -0.8, 2], [-1, -1.2, 2.2], [1.2, -1, 1.9], [2.8, -0.4, 2.1]]) ms.add(cyl(0.32, 0.4, sh, 1.2, 8, sx, sz), BRONZE, f);
+    } else if (m.kind === "wall") {
+      pave.add(box(14, 0.4, 7, 0, 0, 0), PAVING, f);
+      ms.add(box(11, h, 1, 0, 0.4, 1.2), GRANITE_DARK, f);
+      ms.add(box(6.5, h - 1.6, 0.35, 0, 1.2, 0.55), BRONZE, f);
+    } else {
+      pave.add(cyl(9, 9, 0.4, 0, 28), PAVING, f);
+      ms.add(rim(6.6, 7.4, 0.4 + h, 0, 28), GRANITE_DARK, f);
+      ms.add(cyl(0.9, 1.2, 2.4, 0.4, 10), GRANITE, f);
+      ms.add(cyl(0.3, 0.4, 1.9, 2.8, 8), BRONZE, f);
+    }
+  }
+  // The Capitol Extension: glass skylights over the lawn, and the open-air rotunda.
+  for (const [u, v, a, b] of SKYLIGHTS) {
+    const y = capitolGroundMax(ground, u - a / 2, u + a / 2, v - b / 2, v + b / 2);
+    const [x, z] = capitolAt(u, v);
+    const f = frame(x, y, z, CAPITOL_YAW);
+    ms.add(box(a + 0.8, 0.9, b + 0.8, 0, -0.6, 0), GRANITE_LIGHT, f);
+    const g = a >= b ? pediment(b, Math.min(a, b) * 0.22, a, 0.3, 0, 0, true) : pediment(a, Math.min(a, b) * 0.22, b, 0.3, 0, 0);
+    warm.add(g, SKY_GLASS, f);
+  }
+  const ro = OPEN_ROTUNDA;
+  const yR = capitolGroundMax(ground, ro.u - ro.r, ro.u + ro.r, ro.v - ro.r, ro.v + ro.r);
+  const [rx, rz] = capitolAt(ro.u, ro.v);
+  const fr = frame(rx, yR, rz, CAPITOL_YAW);
+  ms.add(rim(ro.r, ro.r + 0.7, 1.9, -0.8, 40), GRANITE_LIGHT, fr);
+  // Looking down the well: galleries stepping in and darkening, and the star on its floor.
+  const well: [number, number, string][] = [
+    [ro.r, ro.r - 0.8, "#8f7b70"],
+    [ro.r - 0.8, ro.r - 2, "#6f5f57"],
+    [ro.r - 2, ro.r - 3.4, "#54483f"],
+  ];
+  for (const [r0, r1, col] of well) ms.add(rim(r1, r0, 0.25, -0.2, 40), col, fr);
+  ms.add(cyl(ro.r - 3.4, ro.r - 3.4, 0.25, -0.2, 40), "#7b6f64", fr);
+  const sp: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 ? 1.5 : 3.8;
+    sp.push(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  const starShape = new THREE.Shape();
+  starShape.moveTo(sp[0], sp[1]);
+  for (let i = 2; i < sp.length; i += 2) starShape.lineTo(sp[i], sp[i + 1]);
+  const sg = new THREE.ShapeGeometry(starShape);
+  sg.rotateX(-Math.PI / 2);
+  sg.translate(0, 0.15, 0);
+  ms.add(sg, "#e2d8c6", fr);
+}
+
+// ---------------------------------------------------------------- around the Capitol
+
+/** Hip roofs over a footprint (its rectangles), rising from y. */
+function hipRoofs(ms: Mesher, outline: Polyline, y: number, color: string, pitch: number, maxRiseKm: number) {
+  const r = ring(outline);
+  const b = obb(outline);
+  const c = new THREE.Color(color);
+  for (const rect of coverRectangles(r, [0], r[0], r[1], b.ux, b.uz)) {
+    const h = hipRoof(rect, r[0], r[1], b.ux, b.uz, 0.0005, pitch, maxRiseKm);
+    const top = y + h.rise * BUILDING_EXAG;
+    const [e0, e1, e2, e3] = h.eaves.map(([x, z]) => [x, y, z]);
+    const [r0, r1] = h.ridge.map(([x, z]) => [x, top, z]);
+    ms.tri(e0, e1, r1, c);
+    ms.tri(e0, r1, r0, c);
+    ms.tri(e2, e3, r0, c);
+    ms.tri(e2, r0, r1, c);
+    ms.tri(e3, e0, r0, c);
+    ms.tri(e1, e2, r1, c);
+  }
+}
+
+/** The side of a footprint's box facing most nearly along (dx, dz): its centre, direction and length. */
+function facing(outline: Polyline, dx: number, dz: number) {
+  const b = obb(outline);
+  const sides = [
+    { n: [b.ux, b.uz], half: b.A, len: b.B * 2 },
+    { n: [-b.ux, -b.uz], half: b.A, len: b.B * 2 },
+    { n: [-b.uz, b.ux], half: b.B, len: b.A * 2 },
+    { n: [b.uz, -b.ux], half: b.B, len: b.A * 2 },
+  ];
+  const s = sides.reduce((p, q) => (q.n[0] * dx + q.n[1] * dz > p.n[0] * dx + p.n[1] * dz ? q : p));
+  return { x: b.cx + s.n[0] * s.half, z: b.cz + s.n[1] * s.half, nx: s.n[0], nz: s.n[1], len: s.len / M };
+}
+
+/**
+ * The Governor's Mansion (1856): Greek Revival in pale painted brick under a low hip roof, the
+ * six tall Ionic columns of its front portico facing Colorado Street, a gallery across them.
+ */
+function governorsMansion(ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["governors-mansion"]?.outline;
+  if (!o) return;
+  const [lo, hi] = groundRange(ground, o);
+  const top = hi + 10.5 * V;
+  extrude(ms, o, lo - 0.002, top, MANSION, MANSION);
+  hipRoofs(ms, o, top, SLATE, 0.32, 0.004);
+  // Colorado Street lies along the grid's east.
+  const [ex, ez] = capitolAt(1, 0);
+  const [cx0, cz0] = capitolAt(0, 0);
+  const s = facing(o, ex - cx0, ez - cz0);
+  // The porch floor, a step above the ground in front (the terrain is smoothed on this slope).
+  const floor = Math.max(groundY(ground, s.x, s.z), (lo + hi) / 2);
+  const f = frame(s.x, floor - 0.0015, s.z, Math.atan2(s.nx, s.nz));
+  const base = 1.5;
+  const w = Math.min(20, s.len - 3);
+  ms.add(box(w + 2, base, 4.2, 0, 0, 2), LIMESTONE_SHADE, f);
+  for (let i = 0; i < 6; i++) ms.add(cyl(0.48, 0.56, 9, base, 12, -w / 2 + (w * i) / 5, 3.4), WHITE, f);
+  ms.add(box(w + 2, 1.1, 4.4, 0, base + 9, 2), WHITE, f);
+  ms.add(box(w, 0.25, 3.2, 0, base + 4.2, 1.6), WHITE, f); // the gallery
+}
+
+/**
+ * The Old General Land Office (1857), now the Capitol Visitors Center: a castellated stone block
+ * in the German Romanesque of its architect, crenellations all round its parapet.
+ */
+function landOffice(ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["land-office"]?.outline;
+  if (!o) return;
+  const [lo, hi] = groundRange(ground, o);
+  const top = hi + 13 * V;
+  extrude(ms, o, lo - 0.002, top, "#dccbaa", "#bfae90");
+  const r = ring(o);
+  const n = r.length / 2;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const dx = r[j * 2] - r[i * 2];
+    const dz = r[j * 2 + 1] - r[i * 2 + 1];
+    const L = Math.hypot(dx, dz) / M;
+    const k = Math.max(1, Math.floor(L / 1.9));
+    for (let q = 0; q < k; q++) {
+      const t = (q + 0.5) / k;
+      ms.add(box(1, 1.3, 0.6, 0, 0, 0), "#d2c09c", frame(r[i * 2] + dx * t, top, r[i * 2 + 1] + dz * t, Math.atan2(-dz, dx)));
+    }
+  }
+}
+
+/**
+ * St. Mary Cathedral (1884), Gothic Revival in limestone: the nave under a steep slate roof, and
+ * its bell tower and spire at the front, on 10th Street.
+ */
+function stMary(ms: Mesher, c: Central, ground: HeightField) {
+  const o = c.landmarks["st-mary"]?.outline;
+  if (!o) return;
+  const [lo, hi] = groundRange(ground, o);
+  const eave = hi + 14 * V;
+  extrude(ms, o, lo - 0.002, eave, "#dacdb3", "#dacdb3");
+  const b = obb(o);
+  const A = b.A / M;
+  const B = b.B / M;
+  ms.add(gable(B * 2, B * 1.15, A * 2, 0, 0), SLATE, frame(b.cx, eave, b.cz, Math.atan2(b.ux, b.uz)));
+  // The front: the end of the nave toward 10th Street (the grid's south).
+  const [e0x, e0z] = b.at(b.A, 0);
+  const [e1x, e1z] = b.at(-b.A, 0);
+  const south = capitolUV(e0x, e0z)[1] < capitolUV(e1x, e1z)[1];
+  const [tx, tz] = b.at((south ? 1 : -1) * (b.A - 0.004), 0);
+  const ft = frame(tx, lo - 0.001, tz, Math.atan2(b.ux, b.uz));
+  const base = (hi - lo) / V;
+  ms.add(box(8, base + 27, 8, 0, 0, 0), "#d3c6ab", ft);
+  const spire = new THREE.ConeGeometry(4.6, 15, 8, 1);
+  spire.rotateY(Math.PI / 8);
+  spire.translate(0, base + 27 + 7.5, 0);
+  ms.add(spire, SLATE, ft);
+  ms.add(box(0.4, 2.2, 0.4, 0, base + 42, 0), STATUE, ft); // the cross
 }
 
 // ---------------------------------------------------------------- the UT Tower
@@ -308,16 +680,60 @@ function utTower(ms: Mesher, soft: Mesher, hot: Mesher, glass: GlassOut, c: Cent
   ms.add(box(0.6, 3, 0.6, 0, 76, 0), STATUE, f);
 }
 
-/** Littlefield Fountain at the foot of the South Mall: a round basin, and the bronze prow. */
+/** A ring wall (a basin's rim): inner and outer radius, height, standing on y. */
+function rim(rIn: number, rOut: number, h: number, y: number, seg = 40): THREE.BufferGeometry {
+  const p = [new THREE.Vector2(rIn, y), new THREE.Vector2(rIn, y + h), new THREE.Vector2(rOut, y + h), new THREE.Vector2(rOut, y)];
+  return new THREE.LatheGeometry(p, seg);
+}
+
+/**
+ * Littlefield Fountain (1933) at the foot of the South Mall: a round pool behind a limestone
+ * rim, and on a stepped island Coppini's bronze ship, Columbia on its prow between a soldier
+ * and a sailor, with three sea horses surging ahead of it, towards the Capitol.
+ */
 function littlefield(ms: Mesher, ground: HeightField) {
   const [x, z] = project(...LITTLEFIELD_FOUNTAIN);
-  const f = frame(x, groundY(ground, x, z) - 0.0005, z);
-  ms.add(cyl(15, 15.4, 1.3, 0, 32), LIMESTONE_SHADE, f);
-  ms.add(cyl(14.2, 14.2, 0.2, 1.1, 32), FOUNTAIN, f);
-  ms.add(cyl(3.2, 3.8, 2.4, 1.1, 12), LIMESTONE, f);
-  ms.add(box(3, 3.4, 7, 0, 3.5, 0), BRONZE, f);
-  ms.add(box(2.2, 2.2, 2, 0, 3.5, -5.5), BRONZE, f);
-  for (const a of [0, 2.1, 4.2]) ms.add(box(1.2, 1.6, 3, Math.cos(a) * 8, 1.3, Math.sin(a) * 8), BRONZE, f);
+  // Level on the slope: the base under the lowest ground, the water above the highest.
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const y = groundY(ground, x + Math.cos(a) * 16 * M, z + Math.sin(a) * 16 * M);
+    lo = Math.min(lo, y);
+    hi = Math.max(hi, y);
+  }
+  // Down the Mall's axis (from the Tower): the way the ship sails.
+  const [tx, tz] = project(-97.73943, 30.28619);
+  const f = frame(x, lo - 0.0003, z, Math.atan2(x - tx, z - tz));
+  const w = (hi - lo) / V + 0.8; // water level, metres above the base
+  ms.add(cyl(16.4, 16.8, w - 0.3, 0, 40), LIMESTONE_SHADE, f); // the paved surround
+  ms.add(rim(14.4, 15.6, w + 0.55, 0), LIMESTONE, f);
+  ms.add(cyl(14.4, 14.4, w, 0, 40), FOUNTAIN, f);
+  // The island: two steps, then the bronze group facing along +z.
+  ms.add(cyl(6.2, 6.6, w + 0.5, 0, 24), LIMESTONE_SHADE, f);
+  ms.add(cyl(4.4, 4.8, w + 1.3, 0, 20), LIMESTONE, f);
+  const top = w + 1.3;
+  ms.add(box(2.6, 2.2, 6.4, 0, top, -0.6), BRONZE, f); // hull
+  const prow = new THREE.ConeGeometry(1.5, 3.2, 4, 1);
+  prow.rotateX(Math.PI / 2);
+  prow.scale(0.9, 0.75, 1);
+  prow.translate(0, top + 1.2, 4.2);
+  ms.add(prow, BRONZE, f);
+  ms.add(cyl(0.45, 0.6, 3.4, top + 2.2, 8, 0, 3.2), BRONZE, f); // Columbia
+  for (const s of [-1, 1]) {
+    const wing = box(0.25, 2.6, 1.6, 0, 0, 0);
+    wing.rotateZ(s * 0.45);
+    wing.translate(s * 0.9, top + 4.4, 2.9);
+    ms.add(wing, BRONZE, f);
+    ms.add(cyl(0.35, 0.45, 2.3, top + 2.2, 8, s * 1.6, 0.4), BRONZE, f); // soldier, sailor
+  }
+  // Three sea horses ahead of the ship, rearing out of the water.
+  for (const a of [-0.55, 0, 0.55]) {
+    const hx = Math.sin(a) * 9;
+    const hz = Math.cos(a) * 9;
+    ms.add(box(1.1, 1.3, 2.6, hx, w - 0.2, hz), BRONZE, f);
+    ms.add(box(0.8, 1.6, 0.8, hx, w + 0.9, hz + 1), BRONZE, f);
+  }
 }
 
 // ---------------------------------------------------------------- moonlight towers
@@ -1072,8 +1488,16 @@ interface Parts {
   soft: THREE.MeshLambertMaterial;
   hot: THREE.MeshLambertMaterial;
   lamps: THREE.MeshLambertMaterial;
+  /** the Capitol's dome, floodlit brightest */
+  lit: THREE.MeshLambertMaterial;
+  /** lamp heads and skylights, warm after dark */
+  warm: THREE.MeshLambertMaterial;
+  /** paving and ironwork: not floodlit */
+  pave: THREE.MeshLambertMaterial;
   glow: THREE.PointsMaterial;
   glowPoints: THREE.Points;
+  warmGlow: THREE.PointsMaterial;
+  warmPoints: THREE.Points;
 }
 
 function glowTexture(): THREE.Texture {
@@ -1102,11 +1526,19 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   const arena = new Mesher();
   const field = new Mesher();
   const stands = new Mesher();
+  const lit = new Mesher();
+  const warm = new Mesher();
+  const pave = new Mesher();
   const lines: number[] = [];
   const lcol: number[] = [];
   const glow: number[] = [];
+  const warmGlow: number[] = [];
 
-  capitol(stone, c, ground);
+  capitol(stone, lit, warm, glassOut, c, ground);
+  capitolGrounds(stone, pave, warm, warmGlow, ground);
+  governorsMansion(stone, c, ground);
+  landOffice(stone, c, ground);
+  stMary(stone, c, ground);
   utTower(stone, soft, hot, glassOut, c, ground);
   littlefield(stone, ground);
   moonlightTowers(c, ground, lines, lcol, lamps, glow);
@@ -1129,6 +1561,9 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
     soft: mat(),
     hot: mat(),
     lamps: mat(),
+    lit: mat(),
+    warm: mat(),
+    pave: mat(),
     glow: new THREE.PointsMaterial({
       map: glowTexture(),
       color: "#e4ecff",
@@ -1139,6 +1574,16 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
       blending: THREE.AdditiveBlending,
     }),
     glowPoints: new THREE.Points(),
+    warmGlow: new THREE.PointsMaterial({
+      map: glowTexture(),
+      color: "#ffcf8f",
+      size: 12 * Math.min(2, window.devicePixelRatio || 1),
+      sizeAttenuation: false,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }),
+    warmPoints: new THREE.Points(),
   };
   const root = new THREE.Group();
   root.add(new THREE.Mesh(stone.geometry(), parts.stone));
@@ -1148,6 +1593,9 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   root.add(new THREE.Mesh(soft.geometry(), parts.soft));
   root.add(new THREE.Mesh(hot.geometry(), parts.hot));
   root.add(new THREE.Mesh(lamps.geometry(), parts.lamps));
+  root.add(new THREE.Mesh(lit.geometry(), parts.lit));
+  root.add(new THREE.Mesh(warm.geometry(), parts.warm));
+  root.add(new THREE.Mesh(pave.geometry(), parts.pave));
   const lg = new THREE.BufferGeometry();
   lg.setAttribute("position", new THREE.Float32BufferAttribute(lines, 3));
   lg.setAttribute("color", new THREE.Float32BufferAttribute(lcol, 3));
@@ -1157,6 +1605,11 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   parts.glowPoints = new THREE.Points(gg, parts.glow);
   parts.glowPoints.renderOrder = 2;
   root.add(parts.glowPoints);
+  const wg = new THREE.BufferGeometry();
+  wg.setAttribute("position", new THREE.Float32BufferAttribute(warmGlow, 3));
+  parts.warmPoints = new THREE.Points(wg, parts.warmGlow);
+  parts.warmPoints.renderOrder = 2;
+  root.add(parts.warmPoints);
   root.userData.parts = parts;
   const glass = new THREE.BufferGeometry();
   glass.setAttribute("position", new THREE.Float32BufferAttribute(glassOut.pos, 3));
@@ -1185,8 +1638,14 @@ export default function Landmarks({ central, ground }: { central: Central; groun
     p.soft.emissive.setRGB(0.78, 0.3, 0.04).multiplyScalar(n * 0.7);
     p.hot.emissive.setRGB(1, 0.46, 0.08).multiplyScalar(n);
     p.lamps.emissive.setRGB(0.85, 0.9, 1).multiplyScalar(n);
+    // The Capitol's dome glows above its floodlit granite; lamps and skylights warm.
+    p.lit.emissive.setRGB(0.64, 0.46, 0.3).multiplyScalar(n);
+    p.warm.emissive.setRGB(0.95, 0.74, 0.45).multiplyScalar(n);
+    p.pave.emissive.setRGB(0.02, 0.017, 0.013).multiplyScalar(n);
     p.glow.opacity = Math.min(1, n * 1.3);
     p.glowPoints.visible = n > 0.03;
+    p.warmGlow.opacity = Math.min(1, n * 1.3);
+    p.warmPoints.visible = n > 0.03;
   });
 
   return (

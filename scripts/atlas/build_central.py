@@ -79,7 +79,18 @@ NAMED_LANDMARKS = {
     "block-185": "Block 185",
     "dkr-stadium": "DKR Memorial Stadium",
     "moody-center": "Moody Center",
+    "governors-mansion": "Governor's Mansion",
+    "land-office": "Capitol Complex Visitor Center",
+    "st-mary": "Saint Mary Cathedral",
 }
+# Overture tags most of Austin's creeks "river", but they are a few metres across; drawn as
+# rivers they read as rivers. Where a creek's banks are mapped, its polygons give its width.
+RIVER_LINE_M = {"Colorado River": 14, "Barton Creek": 14}
+CREEK_LINE_M = 5
+# The Capitol's long (east-west) axis, degrees north of east: the street grid's skew.
+CAPITOL_AXIS_DEG = -17.7
+# Its drives and grand walks, cut out of the lawns around it so they read from above (metres).
+CAPITOL_PAVING_M = {"State Capitol Driveway": 6.5, "Great Walk": 7.0, "Oval Walk": 4.0}
 STREETS = {
     "rainey": (["Rainey Street"], None),
     "sixth": (["East 6th Street"], (-97.7431, -97.7365)),
@@ -221,8 +232,7 @@ def water_mask(w, h, ss):
             if name in ("Lady Bird Lake", "Lake Austin"):
                 draw_polys(dl, g, 255)
         elif g.geom_type in ("LineString", "MultiLineString") and name and r["class"] in ("river", "stream"):
-            width_m = 14 if r["class"] == "river" else 6
-            draw_lines(d, g, 255, width_m / px_m)
+            draw_lines(d, g, 255, RIVER_LINE_M.get(name, CREEK_LINE_M) / px_m)
     return img, lake
 
 
@@ -251,6 +261,17 @@ def land_use(w, h, ss):
             if r["class"] in LAWN_CLASSES:
                 draw_polys(dl, g, 255)
     return coverage(park, ss), coverage(lawn, ss)
+
+
+def capitol_paving(segs, w, h, ss):
+    """The Capitol's drives and grand walks as coverage, to cut out of the lawns around it."""
+    img = Image.new("L", (w * ss, h * ss), 0)
+    d = ImageDraw.Draw(img)
+    for r in segs:
+        wm = CAPITOL_PAVING_M.get(name_of(r))
+        if wm:
+            draw_lines(d, to_px(r["g"], w, h, ss), 255, wm / SURFACE_PX_M * ss)
+    return coverage(img, ss)
 
 
 def canopy_raw(w, h, ss):
@@ -289,8 +310,19 @@ def road_mask(segs, w, h):
 
 # ---------------------------------------------------------------- trees
 
-def trees(canopy, sd, park, rng):
-    """Jittered-grid sampling of the canopy, favouring the river, parks and downtown."""
+def tree_records(X, Z, radius, conical, tint):
+    """Trees at patch metres (x east, z south of the north-west corner) in central_trees.bin's layout."""
+    rec = np.zeros(len(X), dtype=[("x", "<u2"), ("z", "<u2"), ("r", "u1"), ("v", "u1")])
+    rec["x"] = np.clip(np.round(X * 4), 0, 65535)
+    rec["z"] = np.clip(np.round(Z * 4), 0, 65535)
+    rec["r"] = np.round(radius * 10)
+    rec["v"] = tint | np.where(conical, 128, 0)
+    return rec
+
+
+def trees(canopy, sd, park, rng, planted=None):
+    """Jittered-grid sampling of the canopy, favouring the river, parks and downtown. `planted`
+    is a mask of places with their own planting (the Capitol grounds), left out here."""
     h, w = canopy.shape
     step_m = 11.0
     gx = np.arange(0, w * SURFACE_PX_M, step_m)
@@ -298,6 +330,11 @@ def trees(canopy, sd, park, rng):
     X, Z = np.meshgrid(gx, gz)
     X = X + rng.uniform(0, step_m, X.shape)
     Z = Z + rng.uniform(0, step_m, Z.shape)
+    # Every draw is made for the whole grid, so a change in one place (a creek's width, a park)
+    # only moves the trees there.
+    u_keep, u_rank, u_river, u_hills = (rng.uniform(0, 1, X.shape) for _ in range(4))
+    size = rng.normal(5.2, 1.2, X.shape)
+    tint = rng.integers(0, 128, X.shape)
     ix = np.clip((X / SURFACE_PX_M).astype(int), 0, w - 1)
     iz = np.clip((Z / SURFACE_PX_M).astype(int), 0, h - 1)
     c = canopy[iz, ix]
@@ -305,22 +342,64 @@ def trees(canopy, sd, park, rng):
     near_river = (dist < 0) & (dist > -160)
     weight = np.where(near_river | (park[iz, ix] > 0.5), 1.0, 0.6)
     p = np.clip(c, 0, 1) ** 1.4 * weight
-    keep = rng.uniform(0, 1, X.shape) < p
-    X, Z, dist, c = X[keep], Z[keep], dist[keep], c[keep]
-    if len(X) > TREE_BUDGET:
-        pick = rng.choice(len(X), TREE_BUDGET, replace=False)
-        X, Z, dist, c = X[pick], Z[pick], dist[pick], c[pick]
+    keep = u_keep < p
+    if planted is not None:
+        keep &= planted[iz, ix] < 0.5
+    if keep.sum() > TREE_BUDGET:
+        keep &= u_rank <= np.sort(u_rank[keep])[TREE_BUDGET - 1]
+    X, Z, dist, c, size, tint = X[keep], Z[keep], dist[keep], c[keep], size[keep], tint[keep]
     # Bald cypress line the river; Ashe juniper ("cedar") fills the western hills.
     xs_km = CX_MIN + X / 1000
-    conical = ((dist > -18) & (rng.uniform(0, 1, len(X)) < 0.7)) | ((xs_km < -3.2) & (rng.uniform(0, 1, len(X)) < 0.35))
-    radius = np.clip(rng.normal(5.2, 1.2, len(X)) * np.where(conical, 0.75, 1.0) * (0.85 + 0.3 * c), 2.5, 9)
-    tint = rng.integers(0, 128, len(X))
-    rec = np.zeros(len(X), dtype=[("x", "<u2"), ("z", "<u2"), ("r", "u1"), ("v", "u1")])
-    rec["x"] = np.clip(np.round(X * 4), 0, 65535)
-    rec["z"] = np.clip(np.round(Z * 4), 0, 65535)
-    rec["r"] = np.round(radius * 10)
-    rec["v"] = tint | np.where(conical, 128, 0)
-    return rec
+    conical = ((dist > -18) & (u_river[keep] < 0.7)) | ((xs_km < -3.2) & (u_hills[keep] < 0.35))
+    radius = np.clip(size * np.where(conical, 0.75, 1.0) * (0.85 + 0.3 * c), 2.5, 9)
+    return tree_records(X, Z, radius, conical, tint)
+
+
+def capitol_to_scene(u, v):
+    """Scene metres (x east, z south) of (u, v): metres east and north along the Capitol's axes
+    from its landmark point (as src/lib/atlas/capitol.ts). Works on numpy arrays."""
+    ax, az = (c * 1000 for c in project(*LANDMARK_POINTS["capitol"]))
+    t = math.radians(CAPITOL_AXIS_DEG)
+    return ax + u * math.cos(t) - v * math.sin(t), az - (u * math.sin(t) + v * math.cos(t))
+
+
+def capitol_grounds():
+    """Capitol Square (the grounds, 11th to 15th Street), in lon/lat."""
+    rows = bbox_rows(str(CACHE / "land_use.parquet"), ["geometry", "names"])
+    return next(shapely.from_wkb(r["geometry"]) for r in rows if (r["names"] or {}).get("primary") == "Capitol Square")
+
+
+def capitol_trees(grounds, bgeoms, segs, rng):
+    """The Capitol grounds' live oaks, pecans and elms. The grounds are mapped as lawns, which the
+    canopy sampler leaves open, so they get their own planting: through the south lawn but clear
+    of the Great Walk's view of the south front, thickest on the east and west grounds, sparse on
+    the terrace around the building, and none on the lawns over the underground Capitol Extension
+    (the scene's clearings keep them off the monuments and fountains)."""
+    near = grounds.buffer(0.0002)
+    blocked = [to_m(bgeoms[i]).buffer(5) for i in shapely.STRtree(bgeoms).query(near)]
+    for r in segs:
+        if r["g"].intersects(near):
+            blocked.append(to_m(r["g"]).buffer(2.4 if r["class"] in PATH_CLASSES else 6))
+    blocked = shapely.union_all(blocked)
+    area = to_m(grounds)
+    us = np.arange(-175, 180, 12.5)
+    vs = np.arange(-230, 250, 12.5)
+    U, V = np.meshgrid(us, vs)
+    U = U + rng.uniform(-4.5, 4.5, U.shape)
+    V = V + rng.uniform(-4.5, 4.5, V.shape)
+    x, z = capitol_to_scene(U, V)
+    a = np.abs(U - 2)  # from the axis (the Great Walk)
+    p = np.full(U.shape, 0.8)
+    p[(a < 108) & (V > -64) & (V < 52)] = 0.12  # the terrace and drive around the building
+    p[(V < -40) & (a < 17)] = 0  # the Great Walk's view of the south front
+    p[(a < 80) & (V > 44) & (V < 205)] = 0  # the lawns over the Capitol Extension
+    ok = (rng.uniform(0, 1, U.shape) < p) & shapely.contains_xy(area, x, z) & ~shapely.contains_xy(blocked, x, z)
+    x, z = x[ok], z[ok]
+    radius = np.clip(rng.normal(6.4, 1.2, len(x)), 4.2, 9)
+    conical = rng.uniform(0, 1, len(x)) < 0.03
+    tint = rng.integers(0, 128, len(x))
+    print(f"  Capitol grounds: {len(x)} trees")
+    return tree_records(x - CX_MIN * 1000, z - CZ_MIN * 1000, radius, conical, tint)
 
 
 # ---------------------------------------------------------------- vectors
@@ -660,6 +739,7 @@ def build():
     sdf_u8, sd = sdf_encode(wmask, ss)
     park, lawn = land_use(sw, sh, ss)
     segs = seg_rows()
+    park = park * (1 - capitol_paving(segs, sw, sh, ss))
     hard = np.maximum(footprint_mask(bgeoms, sw, sh), road_mask(segs, sw, sh))
     blocked = np.maximum.reduce([hard, lawn, (sd > 0).astype(np.float32)])
     blocked = ndimage.grey_dilation(blocked, size=(2, 2))
@@ -687,7 +767,11 @@ def build():
     print(f"  central_terrain.webp {tw}x{th} ({elev.min():.0f}-{elev.max():.0f} m), "
           f"{(OUT / 'central_terrain.webp').stat().st_size / 1e6:.2f} MB")
 
-    rec = trees(canopy, sd, park, rng)
+    grounds = capitol_grounds()
+    img = Image.new("L", (sw, sh), 0)
+    draw_polys(ImageDraw.Draw(img), to_px(grounds, sw, sh), 255)
+    planted = np.asarray(img, dtype=np.float32) / 255
+    rec = np.concatenate([trees(canopy, sd, park, rng, planted), capitol_trees(grounds, bgeoms, segs, rng)])
     rec.tofile(OUT / "central_trees.bin")
     print(f"  central_trees.bin {len(rec):,} trees, {(OUT / 'central_trees.bin').stat().st_size / 1e6:.2f} MB")
 

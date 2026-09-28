@@ -59,7 +59,7 @@ export function prepareScene(assets: AtlasAssets): PreparedScene {
   const buildings = buildBuildings(assets.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (_x, _z, site) =>
     modelled.has(site),
   );
-  const models = buildSiteModels(assets.buildings, ground, SITES.length);
+  const models = buildSiteModels([assets.buildings], ground, SITES.length);
   return {
     assets,
     tex,
@@ -80,16 +80,21 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
   // ~16 m mesh cells on desktop (the DEM is ~8 m), ~28 m on phones.
   const patch = buildPatchGrid(c.central, scene.baseSurface, lowPower ? 0.028 : 0.016);
   const ground = new Ground(scene.baseSurface, patch);
-  // The Capitol, the Tower and the other modelled landmarks: drop their plain extrusions.
-  const modelled = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
-  const central = buildBuildings(c.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (x, z) =>
-    modelled.some((o) => pointInPoly(o, x, z)),
+  // The Capitol, the Tower and the other modelled landmarks drop their plain extrusions, as do
+  // the company sites modelled in their place.
+  const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
+  const sites = new Set(MODELLED_SITES.map(siteIndex));
+  const central = buildBuildings(c.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (x, z, site) =>
+    sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)),
   );
-  const siteTop = maxTop(scene.siteTop, central.siteTop);
+  // The site models again, now with central Austin's footprints too.
+  const models = buildSiteModels([scene.assets.buildings, c.buildings], ground, SITES.length);
+  const siteTop = maxTop(maxTop(scene.buildings.siteTop, models.siteTop), central.siteTop);
   return {
     ...scene,
     central: { data: c.central, tex: makeCentralTextures(c.central), patch, buildings: central, footprints: c.buildings },
     ground,
+    models,
     siteTop,
   };
 }

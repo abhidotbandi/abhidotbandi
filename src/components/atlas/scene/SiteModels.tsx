@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { BUILDING_EXAG } from "@/lib/atlas/geo";
 import type { SiteModelSet } from "@/lib/atlas/siteModels";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -40,6 +41,7 @@ const fragment = /* glsl */ `
   uniform float uNight;
   uniform float uTime;
   uniform vec4 uSite[64];
+  uniform float uExag;
   varying vec3 vColor;
   varying vec2 vKind;
   varying vec3 vWorld;
@@ -58,7 +60,14 @@ const fragment = /* glsl */ `
     bool accent = glow > 1.5 && glow < 2.5;
     bool beacon = glow > 2.5 && glow < 3.5;
     bool lamp = glow > 3.5 && glow < 4.5;
-    bool solar = glow > 4.5;
+    bool solar = glow > 4.5 && glow < 5.5;
+    bool punched = glow > 5.5;
+
+    // On walls: metres along the facade, and floors up it (vertical metres are boosted).
+    bool wall = abs(n.y) < 0.4;
+    vec2 t2 = wall ? normalize(vec2(-n.z, n.x)) : vec2(0.7071);
+    float along = dot(vWorld.xz, t2) * 1000.0;
+    float fl = vWorld.y * 1000.0 / (3.9 * uExag);
 
     vec3 base = vColor;
     if (accent && on) base = site.rgb;
@@ -66,6 +75,21 @@ const fragment = /* glsl */ `
     if (solar || windows) {
       float fres = pow(1.0 - max(dot(view, n), 0.0), 4.0);
       base = mix(base, mix(uHorizon, uZenith, 0.5), (solar ? 0.12 : 0.2) + 0.5 * fres);
+    }
+    if (windows && wall) {
+      // Curtain wall: a mullion every 1.6 m and a slab at each floor, gone before they'd shimmer.
+      float m = fract(along / 1.6);
+      float sl = fract(fl);
+      float d = 1.0 - smoothstep(0.3, 0.7, max(fwidth(along / 1.6), fwidth(fl)));
+      float mull = 1.0 - smoothstep(0.0, 0.08, min(m, 1.0 - m));
+      float slab = 1.0 - smoothstep(0.0, 0.1, min(sl, 1.0 - sl));
+      base *= 1.0 - 0.3 * max(mull * 0.7, slab) * d;
+    }
+    if (punched && wall) {
+      vec2 f = vec2(fract(along / 3.4), fract(fl));
+      float d = 1.0 - smoothstep(0.3, 0.7, max(fwidth(along / 3.4), fwidth(fl)));
+      float win = step(0.24, f.x) * step(f.x, 0.76) * step(0.3, f.y) * step(f.y, 0.82);
+      base = mix(base, base * vec3(0.5, 0.56, 0.64), win * d * 0.7);
     }
     // Picked, hovered or in the tour's focus: the model takes on its domain's colour.
     if (on) base = mix(base, site.rgb, 0.3 * smoothstep(0.55, 1.0, emph));
@@ -75,12 +99,13 @@ const fragment = /* glsl */ `
     col *= 1.0 - uNight * 0.84;
 
     float dark = smoothstep(0.35, 1.0, uNight);
-    if (windows) {
-      // Bays of lit windows every ~3 m, averaging out from afar before they can shimmer.
-      float a = (vWorld.x + vWorld.z) * 1000.0 / 3.2;
-      float lit = step(0.45, hash(floor(a)));
-      float far = smoothstep(0.35, 1.1, fwidth(a));
-      col += vec3(1.0, 0.62, 0.3) * mix(lit, 0.55, far) * dark * 0.8;
+    if (windows || (punched && wall)) {
+      // Windows lit bay by bay and floor by floor, averaging out from afar before they shimmer.
+      float bay = along / (punched ? 3.4 : 3.2);
+      float lit = step(0.5, hash(floor(bay) + floor(fl) * 57.3));
+      if (punched) lit *= step(0.3, fract(bay)) * step(0.35, fract(fl));
+      float far = smoothstep(0.35, 1.1, max(fwidth(bay), fwidth(fl)));
+      col += vec3(1.0, 0.62, 0.3) * mix(lit, punched ? 0.14 : 0.45, far) * dark * 0.85;
     }
     if (accent && on) col += site.rgb * uNight * (0.35 + 0.5 * emph);
     if (lamp) col += vec3(1.0, 0.86, 0.62) * (0.15 + 1.6 * dark);
@@ -177,11 +202,21 @@ export default function SiteModels({ models }: { models: SiteModelSet }) {
           uNight: sky.uNight,
           uTime: sky.uTime,
           uSite: siteUniforms.uSite,
+          uExag: { value: BUILDING_EXAG },
         },
       }),
     [],
   );
   const steam = useMemo(() => makeSteam(models.steam), [models]);
+  // The set is rebuilt once central Austin loads: let the old one go.
+  useEffect(
+    () => () => {
+      models.geometry?.dispose();
+      steam?.geometry.dispose();
+      (steam?.material as THREE.Material | undefined)?.dispose();
+    },
+    [models, steam],
+  );
 
   useFrame((state) => {
     const m = mesh.current;

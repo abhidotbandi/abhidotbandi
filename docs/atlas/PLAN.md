@@ -551,8 +551,12 @@ label is hovered.
 
 ### 2.11 Signature sites, modelled (2026-09-28)
 
-Asked for with 2.10 (NXP and The Boring Company just after). Eight sites are models
-(`siteModels.ts`, `SiteModels`) instead of plain extrusions in their domain colour. The buildings stand on their mapped footprints. The plant
+Asked for with 2.10, then NXP and The Boring Company, then every company. The sites are
+models (`siteModels/`, `SiteModels`) instead of plain extrusions in their domain colour: the
+signature sites each on their own (`signature.ts`), the rest by the kind of place they are
+(`archetypes.ts`): offices in curtain-wall glass or with punched windows, labs with ribbon
+windows and fume stacks, factories with skylights and loading docks, and fabs with the fab kit,
+each with a prop where one plausibly stands. The buildings stand on their mapped footprints. The plant
 around them goes where the map has no building or street: each spot was checked against every
 footprint and street nearby, and the detail tiles keep their trees off it.
 
@@ -566,6 +570,10 @@ footprint and street nearby, and the detail tiles keep their trees off it.
   the map has none.
 - **NXP, Oak Hill and Ed Bluestein**: the same kit, in the tan precast of fabs from Motorola's
   day.
+- **Applied Materials**: the fab kit's rooftop plant and cooling towers over its cleanroom
+  manufacturing, without a bulk-gas yard.
+- **Saronic**: the plant with skylights and docks, and finished boats on their trailers in a
+  paved yard.
 - **Firefly's Rocket Ranch**: the shop buildings, and a test area east of them:
   - a 44 m steel stage stand with a first stage in it, over a flame trench, with floodlights
   - the horizontal engine stand the existing plume now fires from

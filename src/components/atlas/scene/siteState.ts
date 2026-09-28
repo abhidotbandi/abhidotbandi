@@ -14,6 +14,12 @@ export const siteUniforms = {
 
 /** Per-site emphasis for beacons and labels, 0..1, or -1 when filtered out. */
 export const siteEmphasis = new Float32Array(MAX_SITES);
+/**
+ * The same without hover. Beacon stems (and so the labels on them) take their height from this:
+ * a stem growing under the pointer would carry its label out from under it, and the hover would
+ * flicker on and off.
+ */
+export const siteRestEmphasis = new Float32Array(MAX_SITES);
 
 const dayColors = SITES.map((s) => new THREE.Color(DOMAINS[s.company.domain].day));
 const nightColors = SITES.map((s) => new THREE.Color(DOMAINS[s.company.domain].night));
@@ -43,12 +49,14 @@ export function updateSiteState(inp: SiteStateInput) {
   const focus = stopSiteSets[inp.activeStop];
   const selectedCompany = inp.selected ? SITE_BY_ID.get(inp.selected)?.company.id : undefined;
   for (const s of SITES) {
-    let e: number;
-    if (isSiteFiltered(s, inp.domains, inp.defenseOnly)) e = -1;
-    else if (s.id === inp.selected || s.id === inp.hovered) e = 1;
-    else if (s.company.id === selectedCompany) e = 0.85;
-    else if (inp.mode === "tour") e = focus?.has(s.id) ? 0.9 : 0.15;
-    else e = 0.55;
+    let rest: number;
+    if (isSiteFiltered(s, inp.domains, inp.defenseOnly)) rest = -1;
+    else if (s.id === inp.selected) rest = 1;
+    else if (s.company.id === selectedCompany) rest = 0.85;
+    else if (inp.mode === "tour") rest = focus?.has(s.id) ? 0.9 : 0.15;
+    else rest = 0.55;
+    const e = rest >= 0 && s.id === inp.hovered ? 1 : rest;
+    siteRestEmphasis[s.index] = rest;
     siteEmphasis[s.index] = e;
     const c = siteColor(s, inp.night, tmp);
     siteUniforms.uSite.value[s.index].set(c.r, c.g, c.b, e);

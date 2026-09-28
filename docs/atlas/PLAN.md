@@ -520,3 +520,31 @@ Known limits:
   three placeholder footprints are approximations until Overture maps the real buildings.
   Streets lie flat on the terrain (no overpasses), and buildings without an Overture height
   get one from their size.
+
+### 2.10 Past the edge, and steady labels (2026-09-28)
+
+Asked for after 2.9: no dead space where the map cuts off, and no glitching when a company's
+label is hovered.
+
+- **The country around the map** (`build_outer.py`, `Terrain`): relief, lakes and rivers for
+  ~80 km on every side (to San Antonio, Killeen and Temple), at ~264 m a pixel (0.58 MB, 0.21 MB
+  on phones).
+  - The terrain's grid carries on over it in cells that grow to 2.2 km. Heights ease from the
+    map's onto the coarse relief within 3 km, and the map's canopy and park tints thin out over
+    its last 5 km along an uneven line, so there's no seam.
+  - Its far edge fades into the ground colour over 16 km. Below the horizon the sky draws the
+    ground fogged exactly as the terrain is, so wherever the land runs out, even zoomed all
+    the way out, the two meet without a line.
+  - The fog our shaders show is lighter than three's fog colour (three hands it over encoded
+    for the screen, and our shaders blend before encoding). The sky's horizon and ground use
+    that same colour (`sky.uFogColor`), so the land meets the sky without a band. After dark
+    that reads as the towns' glow along the horizon.
+  - Towns of 1,500 people or more around the map light up after dark (`TownLights`), sized by
+    population and fading into the haze with distance.
+  - Highways and roads stop along an uneven line just inside the map's edge instead of on a
+    straight cut.
+- **Labels**:
+  - A hovered label no longer re-lays out its neighbours. It keeps its place and expands where
+    it is, over the others.
+  - Beacon stems take their height from the site's emphasis without hover. A stem growing under
+    the pointer used to carry the label out from under it, so the hover flickered.

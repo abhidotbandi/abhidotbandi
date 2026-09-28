@@ -8,9 +8,53 @@ import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import type { AtlasAssets, Polyline } from "@/lib/atlas/assets";
 import { inCentral, type Central } from "@/lib/atlas/central";
-import { groundY, type HeightField } from "@/lib/atlas/geo";
+import { X_MAX, X_MIN, Z_MAX, Z_MIN, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+
+function hash2(x: number, z: number): number {
+  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** Smooth value noise, 0..1. */
+function noise2(x: number, z: number): number {
+  const ix = Math.floor(x);
+  const iz = Math.floor(z);
+  const fx = x - ix;
+  const fz = z - iz;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz) + (hash2(ix + 1, iz) - hash2(ix, iz)) * ux;
+  const b = hash2(ix, iz + 1) + (hash2(ix + 1, iz + 1) - hash2(ix, iz + 1)) * ux;
+  return a + (b - a) * uz;
+}
+
+/**
+ * Within the map's detail: the region less an uneven margin, so roads and rivers fray out into
+ * the country around the map rather than stopping along a ruled line.
+ */
+export function inMap(x: number, z: number): boolean {
+  const m = 0.6 + 2.4 * noise2(x * 0.16, z * 0.16);
+  return x > X_MIN + m && x < X_MAX - m && z > Z_MIN + m && z < Z_MAX - m;
+}
+
+/** Polylines cut where they leave the map. */
+export function clipLines(lines: Polyline[]): Polyline[] {
+  const out: Polyline[] = [];
+  for (const l of lines) {
+    let run: number[] = [];
+    for (let i = 0; i < l.length; i += 2) {
+      if (inMap(l[i], l[i + 1])) run.push(l[i], l[i + 1]);
+      else {
+        if (run.length >= 4) out.push(new Float32Array(run));
+        run = [];
+      }
+    }
+    if (run.length >= 4) out.push(new Float32Array(run));
+  }
+  return out;
+}
 
 /** Segment pairs draped on the terrain, subdividing long spans so lines don't cut through hills. */
 export function drape(lines: Polyline[], height: HeightField, yOff: number, maxStep = 0.12): Float32Array {
@@ -118,19 +162,20 @@ export function MapLines({ assets, central, ground }: { assets: AtlasAssets; cen
     // Street-scale paths come with central Austin's detail.
     const paths = central?.paths ?? {};
     const butler = central ? central.trails.edges.filter((e) => e.kind === 0).map((e) => e.line) : [];
+    const c = clipLines;
     const L: [string, Float32Array][] = [
-      ["creeks", drape(v.creeks, h, 0, 0.2)],
+      ["creeks", drape(c(v.creeks), h, 0, 0.2)],
       ["path", drape(paths.path ?? [], h, 0, 0.05)],
       ["footway", drape(paths.footway ?? [], h, 0, 0.05)],
       ["pedestrian", drape(paths.pedestrian ?? [], h, 0, 0.05)],
       ["cycleway", drape(paths.cycleway ?? [], h, 0, 0.05)],
       ["butler", drape(butler, h, 0, 0.05)],
-      ["tertiary", drape(v.roads.tertiary, h, 0)],
-      ["secondary", drape(v.roads.secondary, h, 0)],
-      ["primary", drape(v.roads.primary, h, 0)],
-      ["rail", drape(v.rail, h, 0)],
-      ["trunk", drape(v.roads.trunk, h, 0)],
-      ["motorway", drape(v.roads.motorway, h, 0)],
+      ["tertiary", drape(c(v.roads.tertiary), h, 0)],
+      ["secondary", drape(c(v.roads.secondary), h, 0)],
+      ["primary", drape(c(v.roads.primary), h, 0)],
+      ["rail", drape(c(v.rail), h, 0)],
+      ["trunk", drape(c(v.roads.trunk), h, 0)],
+      ["motorway", drape(c(v.roads.motorway), h, 0)],
     ];
     return L;
   }, [assets, central, ground]);

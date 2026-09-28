@@ -31,6 +31,26 @@ interface Entry {
   sizeDetail: [number, number];
   on: boolean;
   detail: boolean;
+  /** which of the site placements it last took, so it doesn't flip between sides */
+  opt: number;
+}
+
+/** Where a site label can sit around its beacon head at (sx, sy), in order of preference. */
+function siteSpot(k: number, sx: number, sy: number, w: number, h: number): [number, number] {
+  switch (k) {
+    case 0:
+      return [sx - w / 2, sy - h - 5];
+    case 1:
+      return [sx + 9, sy - h / 2];
+    case 2:
+      return [sx - w - 9, sy - h / 2];
+    case 3:
+      return [sx + 6, sy - h - 6];
+    case 4:
+      return [sx - w - 6, sy - h - 6];
+    default:
+      return [sx - w / 2, sy + 9];
+  }
 }
 
 const stopSites = STOPS.map((s) => new Set(s.sites));
@@ -59,18 +79,23 @@ class LabelSystem {
     }
   }
 
+  /** Sizes as shown: compact labels in the unfocused style, detailed ones focused. */
   measure() {
     for (const e of this.entries) {
-      e.el.dataset.detail = "0";
-      e.size = [e.el.offsetWidth, e.el.offsetHeight];
       if (e.kind === "site") {
-        e.el.dataset.detail = "1";
-        e.sizeDetail = [e.el.offsetWidth, e.el.offsetHeight];
+        const { detail, focus } = e.el.dataset;
         e.el.dataset.detail = "0";
+        e.el.dataset.focus = "0";
+        e.size = [e.el.offsetWidth, e.el.offsetHeight];
+        e.el.dataset.detail = "1";
+        e.el.dataset.focus = "1";
+        e.sizeDetail = [e.el.offsetWidth, e.el.offsetHeight];
+        e.el.dataset.detail = detail ?? "0";
+        e.el.dataset.focus = focus ?? "0";
       } else {
+        e.size = [e.el.offsetWidth, e.el.offsetHeight];
         e.sizeDetail = e.size;
       }
-      e.detail = false;
     }
   }
 
@@ -95,11 +120,10 @@ class LabelSystem {
     }
   }
 
-  private priority(e: Entry, mode: string, activeStop: number, sel: string | null, hov: string | null): number {
+  private priority(e: Entry, mode: string, activeStop: number, sel: string | null): number {
     if (e.kind === "site") {
       const s = e.site!;
       if (s.id === sel) return 1000;
-      if (s.id === hov) return 950;
       const tier = (4 - s.company.tier) * 60;
       if (mode === "tour") return (stopSites[activeStop]?.has(s.id) ? 600 : 120) + tier + (s.primary ? 10 : 0);
       return 300 + tier + siteEmphasis[s.index] * 50 + (s.primary ? 10 : 0);
@@ -154,7 +178,7 @@ class LabelSystem {
         this.hide(e);
         continue;
       }
-      cands.push({ e, sx, sy, p: this.priority(e, st.mode, st.activeStop, st.selectedSite, st.hoveredSite) });
+      cands.push({ e, sx, sy, p: this.priority(e, st.mode, st.activeStop, st.selectedSite) });
     }
     cands.sort((a, b) => b.p - a.p);
 
@@ -169,28 +193,33 @@ class LabelSystem {
       return false;
     };
     const pad = 3;
+    // Hovering must never move anything: the layout below ignores it, and the hovered label then
+    // opens up in place (from the same anchor, so it still covers the pointer), drawn on top.
+    const hov = st.hoveredSite;
+    let hovered: { c: (typeof cands)[number] } | null = null;
     for (const c of cands) {
       const e = c.e;
-      const wantDetail = e.kind === "site" && c.p >= 550;
-      const [w, h] = wantDetail ? e.sizeDetail : e.size;
+      const focus = e.kind === "site" && c.p >= 550;
+      const [w, h] = focus ? e.sizeDetail : e.size;
       let x0: number;
       let y0: number;
       if (e.kind === "site") {
-        // Prefer above the beacon head, then to either side.
-        const opts: [number, number][] = [
-          [c.sx - w / 2, c.sy - h - 5],
-          [c.sx + 9, c.sy - h / 2],
-          [c.sx - w - 9, c.sy - h / 2],
-          [c.sx + 6, c.sy - h - 6],
-          [c.sx - w - 6, c.sy - h - 6],
-          [c.sx - w / 2, c.sy + 9],
-        ];
-        const ok = opts.find(([ox, oy]) => !hit(ox - pad, oy - pad, ox + w + pad, oy + h + pad));
-        if (!ok) {
-          this.hide(e);
+        // Above the beacon head if there's room; otherwise the side it had last, then the rest.
+        let spot: [number, number] | null = null;
+        for (const k of [0, e.opt, 1, 2, 3, 4, 5]) {
+          const [ox, oy] = siteSpot(k, c.sx, c.sy, w, h);
+          if (!hit(ox - pad, oy - pad, ox + w + pad, oy + h + pad)) {
+            spot = [ox, oy];
+            e.opt = k;
+            break;
+          }
+        }
+        if (!spot) {
+          if (e.site!.id === hov) hovered = { c };
+          else this.hide(e);
           continue;
         }
-        [x0, y0] = ok;
+        [x0, y0] = spot;
       } else {
         x0 = c.sx - w / 2;
         y0 = c.sy - h / 2;
@@ -200,20 +229,39 @@ class LabelSystem {
         }
       }
       placed.push(x0 - pad, y0 - pad, x0 + w + pad, y0 + h + pad);
-      if (e.detail !== wantDetail) {
-        e.detail = wantDetail;
-        e.el.dataset.detail = wantDetail ? "1" : "0";
+      if (e.kind === "site" && e.site!.id === hov) {
+        hovered = { c };
+        continue;
       }
-      e.el.style.transform = `translate3d(${x0.toFixed(1)}px, ${y0.toFixed(1)}px, 0)`;
-      if (!e.on) {
-        e.on = true;
-        e.el.dataset.on = "1";
-      }
-      if (e.kind === "site") {
-        const s = e.site!;
-        e.el.dataset.focus = c.p >= 550 ? "1" : "0";
-        e.el.dataset.sel = s.id === st.selectedSite ? "1" : "0";
-      }
+      this.show(e, x0, y0, focus, false);
+      if (e.kind === "site") e.el.dataset.sel = e.site!.id === st.selectedSite ? "1" : "0";
+    }
+    // The hovered site: in its place, or (if it had no room, say its beacon is hovered) over
+    // the others without displacing them.
+    for (const e of this.entries) if (e.kind === "site" && e.el.dataset.hover === "1" && e.site!.id !== hov) e.el.dataset.hover = "0";
+    if (hovered) {
+      const { c } = hovered;
+      const e = c.e;
+      const [w, h] = e.sizeDetail;
+      const [x0, y0] = siteSpot(e.opt, c.sx, c.sy, w, h);
+      this.show(e, x0, y0, true, true);
+      e.el.dataset.sel = e.site!.id === st.selectedSite ? "1" : "0";
+    }
+  }
+
+  private show(e: Entry, x0: number, y0: number, detail: boolean, hover: boolean) {
+    if (e.detail !== detail) {
+      e.detail = detail;
+      e.el.dataset.detail = detail ? "1" : "0";
+    }
+    e.el.style.transform = `translate3d(${x0.toFixed(1)}px, ${y0.toFixed(1)}px, 0)`;
+    if (!e.on) {
+      e.on = true;
+      e.el.dataset.on = "1";
+    }
+    if (e.kind === "site") {
+      e.el.dataset.focus = detail ? "1" : "0";
+      if (hover) e.el.dataset.hover = "1";
     }
   }
 
@@ -302,16 +350,34 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
       // Take visibility from the DOM: when the layer re-registers (the ground changes as central
       // Austin loads) labels already showing must still be hidden when they fall out of view.
       const on = node.dataset.on === "1";
-      entries.push({ kind, el: node, x, y, z, rank, site, place, size: [0, 0], sizeDetail: [0, 0], on, detail: false });
+      entries.push({ kind, el: node, x, y, z, rank, site, place, size: [0, 0], sizeDetail: [0, 0], on, detail: false, opt: 0 });
     });
     labelSystem.entries = entries;
     labelSystem.measure();
+    // Keep sizes true as web fonts swap in (fonts.ready can resolve before labels' fonts even
+    // start loading): each label reports its size in whichever state it's in.
+    const byEl = new Map(entries.map((e) => [e.el as Element, e]));
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver((records) => {
+            for (const r of records) {
+              const e = byEl.get(r.target);
+              if (!e) continue;
+              const size: [number, number] = [e.el.offsetWidth, e.el.offsetHeight];
+              if (e.kind !== "site") e.size = e.sizeDetail = size;
+              else if (e.el.dataset.detail === "1") e.sizeDetail = size;
+              else e.size = size;
+            }
+          });
+    for (const e of entries) ro?.observe(e.el);
     let cancelled = false;
     document.fonts?.ready.then(() => {
       if (!cancelled) labelSystem.measure();
     });
     return () => {
       cancelled = true;
+      ro?.disconnect();
       labelSystem.entries = [];
       labelSystem.root = null;
     };

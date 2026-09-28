@@ -6,8 +6,6 @@ import type { AtlasTextures } from "./textures";
 import { sky } from "@/lib/atlas/timeOfDay";
 import {
   BASE_ELEV_M,
-  CENTER_X,
-  CENTER_Z,
   CX_MAX,
   CX_MIN,
   CZ_MAX,
@@ -31,6 +29,10 @@ const vertex = /* glsl */ `
   uniform vec4 uRegion;
   uniform float uExag;
   uniform float uBase;
+  #ifdef OUTER
+    uniform sampler2D uOuterHeight;
+    uniform vec4 uOuterRegion;
+  #endif
   varying vec2 vUv;
   varying vec3 vWorld;
   #include <fog_pars_vertex>
@@ -39,7 +41,16 @@ const vertex = /* glsl */ `
     vec3 p = position;
     vec2 uv = (p.xz - uRegion.xy) / uRegion.zw;
     #ifndef PATCH
-      float h = texture2D(uHeight, uv).r;
+      float h = texture2D(uHeight, clamp(uv, 0.0, 1.0)).r;
+      #ifdef OUTER
+        // Beyond the map the grid carries on over the country around it, easing from the map's
+        // edge onto the coarse relief within 3 km, so there is no step.
+        float dOut = length(max(max(uRegion.xy - p.xz, p.xz - uRegion.xy - uRegion.zw), 0.0));
+        if (dOut > 0.0) {
+          float ho = texture2D(uOuterHeight, (p.xz - uOuterRegion.xy) / uOuterRegion.zw).r;
+          h = mix(h, ho, smoothstep(0.0, 3.0, dOut));
+        }
+      #endif
       p.y = (h - uBase) / 1000.0 * uExag;
     #endif
     vUv = uv;
@@ -69,6 +80,13 @@ const fragment = /* glsl */ `
   uniform vec3 uGround;
   uniform vec4 uRegion;
   uniform vec4 uPatchRect;
+  #ifdef OUTER
+    uniform sampler2D uOuterHeight;
+    uniform sampler2D uOuterNormal;
+    uniform vec4 uOuterRegion;
+    uniform float uOuterSdfLevels;
+    uniform float uOuterPxM;
+  #endif
   #ifdef PATCH
     uniform sampler2D uBaseHeight;
     uniform sampler2D uBaseNormal;
@@ -159,6 +177,29 @@ const fragment = /* glsl */ `
       // as the patch does by cutting out roofs and streets.
       float canopy = s.b * (1.0 - smoothstep(0.05, 0.45, dens) * 0.72);
       float sdfM = (s.r * 255.0 - 128.0) / uSdfLevels * uSurfPxM;
+      #ifdef OUTER
+        // Signed distance to the map's edge (km, + outside) and an uneven line to fade along.
+        vec2 toEdgeR = min(vUv, 1.0 - vUv) * uRegion.zw;
+        float dOut = length(max(max(uRegion.xy - vWorld.xz, vWorld.xz - uRegion.xy - uRegion.zw), 0.0));
+        float sd = dOut > 0.0 ? dOut : -min(toEdgeR.x, toEdgeR.y);
+        float wobE = vnoise(vWorld.xz * 0.14) * 0.7 + vnoise(vWorld.xz * 0.6) * 0.3;
+        // The map's tints (woods, parks) thin out over its last few km...
+        float tints = 1.0 - smoothstep(-5.0, -0.3, sd + wobE * 1.8);
+        canopy *= tints;
+        park *= tints;
+        // ...and beyond it the country takes over: its relief, shading and water.
+        if (sd > -1.0) {
+          vec2 ouv = (vWorld.xz - uOuterRegion.xy) / uOuterRegion.zw;
+          vec2 od = texture2D(uOuterHeight, ouv).rg;
+          vec3 on = normalize(texture2D(uOuterNormal, ouv).xyz * 2.0 - 1.0);
+          float kH = smoothstep(0.0, 3.0, sd);
+          h = mix(h, od.r, kH);
+          n = normalize(mix(n, on, kH));
+          float oSdf = (od.g * 255.0 - 128.0) / uOuterSdfLevels * uOuterPxM;
+          sdfM = mix(sdfM, oSdf, smoothstep(-0.8, 0.8, sd));
+          dens *= 1.0 - smoothstep(-0.3, 0.3, sd);
+        }
+      #endif
     #endif
 
     // Land: prairie cream in the east, limestone and cedar in the hills.
@@ -258,11 +299,18 @@ const fragment = /* glsl */ `
     col += lin(vec3(1.0, 0.74, 0.44)) * urban * (0.025 + 1.1 * lights) * dark;
 
     #ifndef PATCH
-      // The map is a sheet on paper: its edges fade into the ground colour along an uneven,
-      // deckled line. Kept within ~8 km of the edge so the Rocket Ranch (8.8 km in) stays clear.
-      vec2 toEdge = min(vUv, 1.0 - vUv) * uRegion.zw;
+      // The country fades into the ground colour along an uneven line at its far edge (with no
+      // country around it, the map itself does, within ~8 km of its edge).
+      #ifdef OUTER
+        vec2 ouvE = (vWorld.xz - uOuterRegion.xy) / uOuterRegion.zw;
+        vec2 toEdge = min(ouvE, 1.0 - ouvE) * uOuterRegion.zw;
+        float fadeKm = 16.0;
+      #else
+        vec2 toEdge = min(vUv, 1.0 - vUv) * uRegion.zw;
+        float fadeKm = 5.5;
+      #endif
       float wob = vnoise(vWorld.xz * 0.14) * 0.7 + vnoise(vWorld.xz * 0.6) * 0.3;
-      float edge = smoothstep(0.0, 5.5, min(toEdge.x, toEdge.y) - wob * 2.2);
+      float edge = smoothstep(0.0, fadeKm, min(toEdge.x, toEdge.y) - wob * 2.2);
       col = mix(uGround, col, edge);
     #endif
     gl_FragColor = vec4(col, 1.0);
@@ -278,6 +326,8 @@ function terrainMaterial(
   base?: AtlasTextures,
   /** base terrain only: leave a hole for the central patch (once it has loaded) */
   cutout = true,
+  /** base terrain only: the country around the map, x, z, width, height (km) */
+  outerBounds?: [number, number, number, number],
 ): THREE.ShaderMaterial {
   const baseUniforms: Record<string, THREE.IUniform> = base
     ? {
@@ -288,10 +338,20 @@ function terrainMaterial(
         uBaseSurfPxM: { value: (WIDTH_KM * 1000) / base.surface.image.width },
       }
     : {};
+  const outer = !patch && tex.outer && outerBounds;
+  const outerUniforms: Record<string, THREE.IUniform> = outer
+    ? {
+        uOuterHeight: { value: tex.outer!.height },
+        uOuterNormal: { value: tex.outer!.normal },
+        uOuterRegion: { value: new THREE.Vector4(...outerBounds!) },
+        uOuterSdfLevels: { value: 4 },
+        uOuterPxM: { value: (outerBounds![2] * 1000) / tex.outer!.height.image.width },
+      }
+    : {};
   return new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    defines: patch ? { PATCH: "" } : {},
+    defines: patch ? { PATCH: "" } : outer ? { OUTER: "" } : {},
     fog: true,
     // Pushed back so roads and paths drawn just above the ground always win.
     polygonOffset: true,
@@ -330,26 +390,89 @@ function terrainMaterial(
       uZoomOut: sky.uZoomOut,
       uGround: sky.uGround,
       ...baseUniforms,
+      ...outerUniforms,
     },
   });
 }
 
-export default function Terrain({ tex, segments, cutout }: { tex: AtlasTextures; segments: number; cutout: boolean }) {
-  const geometry = useMemo(() => {
-    const segZ = Math.round((segments * HEIGHT_KM) / WIDTH_KM);
-    const g = new THREE.PlaneGeometry(WIDTH_KM, HEIGHT_KM, segments, segZ);
-    g.rotateX(-Math.PI / 2);
-    g.translate(CENTER_X, 0, CENTER_Z);
-    // The shader displaces vertices; give culling a box that contains the hills.
-    g.boundingBox = new THREE.Box3(
-      new THREE.Vector3(X_MIN, -0.1, Z_MIN),
-      new THREE.Vector3(X_MIN + WIDTH_KM, 1.3, Z_MIN + HEIGHT_KM),
-    );
-    g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
-    return g;
-  }, [segments]);
+/**
+ * Grid lines along one axis: the map's own, exactly where a PlaneGeometry puts them (so the
+ * ground sampling in geo.ts still matches), then steps growing outwards to `lo` and `hi`.
+ */
+function axis(min: number, max: number, seg: number, lo: number, hi: number): number[] {
+  const step = (max - min) / seg;
+  const inner = Array.from({ length: seg + 1 }, (_, i) => min + i * step);
+  const grow = (from: number, to: number, dir: number) => {
+    const out: number[] = [];
+    let x = from;
+    let s = step;
+    while (dir < 0 ? x > to + 1e-6 : x < to - 1e-6) {
+      s = Math.min(s * 1.15, 2.2);
+      x = dir < 0 ? Math.max(to, x - s) : Math.min(to, x + s);
+      out.push(x);
+    }
+    return out;
+  };
+  return [...grow(min, lo, -1).reverse(), ...inner, ...grow(max, hi, 1)];
+}
 
-  const material = useMemo(() => terrainMaterial(tex, false, 7.33, undefined, cutout), [tex, cutout]);
+/** The base terrain's grid: the map's, carried on over the country around it when there is one. */
+function baseGeometry(segments: number, outer?: [number, number, number, number]): THREE.BufferGeometry {
+  const segZ = Math.round((segments * HEIGHT_KM) / WIDTH_KM);
+  const [ox, oz, ow, oh] = outer ?? [X_MIN, Z_MIN, WIDTH_KM, HEIGHT_KM];
+  const xs = axis(X_MIN, X_MIN + WIDTH_KM, segments, Math.min(ox, X_MIN), Math.max(ox + ow, X_MIN + WIDTH_KM));
+  const zs = axis(Z_MIN, Z_MIN + HEIGHT_KM, segZ, Math.min(oz, Z_MIN), Math.max(oz + oh, Z_MIN + HEIGHT_KM));
+  const nx = xs.length;
+  const nz = zs.length;
+  const pos = new Float32Array(nx * nz * 3);
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const k = (j * nx + i) * 3;
+      pos[k] = xs[i];
+      pos[k + 2] = zs[j];
+    }
+  }
+  // Split like a PlaneGeometry (along the anti-diagonal), facing up.
+  const idx = new Uint32Array((nx - 1) * (nz - 1) * 6);
+  let t = 0;
+  for (let j = 0; j < nz - 1; j++) {
+    for (let i = 0; i < nx - 1; i++) {
+      const a = j * nx + i;
+      const b = a + nx;
+      const c = b + 1;
+      const d = a + 1;
+      idx[t++] = a;
+      idx[t++] = b;
+      idx[t++] = d;
+      idx[t++] = b;
+      idx[t++] = c;
+      idx[t++] = d;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  // The shader displaces vertices; give culling a box that contains the hills.
+  g.boundingBox = new THREE.Box3(new THREE.Vector3(xs[0], -0.3, zs[0]), new THREE.Vector3(xs[nx - 1], 1.8, zs[nz - 1]));
+  g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
+  return g;
+}
+
+export default function Terrain({
+  tex,
+  segments,
+  cutout,
+  outer,
+}: {
+  tex: AtlasTextures;
+  segments: number;
+  cutout: boolean;
+  /** the country around the map: x, z, width, height (km) */
+  outer?: [number, number, number, number];
+}) {
+  const bounds = tex.outer ? outer : undefined;
+  const geometry = useMemo(() => baseGeometry(segments, bounds), [segments, bounds]);
+  const material = useMemo(() => terrainMaterial(tex, false, 7.33, undefined, cutout, bounds), [tex, cutout, bounds]);
 
   return <mesh geometry={geometry} material={material} frustumCulled={false} />;
 }

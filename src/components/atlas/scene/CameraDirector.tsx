@@ -171,6 +171,8 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       fog.color.copy(sky.uHorizon.value);
       const d50 = cur.dist * 2.1 + 22;
       fog.density = (0.83 / d50) * (1 + 0.35 * sky.uNight.value);
+      sky.uFogDensity.value = fog.density;
+      sky.uFogColor.value.copy(fog.color).convertLinearToSRGB();
     }
     state.gl.setClearColor(sky.uGround.value);
     updateSiteState({

@@ -43,6 +43,20 @@ def bbox_filter():
     )
 
 
+# The landscape beyond the map (build_outer.py): ~80 km of relief, water and towns all round.
+OUTER = (-98.95, 29.30, -96.45, 31.66)
+
+
+def outer_filter():
+    w, s, e, n = OUTER
+    return (
+        (pc.field("bbox", "xmax") >= w)
+        & (pc.field("bbox", "xmin") <= e)
+        & (pc.field("bbox", "ymax") >= s)
+        & (pc.field("bbox", "ymin") <= n)
+    )
+
+
 def central_filter():
     """The central detail patch plus slack (covers Pennybacker Bridge and Mount Bonnell)."""
     w, s, e, n = C_WEST - 0.07, C_SOUTH - 0.026, C_EAST + 0.035, C_NORTH + 0.045
@@ -63,7 +77,8 @@ def overture(theme, kind, columns, out_name, extra=None, area=None):
     path = f"{OVERTURE_BUCKET}/release/{OVERTURE_RELEASE}/theme={theme}/type={kind}"
     dataset = ds.dataset(path, filesystem=s3(), format="parquet")
     cols = [c for c in columns if c in dataset.schema.names] if columns else None
-    flt = (area or bbox_filter()) if extra is None else (area or bbox_filter()) & extra
+    base = area if area is not None else bbox_filter()
+    flt = base if extra is None else base & extra
     table = dataset.to_table(filter=flt, columns=cols)
     pq.write_table(table, out, compression="zstd")
     print(f"  {out.name}: {table.num_rows:,} rows in {time.time() - t:.0f}s")
@@ -105,6 +120,12 @@ def fetch_overture(which):
         # Runways, taxiways, aprons, dams, towers and piers across the region.
         overture("base", "infrastructure", ["geometry", "bbox", "names", "subtype", "class", "height",
                                             "surface"], "infrastructure.parquet")
+    if "outer" in which:
+        # Lakes and rivers, and towns, around the map (the relief comes from terrain tiles).
+        overture("base", "water", ["geometry", "bbox", "names", "subtype", "class"], "water_outer.parquet",
+                 extra=pc.field("subtype").isin(["lake", "river", "reservoir", "water", "canal"]), area=outer_filter())
+        overture("divisions", "division", ["geometry", "bbox", "names", "subtype", "population"],
+                 "divisions_outer.parquet", extra=pc.field("subtype") == "locality", area=outer_filter())
     if "central" in which:
         # Every path class, piers and towers, and land cover for the central detail patch.
         overture("transportation", "segment", None, "segments_central.parquet", area=central_filter())
@@ -152,7 +173,7 @@ if __name__ == "__main__":
     CACHE.mkdir(parents=True, exist_ok=True)
     targets = set(sys.argv[1:]) or {"terrain", "places", "addresses", "buildings", "roads",
                                      "water", "landuse", "divisions", "landcover", "central",
-                                     "streets", "infrastructure"}
+                                     "streets", "infrastructure", "outer"}
     if "terrain" in targets:
         fetch_terrain()
     fetch_overture(targets)

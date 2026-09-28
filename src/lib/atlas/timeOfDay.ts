@@ -39,6 +39,15 @@ export const sky = {
   uZenith: { value: new THREE.Color() },
   uHorizon: { value: new THREE.Color() },
   uGround: { value: new THREE.Color() },
+  /** the scene's FogExp2 density, so the sky's ground fogs as the terrain does */
+  uFogDensity: { value: 0.01 },
+  /**
+   * The fog's colour as the map's own shaders blend it. three hands fog colours to shaders
+   * already encoded for the screen (its own materials fog after encoding); ours fog before,
+   * so what they show is the horizon's colour encoded twice, a lighter haze than the sky's.
+   * The sky meets that haze with this.
+   */
+  uFogColor: { value: new THREE.Color() },
   uSunColor: { value: new THREE.Color() },
   uSunDir: { value: new THREE.Vector3(0, 1, 0) },
   uAmbient: { value: new THREE.Color() },

@@ -7,7 +7,7 @@ import { SITES } from "@/data/atlas/companies";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { useAtlas } from "@/lib/atlas/store";
-import { siteColor, siteEmphasis } from "./siteState";
+import { siteColor, siteEmphasis, siteRestEmphasis } from "./siteState";
 
 /** World-space label anchors (x, y, z per site), written every frame, read by the label layer. */
 export const siteAnchors = new Float32Array(SITES.length * 3);
@@ -81,7 +81,7 @@ export default function Beacons({ height, siteTop }: { height: HeightField; site
         continue;
       }
       const tierBoost = s.company.tier === 1 ? 1.15 : s.company.tier === 2 ? 1 : 0.85;
-      const len = px * (26 + 34 * e) * tierBoost;
+      const len = px * (26 + 34 * siteRestEmphasis[i]) * tierBoost;
       const r = px * (3.2 + 2.2 * e);
       dummy.position.set(s.x, base, s.z);
       dummy.scale.set(px * 0.55, len, px * 0.55);
@@ -93,7 +93,7 @@ export default function Beacons({ height, siteTop }: { height: HeightField; site
       dummy.updateMatrix();
       hd.setMatrixAt(i, dummy.matrix);
       siteAnchors[i * 3] = s.x;
-      siteAnchors[i * 3 + 1] = base + len + r;
+      siteAnchors[i * 3 + 1] = base + len + px * (3.2 + 2.2 * siteRestEmphasis[i]);
       siteAnchors[i * 3 + 2] = s.z;
 
       const pulse = (t * 0.6 + i * 0.137) % 1;

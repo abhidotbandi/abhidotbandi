@@ -701,7 +701,7 @@
   pointer-events: auto;
 }
 
-.al-site[data-on="1"][data-focus="0"] {
+.al-site[data-focus="0"] {
   opacity: 0.8;
   font-size: 11px;
 }
@@ -710,9 +710,16 @@
   border-radius: 3px;
 }
 
-.al-site:hover {
+.al-site:hover,
+.al-site[data-hover="1"] {
   opacity: 1 !important;
   border-color: var(--chip-ink);
+}
+
+/* A hovered label opens up over its neighbours rather than pushing them around. */
+.al-site[data-hover="1"],
+.al-site[data-sel="1"] {
+  z-index: 2;
 }
 
 .al-site[data-sel="1"] {

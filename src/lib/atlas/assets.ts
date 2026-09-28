@@ -6,6 +6,26 @@ export interface Meta {
   terrain: { width: number; height: number; min: number; max: number };
   surface: { width: number; height: number; sdfLevelsPerPx: number };
   central: CentralMeta;
+  /** the landscape beyond the map (scripts/atlas/build_outer.py) */
+  outer?: {
+    /** x, z of its north-west corner and its width and height, scene km */
+    bounds: [number, number, number, number];
+    width: number;
+    height: number;
+    sdfLevelsPerPx: number;
+    /** towns around the map: x, z (km), population */
+    towns: [number, number, number][];
+  };
+}
+
+/** The landscape beyond the map: coarse relief and water all round it. */
+export interface OuterAssets {
+  width: number;
+  height: number;
+  /** metres */
+  elev: Float32Array;
+  /** water signed distance, as stored: 128 at the shore, sdfLevelsPerPx per pixel, + on water */
+  sdf: Uint8Array;
 }
 
 /** A decoded polyline: x,z pairs in km. */
@@ -49,6 +69,7 @@ export interface AtlasAssets {
   surface: { width: number; height: number; rgba: Uint8Array };
   vectors: Vectors;
   buildings: BuildingsData;
+  outer: OuterAssets | null;
 }
 
 /** Street-scale detail for central Austin, loaded after the regional map is up. */
@@ -157,12 +178,16 @@ function progress(onProgress?: (p: number) => void) {
 export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number) => void): Promise<AtlasAssets> {
   const tick = progress(onProgress);
   const lo = lowPower ? "_lo" : "";
-  const [meta, terrain, surface, vectors, buildings] = await Promise.all([
+  const [meta, terrain, surface, vectors, buildings, outerImg] = await Promise.all([
     json<Meta>("meta.json").then(tick(0.01)),
-    decodeImage(`${BASE}/terrain${lo}.webp`).then(tick(lowPower ? 0.3 : 0.46)),
-    decodeImage(`${BASE}/surface${lo}.webp`).then(tick(lowPower ? 0.35 : 0.4)),
-    json<RawVectors>("vectors.json").then(tick(lowPower ? 0.2 : 0.07)),
-    binary("buildings.bin").then(decodeBuildings).then(tick(lowPower ? 0.14 : 0.06)),
+    decodeImage(`${BASE}/terrain${lo}.webp`).then(tick(lowPower ? 0.25 : 0.4)),
+    decodeImage(`${BASE}/surface${lo}.webp`).then(tick(lowPower ? 0.3 : 0.35)),
+    json<RawVectors>("vectors.json").then(tick(lowPower ? 0.18 : 0.06)),
+    binary("buildings.bin").then(decodeBuildings).then(tick(lowPower ? 0.12 : 0.06)),
+    // The country beyond the map is scenery: without it the map still works, edge and all.
+    decodeImage(`${BASE}/outer${lo}.webp`)
+      .catch(() => null)
+      .then(tick(lowPower ? 0.15 : 0.13)),
   ]);
 
   const n = terrain.width * terrain.height;
@@ -173,6 +198,18 @@ export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number
     elev[i] = (td[i * 4] * 256 + td[i * 4 + 1]) / 10;
     density[i] = td[i * 4 + 2];
   }
+  let outer: OuterAssets | null = null;
+  if (outerImg && meta.outer) {
+    const m = outerImg.width * outerImg.height;
+    const oe = new Float32Array(m);
+    const os = new Uint8Array(m);
+    const od = outerImg.data;
+    for (let i = 0; i < m; i++) {
+      oe[i] = (od[i * 4] * 256 + od[i * 4 + 1]) / 10;
+      os[i] = od[i * 4 + 2];
+    }
+    outer = { width: outerImg.width, height: outerImg.height, elev: oe, sdf: os };
+  }
   return {
     meta,
     height: new RegionRaster(terrain.width, terrain.height, elev),
@@ -180,6 +217,7 @@ export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number
     surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
     vectors: decodeVectors(vectors),
     buildings,
+    outer,
   };
 }
 

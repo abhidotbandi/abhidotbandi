@@ -10,6 +10,8 @@ export interface AtlasTextures {
   normal: THREE.DataTexture;
   /** RGBA8: water SDF, parks */
   surface: THREE.DataTexture;
+  /** the landscape beyond the map: RG half-float (elevation m, water distance as stored / 255), normals */
+  outer?: { height: THREE.DataTexture; normal: THREE.DataTexture };
 }
 
 /** RG half-float: elevation (m) and a 0..1 second channel. */
@@ -68,10 +70,19 @@ function surfaceTexture(s: { width: number; height: number; rgba: Uint8Array }):
 
 export function makeTextures(a: AtlasAssets): AtlasTextures {
   const { width: w, height: h, data: elev } = a.height;
+  const o = a.outer;
+  const ob = a.meta.outer?.bounds;
   return {
     height: heightTexture(elev, a.density, w, h),
     normal: normalTexture(elev, w, h, WIDTH_KM / w, HEIGHT_KM / h),
     surface: surfaceTexture(a.surface),
+    outer:
+      o && ob
+        ? {
+            height: heightTexture(o.elev, o.sdf, o.width, o.height),
+            normal: normalTexture(o.elev, o.width, o.height, ob[2] / o.width, ob[3] / o.height),
+          }
+        : undefined,
   };
 }
 

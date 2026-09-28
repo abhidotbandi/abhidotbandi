@@ -8,7 +8,8 @@ import { useAtlas } from "@/lib/atlas/store";
 import Terrain, { CentralTerrain } from "./Terrain";
 import Sky from "./Sky";
 import Buildings from "./Buildings";
-import { MapLines } from "./Lines";
+import { MapLines, clipLines } from "./Lines";
+import TownLights from "./TownLights";
 import Beacons from "./Beacons";
 import RedLine from "./RedLine";
 import CameraDirector from "./CameraDirector";
@@ -97,7 +98,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
   const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
   const { assets, tex, buildings, ground, central } = scene;
-  const highways = useMemo(() => [...assets.vectors.roads.motorway, ...assets.vectors.roads.trunk], [assets]);
+  const highways = useMemo(() => clipLines([...assets.vectors.roads.motorway, ...assets.vectors.roads.trunk]), [assets]);
 
   return (
     <Canvas
@@ -113,7 +114,8 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <CameraDirector height={ground} />
       <Lights />
       <Sky />
-      <Terrain tex={tex} segments={scene.terrainSegments} cutout={!!central} />
+      <Terrain tex={tex} segments={scene.terrainSegments} cutout={!!central} outer={assets.meta.outer?.bounds} />
+      <TownLights assets={assets} lowPower={scene.lowPower} />
       {central && (
         <CentralTerrain tex={central.tex} baseTex={tex} grid={central.patch} sdfK={assets.meta.central.surface.sdfK} />
       )}

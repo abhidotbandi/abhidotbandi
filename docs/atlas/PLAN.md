@@ -551,8 +551,8 @@ label is hovered.
 
 ### 2.11 Signature sites, modelled (2026-09-28)
 
-Asked for with 2.10. Five sites are models (`siteModels.ts`, `SiteModels`) instead of plain
-extrusions in their domain colour. The buildings stand on their mapped footprints. The plant
+Asked for with 2.10 (NXP and The Boring Company just after). Eight sites are models
+(`siteModels.ts`, `SiteModels`) instead of plain extrusions in their domain colour. The buildings stand on their mapped footprints. The plant
 around them goes where the map has no building or street: each spot was checked against every
 footprint and street nearby, and the detail tiles keep their trees off it.
 
@@ -564,12 +564,19 @@ footprint and street nearby, and the detail tiles keep their trees off it.
   with steam drifting off them, and a gas yard holds air-separation columns (with obstruction
   lights), a cold box and storage tanks. Taylor's heights (40, 26, 30 and 28 m) are estimates:
   the map has none.
+- **NXP, Oak Hill and Ed Bluestein**: the same kit, in the tan precast of fabs from Motorola's
+  day.
 - **Firefly's Rocket Ranch**: the shop buildings, and a test area east of them:
   - a 44 m steel stage stand with a first stage in it, over a flame trench, with floodlights
   - the horizontal engine stand the existing plume now fires from
   - a propellant farm, a water tower and a bermed control bunker
 - **Starlink, Bastrop**: the factory in white with a black band, rooftop plant, skylights lit
   after dark, and trailers backed up to the docks on the truck-court side.
+- **The Boring Company, Bastrop**: the factory in grey metal. North of it a tunnel boring
+  machine is staged on cradles (cutterhead, shield, trailing gantries). East of it, stacks of
+  tunnel-lining rings stand under a gantry crane, clear of Snailbrook's houses.
 - After dark: lit windows, floodlights and blinking red lights. When a site is picked or in the
-  tour's focus, its model takes on the domain colour. The models add ~25k triangles in one draw
+  tour's focus, its model takes on the domain colour. The models add ~35k triangles in one draw
   call.
+- The detail tiles keep trees off every tile a footprint reaches into. Before, only the tile
+  holding its first corner was masked, so a building across a tile edge could grow trees.

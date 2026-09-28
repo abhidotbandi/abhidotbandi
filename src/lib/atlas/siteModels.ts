@@ -5,8 +5,9 @@ import type { BuildingsData } from "./buildingsCodec";
 import { BUILDING_EXAG, elevToY, groundY, type HeightField } from "./geo";
 
 // The signature sites as models instead of plain extrusions: Giga Texas under its solar roof,
-// Samsung's fabs in Austin and Taylor with their cooling towers and gas yards, the test stands at
-// Firefly's Rocket Ranch and the Starlink factory at Bastrop. The buildings stand on their mapped
+// Samsung's and NXP's fabs with their cooling towers and gas yards, the test stands at Firefly's
+// Rocket Ranch, and the Starlink factory and The Boring Company's tunnelling yard at Bastrop.
+// The buildings stand on their mapped
 // footprints. The plant around them goes where the map has no building or street (each spot was
 // checked against every footprint and street nearby), and the trees keep off it.
 
@@ -29,7 +30,16 @@ export const GLOW = {
   solar: 5,
 } as const;
 
-export const MODELLED_SITES = ["tesla", "samsung", "samsung-taylor", "firefly-ranch", "spacex"];
+export const MODELLED_SITES = [
+  "tesla",
+  "samsung",
+  "samsung-taylor",
+  "nxp-oak-hill",
+  "nxp-ed-bluestein",
+  "firefly-ranch",
+  "spacex",
+  "boring-company",
+];
 
 const C = {
   wall: "#eceef0",
@@ -42,6 +52,8 @@ const C = {
   solar: "#243349",
   fabWall: "#f1f2f3",
   fabRoof: "#d6d9dc",
+  precast: "#e3dbc9",
+  precastRoof: "#cec7b7",
   towerBody: "#b3bac0",
   towerShroud: "#8f989f",
   fan: "#3a3f45",
@@ -57,6 +69,9 @@ const C = {
   door: "#565c63",
   rocket: "#f4f4f1",
   dark: "#2b2f34",
+  metalWall: "#80858c",
+  machine: "#5e646b",
+  yellow: "#f2b705",
 };
 
 type V3 = [number, number, number];
@@ -451,11 +466,17 @@ interface FabPlan {
   yard: [number, number, number];
   /** heights (m) for the largest footprints, where the map has none */
   heights?: number[];
+  /** walls and roofs, if not white */
+  wall?: string;
+  roof?: string;
 }
 
 const FABS: Record<string, FabPlan> = {
   samsung: { cub: [106, -257], yard: [88, -360, 28] },
   "samsung-taylor": { cub: [140, -238], yard: [390, -200, 9], heights: [40, 26, 30, 28] },
+  // NXP's fabs date from Motorola's day, in tan precast.
+  "nxp-oak-hill": { cub: [178, 398], yard: [232, 415, 0], wall: C.precast, roof: C.precastRoof },
+  "nxp-ed-bluestein": { cub: [-187, -255], yard: [-120, -284, 0], wall: C.precast, roof: C.precastRoof },
 };
 
 /** East and north of a site point (metres) in scene km. */
@@ -516,20 +537,21 @@ function fab(kit: Kit, fps: Footprint[], s: SiteRef, plan: FabPlan, ground: Heig
   fps.forEach((f, i) => {
     if (fps.some((g) => g !== f && g.areaM2 > f.areaM2 && pointInRing(g.ring, f.cx, f.cz))) return;
     const h = plan.heights?.[i] ?? f.hM;
+    const wall = plan.wall ?? C.fabWall;
     const office = f.areaM2 < 4000;
     const bands: Band[] = office
       ? [
-          [h * 0.5, C.fabWall],
+          [h * 0.5, wall],
           [2.2, C.glass, GLOW.windows],
-          [h * 0.5 - 3.2, C.fabWall],
-          [1, C.fabWall, GLOW.accent],
+          [h * 0.5 - 3.2, wall],
+          [1, wall, GLOW.accent],
         ]
       : [
-          [h - 3.4, C.fabWall],
-          [1.4, C.fabWall, GLOW.accent],
-          [2, C.fabWall],
+          [h - 3.4, wall],
+          [1.4, wall, GLOW.accent],
+          [2, wall],
         ];
-    const top = building(kit, f, bands, C.fabRoof);
+    const top = building(kit, f, bands, plan.roof ?? C.fabRoof);
     if (f === cub) coolingTowers(kit, f, top, steam);
     else if (f.areaM2 > 8000) fabRoof(kit, f, top);
     else rooftopUnits(kit, f, top, 24);
@@ -722,6 +744,56 @@ function starlink(kit: Kit, fps: Footprint[]) {
   });
 }
 
+// --- The Boring Company, Bastrop ---------------------------------------------------------------
+
+/** A tunnel boring machine staged on cradles: cutterhead east, shield, trailing gantries. */
+function boringMachine(kit: Kit, ground: HeightField, x: number, z: number) {
+  const m = place(x, groundY(ground, x, z) - 0.001, z);
+  const lying = (r: number, len: number, cx: number, y: number, seg = 16, open = false) => {
+    const g = new THREE.CylinderGeometry(r, r, len, seg, 1, open);
+    g.rotateZ(Math.PI / 2);
+    g.translate(cx, y, 0);
+    return g;
+  };
+  for (const cx of [-24, -8, 8, 24]) kit.part(box(2, 1, 5, cx, 0, 0), C.concrete, m);
+  kit.part(lying(2.15, 0.8, 32.6, 3), C.dark, m); // cutterhead
+  kit.part(lying(2.2, 0.5, 32, 3), C.yellow, m);
+  kit.part(lying(2, 12, 26, 3), C.steel, m); // shield
+  for (const cx of [12, -2, -16]) {
+    kit.part(box(12, 3.4, 3.6, cx, 1, 0), C.machine, m); // trailing gantries
+    kit.part(box(3, 1, 1.6, cx - 3, 4.4, 0), C.yellow, m);
+  }
+  kit.clearRect(x, z, 72, 14);
+}
+
+/** Tunnel-lining rings stacked in a yard under a gantry crane. */
+function segmentYard(kit: Kit, ground: HeightField, x: number, z: number) {
+  const m = place(x, groundY(ground, x, z) - 0.001, z);
+  kit.part(box(44, 0.3, 32), C.concrete, m);
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 3; j++) {
+      const g = new THREE.CylinderGeometry(2.1, 2.1, 1.3 * (2 + ((i + j) % 2)), 16, 1, true);
+      g.translate(-14 + i * 9, 0.3 + (1.3 * (2 + ((i + j) % 2))) / 2, -9 + j * 9);
+      kit.part(g, C.concrete, m);
+    }
+  }
+  for (const lx of [-19, 19]) for (const lz of [-14, 14]) kit.part(box(1, 12, 1, lx, 0.3, lz), C.yellow, m);
+  for (const lz of [-14, 14]) kit.part(box(39, 1.4, 1.4, 0, 12.3, lz), C.yellow, m);
+  kit.part(box(1.6, 1.6, 30, 4, 13.7, 0), C.yellow, m);
+  kit.part(box(2, 1.5, 2, 4, 9, 0), C.dark, m);
+  kit.clearRect(x, z, 48, 36);
+}
+
+function boringCompany(kit: Kit, fps: Footprint[], s: SiteRef, ground: HeightField) {
+  for (const f of fps) {
+    const top = building(kit, f, [[3, C.plinth], [f.hM - 4.2, C.metalWall], [1.2, C.metalWall, GLOW.accent]], C.roof);
+    rooftopUnits(kit, f, top, 26);
+  }
+  // Beside the factory, clear of Snailbrook's houses: a machine to the north, rings to the east.
+  boringMachine(kit, ground, ...offset(s, 20, 225));
+  segmentYard(kit, ground, ...offset(s, 110, 110));
+}
+
 // ---------------------------------------------------------------------------------------------
 
 export interface SiteModelSet {
@@ -770,6 +842,7 @@ export function buildSiteModels(data: BuildingsData, ground: HeightField, siteCo
     if (id === "tesla") gigaTexas(kit, fps);
     else if (id === "spacex") starlink(kit, fps);
     else if (id === "firefly-ranch") engine = rocketRanch(kit, fps, s, ground);
+    else if (id === "boring-company") boringCompany(kit, fps, s, ground);
     else if (FABS[id]) fab(kit, fps, s, FABS[id], ground, steam);
   }
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);

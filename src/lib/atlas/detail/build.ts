@@ -63,7 +63,7 @@ export interface World {
   surfPxM: number;
   /** the always-loaded buildings (company sites, central Austin's edge), which trees also avoid */
   fixed: BuildingsData[];
-  /** per tile key: [set, building] pairs of `fixed` whose first corner falls in that tile */
+  /** per tile key: [set, building] pairs of `fixed` that reach into that tile */
   fixedByTile: Map<number, number[]>;
 }
 
@@ -74,11 +74,27 @@ export function bucketFixed(sets: BuildingsData[], size: number, origin: [number
   const out = new Map<number, number[]>();
   sets.forEach((d, si) => {
     for (let b = 0; b < d.count; b++) {
-      const v = d.vertStart[d.ringStart[b]];
-      const key = tileKey(Math.floor((d.x[v] / 1000 - origin[0]) / size), Math.floor((d.z[v] / 1000 - origin[1]) / size));
-      let list = out.get(key);
-      if (!list) out.set(key, (list = []));
-      list.push(si, b);
+      // Every tile its box reaches, so one straddling a tile's edge keeps trees off on both sides.
+      const r = d.ringStart[b];
+      let x0 = Infinity;
+      let x1 = -Infinity;
+      let z0 = Infinity;
+      let z1 = -Infinity;
+      for (let v = d.vertStart[r]; v < d.vertStart[r + 1]; v++) {
+        x0 = Math.min(x0, d.x[v]);
+        x1 = Math.max(x1, d.x[v]);
+        z0 = Math.min(z0, d.z[v]);
+        z1 = Math.max(z1, d.z[v]);
+      }
+      const tile = (m: number, o: number) => Math.floor((m / 1000 - o) / size);
+      for (let ix = tile(x0, origin[0]); ix <= tile(x1, origin[0]); ix++) {
+        for (let iz = tile(z0, origin[1]); iz <= tile(z1, origin[1]); iz++) {
+          const key = tileKey(ix, iz);
+          let list = out.get(key);
+          if (!list) out.set(key, (list = []));
+          list.push(si, b);
+        }
+      }
     }
   });
   return out;

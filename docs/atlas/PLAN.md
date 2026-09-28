@@ -549,42 +549,71 @@ label is hovered.
   - Beacon stems take their height from the site's emphasis without hover. A stem growing under
     the pointer used to carry the label out from under it, so the hover flickered.
 
-### 2.11 Signature sites, modelled (2026-09-28)
+### 2.11 Every company site, modelled (2026-09-28)
 
-Asked for with 2.10, then NXP and The Boring Company, then every company. The sites are
-models (`siteModels/`, `SiteModels`) instead of plain extrusions in their domain colour: the
-signature sites each on their own (`signature.ts`), the rest by the kind of place they are
-(`archetypes.ts`): offices in curtain-wall glass or with punched windows, labs with ribbon
-windows and fume stacks, factories with skylights and loading docks, and fabs with the fab kit,
-each with a prop where one plausibly stands. The buildings stand on their mapped footprints. The plant
-around them goes where the map has no building or street: each spot was checked against every
-footprint and street nearby, and the detail tiles keep their trees off it.
+Asked for with 2.10, then NXP and The Boring Company, then every company. All 47 sites are
+models (`siteModels/`, `SiteModels`) instead of plain extrusions in their domain colour. Base
+Power's Factory 2 is the construction site from 2.9.
 
-- **Giga Texas**: the 1.2 km hall in white panels over a grey plinth, with a band of windows and
-  trim in the site's colour. Its roof carries solar arrays at both ends and Tesla's T between
-  them, top to the north, as the real roof does. The outbuildings have rooftop plant.
-- **Samsung, Austin and Taylor**: fabs in white with trim in the domain's purple, and rooftop air
-  handlers and exhaust stacks in rows. The utility building carries a bank of cooling towers
-  with steam drifting off them, and a gas yard holds air-separation columns (with obstruction
-  lights), a cold box and storage tanks. Taylor's heights (40, 26, 30 and 28 m) are estimates:
-  the map has none.
+- The buildings stand on their mapped footprints, in central Austin's file as well as the
+  regional one. Models are rebuilt once the patch loads.
+- The plant and props around them go where the map has no building or street: each spot was
+  checked against every footprint and street nearby. The detail tiles keep their trees off them.
+- The signature sites are modelled one by one (`signature.ts`). The rest go by the kind of place
+  they are (`archetypes.ts`), each with a prop where one plausibly stands.
+- Trim carries the site's domain colour, and when a site is picked or in the tour's focus the
+  whole model takes it on.
+- Glass reads as curtain wall: mullions and floor slabs by day, and at night windows lit floor
+  by floor, about as many as in the city around.
+- Floodlights come on after dark, and red obstruction lights blink on the tall structures.
+- ~70k triangles in all, in one draw call.
+
+Signature sites:
+- **Giga Texas**: the 1.2 km hall in white panels over a grey plinth, with a band of windows.
+  Its roof carries solar arrays at both ends and Tesla's T between them, top to the north, as the
+  real roof does. The outbuildings have rooftop plant.
+- **Samsung, Austin and Taylor**: fabs in white, and rooftop air handlers and exhaust stacks in
+  rows. The utility building carries a bank of cooling towers with steam drifting off them. A
+  gas yard holds air-separation columns, a cold box and storage tanks. Taylor's heights (40,
+  26, 30 and 28 m) are estimates: the map has none.
 - **NXP, Oak Hill and Ed Bluestein**: the same kit, in the tan precast of fabs from Motorola's
   day.
-- **Applied Materials**: the fab kit's rooftop plant and cooling towers over its cleanroom
-  manufacturing, without a bulk-gas yard.
-- **Saronic**: the plant with skylights and docks, and finished boats on their trailers in a
-  paved yard.
 - **Firefly's Rocket Ranch**: the shop buildings, and a test area east of them:
   - a 44 m steel stage stand with a first stage in it, over a flame trench, with floodlights
   - the horizontal engine stand the existing plume now fires from
   - a propellant farm, a water tower and a bermed control bunker
-- **Starlink, Bastrop**: the factory in white with a black band, rooftop plant, skylights lit
-  after dark, and trailers backed up to the docks on the truck-court side.
+- **Starlink, Bastrop**: the factory in white with a black band, rooftop plant, skylights, and
+  trailers backed up to the docks on the truck-court side.
 - **The Boring Company, Bastrop**: the factory in grey metal. North of it a tunnel boring
   machine is staged on cradles (cutterhead, shield, trailing gantries). East of it, stacks of
   tunnel-lining rings stand under a gantry crane, clear of Snailbrook's houses.
-- After dark: lit windows, floodlights and blinking red lights. When a site is picked or in the
-  tour's focus, its model takes on the domain colour. The models add ~35k triangles in one draw
-  call.
-- The detail tiles keep trees off every tile a footprint reaches into. Before, only the tile
-  holding its first corner was masked, so a building across a tile edge could grow trees.
+
+By kind:
+- **Fabs** (the fab kit): SkyWater's Fab 25 and TIE's Montopolis fab, each with a gas yard.
+  Applied Materials gets the rooftop plant and cooling towers over its cleanroom manufacturing,
+  without a gas yard.
+- **Factories**: walls in tilt-up concrete or metal, rooftop units and skylights, and a glass
+  office front across the end nearest the address. Loading docks where there's a truck court.
+  - Saronic: finished boats on their trailers in a paved yard.
+  - Aalo: a reactor vessel on a low trailer.
+  - Hyliion: generators in container-sized enclosures, lined up to ship.
+  - ICON: a construction printer's gantry over a small house going up in layers.
+  - Base Power (Factory 1, the old Statesman plant): home batteries on pallets.
+  - Firefly's HQ: a dish on the roof for mission control.
+  - Also Allen Control Systems (both), Aeon Industrial, Last Energy, Infinitum, Apptronik and
+    Fox Robotics.
+- **Labs**: ribbon windows floor by floor, a penthouse with fume-hood stacks.
+  - ARL: radomes on two roofs and a 34 m antenna mast.
+  - UT's Center for Space Research: a ground-station dish.
+  - TACC: chillers in the yard beside the machine room.
+  - CesiumAstro: radomes and a mast on the roof.
+  - EnergyX: a small process skid.
+  - Also BAE Systems, Nanohmics and Canon Nanotechnologies.
+- **Offices**: curtain-wall glass (AMD, Ambiq, Mythic, Neurophos, NI, and downtown T2COM's
+  tower, the Army Applications Laboratory, Silicon Labs, Cirrus Logic and Diligent Robotics),
+  or punched windows (Perseus Defense, Ideal Power, the Army Software Factory). Penthouses on
+  the taller ones.
+  - Skyways: a landing pad on legs over the rooftop plant, with one of its VTOL drones on it.
+
+Also: the detail tiles keep trees off every tile a footprint reaches into. Before, only the tile
+holding its first corner was masked, so a building across a tile edge could grow trees.

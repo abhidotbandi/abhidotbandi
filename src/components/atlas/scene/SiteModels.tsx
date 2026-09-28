@@ -9,7 +9,7 @@ import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { siteUniforms } from "./siteState";
 
-// The signature sites' models (built in siteModels.ts): lit like the buildings, with trim in the
+// The company sites' models (built in siteModels/): lit like the buildings, with trim in the
 // site's domain colour, the whole model taking on that colour when the site is picked or in
 // focus, windows and floodlights after dark, blinking obstruction lights, and the sky in the
 // solar arrays. Steam drifts off the fabs' cooling towers.
@@ -100,12 +100,13 @@ const fragment = /* glsl */ `
 
     float dark = smoothstep(0.35, 1.0, uNight);
     if (windows || (punched && wall)) {
-      // Windows lit bay by bay and floor by floor, averaging out from afar before they shimmer.
+      // Windows lit bay by bay and floor by floor, about as many as in the city around (fewer at
+      // dusk), averaging out from afar before they shimmer.
       float bay = along / (punched ? 3.4 : 3.2);
-      float lit = step(0.5, hash(floor(bay) + floor(fl) * 57.3));
-      if (punched) lit *= step(0.3, fract(bay)) * step(0.35, fract(fl));
+      float lit = step(0.68 + 0.18 * (1.0 - dark), hash(floor(bay) + floor(fl) * 57.3));
+      if (wall) lit *= step(0.3, fract(bay)) * step(0.35, fract(fl));
       float far = smoothstep(0.35, 1.1, max(fwidth(bay), fwidth(fl)));
-      col += vec3(1.0, 0.62, 0.3) * mix(lit, punched ? 0.14 : 0.45, far) * dark * 0.85;
+      col += vec3(1.0, 0.62, 0.25) * mix(lit, 0.12, far) * dark * 0.9;
     }
     if (accent && on) col += site.rgb * uNight * (0.35 + 0.5 * emph);
     if (lamp) col += vec3(1.0, 0.86, 0.62) * (0.15 + 1.6 * dark);
@@ -150,7 +151,17 @@ const steamFragment = /* glsl */ `
   }
 `;
 
-function makeSteam(outlets: Float32Array): THREE.Points | null {
+function steamMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: steamVertex,
+    fragmentShader: steamFragment,
+    transparent: true,
+    depthWrite: false,
+    uniforms: { uTime: sky.uTime, uPx: { value: 0.001 }, uFade: { value: 0 }, uLight: { value: new THREE.Color() } },
+  });
+}
+
+function makeSteam(outlets: Float32Array, material: THREE.ShaderMaterial): THREE.Points | null {
   const n = outlets.length / 3;
   if (!n) return null;
   const per = 22;
@@ -164,16 +175,7 @@ function makeSteam(outlets: Float32Array): THREE.Points | null {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 4));
-  const p = new THREE.Points(
-    g,
-    new THREE.ShaderMaterial({
-      vertexShader: steamVertex,
-      fragmentShader: steamFragment,
-      transparent: true,
-      depthWrite: false,
-      uniforms: { uTime: sky.uTime, uPx: { value: 0.001 }, uFade: { value: 0 }, uLight: { value: new THREE.Color() } },
-    }),
-  );
+  const p = new THREE.Points(g, material);
   p.frustumCulled = false;
   p.renderOrder = 30;
   // Where the towers are, for the distance check.
@@ -207,13 +209,15 @@ export default function SiteModels({ models }: { models: SiteModelSet }) {
       }),
     [],
   );
-  const steam = useMemo(() => makeSteam(models.steam), [models]);
-  // The set is rebuilt once central Austin loads: let the old one go.
+  // One material for the steam whatever its geometry: the set is rebuilt once central Austin
+  // loads, while the renderer may still be compiling what it had.
+  const puff = useMemo(() => steamMaterial(), []);
+  const steam = useMemo(() => makeSteam(models.steam, puff), [models, puff]);
+  // Let the old geometry go when the set is rebuilt (materials stay: they're reused).
   useEffect(
     () => () => {
       models.geometry?.dispose();
       steam?.geometry.dispose();
-      (steam?.material as THREE.Material | undefined)?.dispose();
     },
     [models, steam],
   );

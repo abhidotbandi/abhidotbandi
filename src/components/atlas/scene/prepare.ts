@@ -5,6 +5,7 @@ import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
 import { pointInPoly } from "@/lib/atlas/polygon";
 import { MODELLED_LANDMARKS, buildPatchGrid, type Central } from "@/lib/atlas/central";
 import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
+import { MODELLED_SITES, buildSiteModels, type SiteModelSet } from "@/lib/atlas/siteModels";
 import { isLowPower } from "@/lib/atlas/tier";
 import { makeCentralTextures, makeTextures, type AtlasTextures } from "./textures";
 
@@ -30,7 +31,9 @@ export interface PreparedScene {
   /** the surface the base terrain mesh draws, which the patch edge meets */
   baseSurface: BaseMeshField;
   buildings: BuildingMesh;
-  /** per SITES index: highest roof of the site's buildings in either set (world y), or NaN */
+  /** the signature sites, modelled (their plain extrusions are left out of `buildings`) */
+  models: SiteModelSet;
+  /** per SITES index: highest roof of the site's buildings in any set (world y), or NaN */
   siteTop: Float32Array;
   /** terrain grid resolution (segments across) */
   terrainSegments: number;
@@ -38,6 +41,11 @@ export interface PreparedScene {
 }
 
 const siteIndex = (id: string) => SITE_BY_ID.get(id)?.index ?? -1;
+
+/** Per-site highest roofs from two sets, either of which may lack a site (NaN). */
+function maxTop(a: Float32Array, b: Float32Array): Float32Array {
+  return a.map((v, i) => (Number.isNaN(v) ? b[i] : Number.isNaN(b[i]) ? v : Math.max(v, b[i])));
+}
 
 /** CPU-side prep of the regional map, run once while the loader is still up. */
 export function prepareScene(assets: AtlasAssets): PreparedScene {
@@ -47,7 +55,11 @@ export function prepareScene(assets: AtlasAssets): PreparedScene {
   // Objects and the patch edge follow the surface the base mesh draws, not the raster.
   const baseSurface = new BaseMeshField(assets.height, terrainSegments);
   const ground = new Ground(baseSurface, null);
-  const buildings = buildBuildings(assets.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0);
+  const modelled = new Set(MODELLED_SITES.map(siteIndex));
+  const buildings = buildBuildings(assets.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (_x, _z, site) =>
+    modelled.has(site),
+  );
+  const models = buildSiteModels(assets.buildings, ground, SITES.length);
   return {
     assets,
     tex,
@@ -55,7 +67,8 @@ export function prepareScene(assets: AtlasAssets): PreparedScene {
     ground,
     baseSurface,
     buildings,
-    siteTop: buildings.siteTop,
+    models,
+    siteTop: maxTop(buildings.siteTop, models.siteTop),
     terrainSegments,
     lowPower,
   };
@@ -63,7 +76,7 @@ export function prepareScene(assets: AtlasAssets): PreparedScene {
 
 /** Add central Austin to a prepared scene: its patch terrain, the ground on it, and its buildings. */
 export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedScene {
-  const { lowPower, buildings } = scene;
+  const { lowPower } = scene;
   // ~16 m mesh cells on desktop (the DEM is ~8 m), ~28 m on phones.
   const patch = buildPatchGrid(c.central, scene.baseSurface, lowPower ? 0.028 : 0.016);
   const ground = new Ground(scene.baseSurface, patch);
@@ -72,10 +85,7 @@ export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedSc
   const central = buildBuildings(c.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (x, z) =>
     modelled.some((o) => pointInPoly(o, x, z)),
   );
-  const siteTop = buildings.siteTop.map((v, i) => {
-    const t = central.siteTop[i];
-    return Number.isNaN(v) ? t : Number.isNaN(t) ? v : Math.max(v, t);
-  });
+  const siteTop = maxTop(scene.siteTop, central.siteTop);
   return {
     ...scene,
     central: { data: c.central, tex: makeCentralTextures(c.central), patch, buildings: central, footprints: c.buildings },

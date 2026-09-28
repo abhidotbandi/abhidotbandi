@@ -57,13 +57,18 @@ export function extrudeBuildings(
   siteMap: ArrayLike<number>,
   siteCount: number,
   minFootprintM2 = 0,
-  /** leave out footprints whose centre (km) this accepts: landmarks modelled separately */
-  skip?: (x: number, z: number) => boolean,
+  /**
+   * leave out footprints this accepts, by centre (km) and SITES index (or -1): landmarks and
+   * sites modelled separately
+   */
+  skip?: (x: number, z: number, site: number) => boolean,
 ): BuildingArrays {
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
   const { ringStart, vertStart, x: X, z: Z } = data;
   const records: number[] = [];
-  for (let b = 0; b < data.count; b++) if (!skip || !skip(...outerCentre(data, b))) records.push(b);
+  for (let b = 0; b < data.count; b++) {
+    if (!skip || !skip(...outerCentre(data, b), data.site[b] >= 0 ? siteMap[data.site[b]] : -1)) records.push(b);
+  }
 
   // Upper bounds on sizes: walls, doubled ring starts, roofs and up to four roof boxes.
   let maxV = 0;

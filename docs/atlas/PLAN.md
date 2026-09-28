@@ -548,3 +548,28 @@ label is hovered.
     it is, over the others.
   - Beacon stems take their height from the site's emphasis without hover. A stem growing under
     the pointer used to carry the label out from under it, so the hover flickered.
+
+### 2.11 Signature sites, modelled (2026-09-28)
+
+Asked for with 2.10. Five sites are models (`siteModels.ts`, `SiteModels`) instead of plain
+extrusions in their domain colour. The buildings stand on their mapped footprints. The plant
+around them goes where the map has no building or street: each spot was checked against every
+footprint and street nearby, and the detail tiles keep their trees off it.
+
+- **Giga Texas**: the 1.2 km hall in white panels over a grey plinth, with a band of windows and
+  trim in the site's colour. Its roof carries solar arrays at both ends and Tesla's T between
+  them, top to the north, as the real roof does. The outbuildings have rooftop plant.
+- **Samsung, Austin and Taylor**: fabs in white with trim in the domain's purple, and rooftop air
+  handlers and exhaust stacks in rows. The utility building carries a bank of cooling towers
+  with steam drifting off them, and a gas yard holds air-separation columns (with obstruction
+  lights), a cold box and storage tanks. Taylor's heights (40, 26, 30 and 28 m) are estimates:
+  the map has none.
+- **Firefly's Rocket Ranch**: the shop buildings, and a test area east of them:
+  - a 44 m steel stage stand with a first stage in it, over a flame trench, with floodlights
+  - the horizontal engine stand the existing plume now fires from
+  - a propellant farm, a water tower and a bermed control bunker
+- **Starlink, Bastrop**: the factory in white with a black band, rooftop plant, skylights lit
+  after dark, and trailers backed up to the docks on the truck-court side.
+- After dark: lit windows, floodlights and blinking red lights. When a site is picked or in the
+  tour's focus, its model takes on the domain colour. The models add ~25k triangles in one draw
+  call.

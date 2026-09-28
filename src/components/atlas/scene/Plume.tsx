@@ -67,15 +67,16 @@ function points(n: number, origin: THREE.Vector3): THREE.BufferGeometry {
 }
 
 /** Firefly's Rocket Ranch: an engine on the test stand, firing on a loop at the Briggs stop. */
-export default function Plume({ height }: { height: HeightField }) {
+export default function Plume({ height, origin: stand }: { height: HeightField; origin: THREE.Vector3 | null }) {
   const smoke = useRef<THREE.Points>(null);
   const flame = useRef<THREE.Points>(null);
   const site = SITE_BY_ID.get("firefly-ranch")!;
   const { origin, smokeGeo, flameGeo, smokeMat, flameMat } = useMemo(() => {
-    // The test stands sit east of the main shop buildings.
-    const x = site.x + 0.55;
-    const z = site.z - 0.25;
-    const origin = new THREE.Vector3(x, groundY(height, x, z) + 0.035, z);
+    // From the modelled engine stand's nozzle (siteModels.ts); east of the shop buildings if
+    // there's no model.
+    const x = site.x + 0.45;
+    const z = site.z + 0.25;
+    const origin = stand?.clone() ?? new THREE.Vector3(x, groundY(height, x, z) + 0.01, z);
     const shared = () => ({ uTime: sky.uTime, uFire: { value: 0 }, uPx: { value: 0.001 } });
     const smokeMat = new THREE.ShaderMaterial({
       vertexShader: vertex,
@@ -93,7 +94,7 @@ export default function Plume({ height }: { height: HeightField }) {
       uniforms: { ...shared(), uSmoke: { value: 0 }, uLight: { value: new THREE.Color("#ffffff") } },
     });
     return { origin, smokeGeo: points(260, origin), flameGeo: points(160, origin), smokeMat, flameMat };
-  }, [height, site]);
+  }, [height, site, stand]);
 
   useFrame((state) => {
     const s = smoke.current;

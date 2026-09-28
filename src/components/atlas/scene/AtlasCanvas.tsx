@@ -15,6 +15,7 @@ import RedLine from "./RedLine";
 import CameraDirector from "./CameraDirector";
 import Bats from "./Bats";
 import Plume from "./Plume";
+import SiteModels from "./SiteModels";
 import Traffic from "./Traffic";
 import RiverLife from "./RiverLife";
 import ParkLife from "./ParkLife";
@@ -140,7 +141,8 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       )}
       <Airport ground={ground} />
       <Construction ground={ground} />
-      <Plume height={ground} />
+      <SiteModels models={scene.models} />
+      <Plume height={ground} origin={scene.models.engine} />
       <LabelDriver />
       <Precompile token={central} />
       <DebugHandle />

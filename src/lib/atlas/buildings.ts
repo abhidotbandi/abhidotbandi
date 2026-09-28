@@ -31,8 +31,8 @@ export function buildBuildings(
   siteIndexOf: (id: string) => number,
   siteCount: number,
   minFootprintM2 = 0,
-  /** leave out footprints whose centre (km) this accepts: landmarks modelled separately */
-  skip?: (x: number, z: number) => boolean,
+  /** leave out footprints this accepts, by centre (km) and SITES index: modelled separately */
+  skip?: (x: number, z: number, site: number) => boolean,
 ): BuildingMesh {
   const a = extrudeBuildings(data, height, data.sites.map(siteIndexOf), siteCount, minFootprintM2, skip);
   return { geometry: buildingGeometry(a), siteTop: a.siteTop };

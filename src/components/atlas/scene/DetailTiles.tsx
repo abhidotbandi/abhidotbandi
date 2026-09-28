@@ -523,7 +523,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
       .then((index) => {
         if (cancelled) return;
         const a = scene.assets;
-        const fixed = [a.buildings, ...(scene.central ? [scene.central.footprints] : [])];
+        const fixed = [a.buildings, scene.models.clearings, ...(scene.central ? [scene.central.footprints] : [])];
         const init: InitMessage = {
           type: "init",
           height: { width: a.height.width, height: a.height.height, data: a.height.data.slice() },

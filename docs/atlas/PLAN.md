@@ -789,4 +789,7 @@ realistic water; and a first view as instant as the levels.fyi atlases'.
     the sun's glint (not in shadow).
   - Wet, darker banks. The drawn shorelines are gone.
 - **Phones** get smaller shadow maps and fewer clouds, and no reflections or contact shadows.
+- **Slow GPUs**: if frames stay under about 35 fps for a couple of seconds once the map is up, the
+  costliest extras go, one step at a time: the lakes' reflections, then the contact shadows, then
+  the pixel ratio drops to 1. Automated renders (the posters, QA screenshots) keep full quality.
 

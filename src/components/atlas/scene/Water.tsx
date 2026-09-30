@@ -154,7 +154,8 @@ export default function WaterReflection({ levels }: { levels: WaterLevels }) {
     const cam = runtime.cam;
     const camera = state.camera as THREE.PerspectiveCamera;
     water.uReflOn.value = 0;
-    if (cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
+    // Off if the frame rate governor has dropped it (AtlasCanvas).
+    if (runtime.quality >= 1 || cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
     const level = levelAround(levels, cam.x, cam.z, Math.min(4, Math.max(1, cam.dist * 0.8)));
     if (Number.isNaN(level)) return;
     const y = elevToY(level);

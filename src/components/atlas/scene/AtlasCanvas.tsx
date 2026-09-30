@@ -143,14 +143,14 @@ function CaptureHook() {
   return null;
 }
 
-/** `?debug` exposes the renderer and scene on window.__atlas, for measuring draw costs. */
+/** `?debug` exposes the renderer, scene and runtime state on window.__atlas, for measuring draw costs. */
 function DebugHandle() {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("debug")) {
-      (window as unknown as { __atlas: unknown }).__atlas = { gl, scene, camera };
+      (window as unknown as { __atlas: unknown }).__atlas = { gl, scene, camera, runtime };
     }
   }, [gl, scene, camera]);
   return null;
@@ -178,6 +178,34 @@ function ReadySignal({ settled }: { settled: boolean }) {
       mark("ready");
       useAtlas.getState().setReady();
     }
+  });
+  return null;
+}
+
+/**
+ * Keeps the map smooth on weaker GPUs: if frames stay slow (under ~35 fps) for a couple of
+ * seconds once the map is up, the costliest extras go, one step at a time: the lakes'
+ * reflections, then the contact shadows, then the pixel ratio drops to 1. It never steps back
+ * up. Automated renders (the posters, QA screenshots) keep full quality however slowly they draw.
+ */
+function Governor() {
+  const ready = useAtlas((s) => s.ready);
+  const st = useRef({ ema: 16, slow: 0, since: 0 });
+  useFrame((state, dt) => {
+    if (!ready || runtime.poster || runtime.quality >= 3 || navigator.webdriver || document.hidden) return;
+    const s = st.current;
+    const now = performance.now();
+    s.since ||= now;
+    // Let the reveal (and each step down) settle before judging.
+    if (now - s.since < 3000) return;
+    // A smoothed frame time, so one hitch (a shader compiling, a tile arriving) doesn't count;
+    // then how long it has stayed slow.
+    s.ema += (Math.min(dt, 0.1) * 1000 - s.ema) * 0.05;
+    s.slow = s.ema > 28 ? s.slow + dt : Math.max(0, s.slow - dt);
+    if (s.slow < 2) return;
+    runtime.quality++;
+    if (runtime.quality === 3) state.setDpr(1);
+    Object.assign(s, { ema: 16, slow: 0, since: now });
   });
   return null;
 }
@@ -253,6 +281,7 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       <Precompile token={central} />
       <DebugHandle />
       <ReadySignal settled={settled} />
+      <Governor />
       <CaptureHook />
     </Canvas>
   );

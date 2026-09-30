@@ -141,6 +141,11 @@ export const runtime = {
   poster: null as { fov: number; ppx: number; ppy: number } | null,
   /** the detail tiles in view have all arrived (or failed), so the first view is complete */
   tilesSettled: false,
+  /**
+   * Steps taken down from full quality because frames were slow (AtlasCanvas's Governor): 1 no
+   * lake reflections, 2 no contact shadows either, 3 a pixel ratio of 1 too.
+   */
+  quality: 0,
 };
 
 export function seekRide(s: number) {

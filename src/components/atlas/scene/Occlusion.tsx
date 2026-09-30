@@ -143,7 +143,8 @@ export default function Occlusion({ ground, lowPower }: { ground: HeightField; l
     if (!o) return;
     const u = o.userData as { rt: THREE.WebGLRenderTarget; cam: THREE.OrthographicCamera; x: number; z: number; r: number; frames: number };
     const cam = runtime.cam;
-    const strength = lowPower ? 0 : 1 - THREE.MathUtils.smoothstep(cam.dist, 5, 9);
+    // Off on phones, and if the frame rate governor has dropped it (AtlasCanvas).
+    const strength = lowPower || runtime.quality >= 2 ? 0 : 1 - THREE.MathUtils.smoothstep(cam.dist, 5, 9);
     if (strength <= 0) {
       occlusion.uAoBox.value.w = 0;
       return;

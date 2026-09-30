@@ -6,6 +6,8 @@ import * as THREE from "three";
 import { BUILDING_EXAG } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
+import { aoCaster } from "./Occlusion";
 import { siteUniforms } from "./siteState";
 
 const vertex = /* glsl */ `
@@ -16,6 +18,7 @@ const vertex = /* glsl */ `
   varying vec4 vInfo;
   varying float vU;
   #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
   void main() {
     // Buildings rise out of the ground as a detail tile arrives (uGrow 0 -> 1). Rooftop plant
     // stands on the roof, not the ground, so it waits below the terrain until they're up.
@@ -28,6 +31,7 @@ const vertex = /* glsl */ `
     vec4 mvPosition = viewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
+    ${shadowVertex("p")}
   }
 `;
 
@@ -50,6 +54,7 @@ const fragment = /* glsl */ `
   varying vec4 vInfo;
   varying float vU;
   #include <fog_pars_fragment>
+  ${SHADOW_FRAGMENT_PARS}
 
   vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(41.7, 289.3))) * 15731.743); }
@@ -126,6 +131,11 @@ const fragment = /* glsl */ `
     // Company buildings keep their materials from further out than the paper city around them.
     float detailK = isSite || campus || capitol || state ? max(uDetail, 0.9) : uDetail;
     float detail = detailK * wall * (1.0 - smoothstep(0.3, 0.7, fw));
+    // Metres above the street (walls start 3 m below it, at their lowest corner); above the
+    // roofline, the parapet: no windows in it.
+    float streetM = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag - 3.0 / uBuildingExag;
+    float parapet = step(hM, streetM);
+    detail *= 1.0 - parapet;
     if (!pitched && !plant && !pool && hM >= 10.0) {
       if (glass) {
         float m = fract(vU / 1.6);
@@ -135,6 +145,9 @@ const fragment = /* glsl */ `
         vec3 view = normalize(uCamPos - vWorld);
         float fres = pow(1.0 - max(dot(view, n), 0.0), 3.0);
         mat = mix(mat, mix(uHorizon, uZenith, 0.55), (0.25 + 0.45 * fres) * detail);
+        // Panel by panel, the glass catches the sky a little differently.
+        float pane = hash(floor(vec2(vU / 1.6, fl)) + r * 71.0);
+        mat *= 1.0 + (pane - 0.5) * 0.18 * detail;
         mat *= 1.0 - 0.3 * max(mull * 0.7, slab) * detail;
       } else if (westCampus) {
         // Apartment towers: wide windows, and a balcony slab at every floor.
@@ -158,13 +171,38 @@ const fragment = /* glsl */ `
       }
     }
 
+    if (!pitched && !plant && !pool && hM >= 8.0) {
+      // Shopfronts and lobbies: the ground floor glazed dark under a pale fascia, read from
+      // further out than the windows above. (The Capitol and UT keep their stone.)
+      if (!capitol && !campus) {
+        float aa = max(fwidth(streetM), 1e-3);
+        float gf = detailK * wall * (1.0 - smoothstep(0.8, 1.8, aa));
+        float shop = smoothstep(0.3 - aa, 0.3 + aa, streetM) * (1.0 - smoothstep(4.0 - aa, 4.0 + aa, streetM));
+        float fascia = smoothstep(4.0 - aa, 4.0 + aa, streetM) * (1.0 - smoothstep(4.7 - aa, 4.7 + aa, streetM));
+        mat = mix(mat, lin(vec3(0.16, 0.19, 0.23)) + uHorizon * 0.12, shop * gf * 0.8);
+        mat = mix(mat, lin(vec3(0.93, 0.91, 0.86)), fascia * gf * 0.55);
+      }
+      // The parapet's coping: glass towers capped in pale metal.
+      if (glass) mat = mix(mat, lin(vec3(0.8, 0.82, 0.85)), parapet * wall);
+    }
+
     vec3 base = mix(paper, mat, detailK);
     if (isSite) base = mix(base, site.rgb, 0.55 + 0.4 * emph);
 
     float rel = clamp((vWorld.y - vInfo.y) / max(1e-4, hM * 0.001 * uBuildingExag), 0.0, 1.0);
-    float ao = mix(0.72, 1.0, smoothstep(0.0, 0.4, rel));
-    float diff = max(dot(n, uSunDir), 0.0);
-    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * ao * 0.9 + uSunColor * diff * 0.7);
+    // Toy-model shading: the walls darken toward the ground they stand in (the first few metres),
+    // the roofline catches a bright edge, and the sun is shadowed by whatever stands in its way.
+    float above = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag; // metres up the wall
+    float ao = mix(0.6, 1.0, smoothstep(0.0, 8.0, above)) * mix(0.9, 1.0, smoothstep(0.0, 0.5, rel));
+    float diff = max(dot(n, uSunDir), 0.0) * sunShadow(n, uSunDir) * cloudShadow(vWorld, uSunDir);
+    // Contact shadows: walls darker down narrow streets, roofs beside taller towers.
+    float open = skyOpen(vWorld, n);
+    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * ao * open * 0.9 + uSunColor * diff * 0.7 * mix(1.0, open, 0.25));
+    if (wall > 0.5 && !pitched && !plant && !pool) {
+      float below = hM - streetM; // metres under the roofline (negative on the parapet)
+      float line = 1.0 - smoothstep(0.25, 0.25 + max(fwidth(below) * 1.5, 0.4), below);
+      col *= 1.0 + 0.16 * line;
+    }
 
     col *= 1.0 - uNight * 0.84;
     // The Capitol is floodlit after dark, like the stone of the landmarks.
@@ -205,8 +243,10 @@ export function makeBuildingMaterial(grow = 1): THREE.ShaderMaterial {
     fragmentShader: fragment,
     fog: true,
     side: THREE.DoubleSide,
+    lights: true,
     uniforms: {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...shadowUniforms(),
       uSunColor: sky.uSunColor,
       uSunDir: sky.uSunDir,
       uAmbient: sky.uAmbient,
@@ -228,5 +268,5 @@ export default function Buildings({ geometry }: { geometry: THREE.BufferGeometry
   useFrame(() => {
     detail.value = THREE.MathUtils.clamp((14 - runtime.cam.dist) / 8, 0, 1);
   });
-  return <mesh geometry={geometry} material={material} />;
+  return <mesh geometry={geometry} material={material} castShadow receiveShadow onUpdate={aoCaster} />;
 }

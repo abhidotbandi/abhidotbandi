@@ -1,6 +1,8 @@
 import { decodeBuildings, type BuildingsData } from "./buildingsCodec";
 import { decodeCentral, type Central, type CentralMeta, type CentralRaw } from "./central";
 import { RegionRaster } from "./geo";
+import { atlasFiles } from "./files";
+import { mark } from "./perf";
 
 export interface Meta {
   terrain: { width: number; height: number; min: number; max: number };
@@ -81,14 +83,14 @@ export interface CentralAssets {
 
 const BASE = "/atlas";
 
-async function decodeImage(url: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  const blob = await res.blob();
+/** Decode a WebP (or PNG) to RGBA pixels: in the prep worker, or on the main thread as a fallback. */
+async function decodeImage(buf: ArrayBuffer, name: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
+  const blob = new Blob([buf], { type: name.endsWith(".png") ? "image/png" : "image/webp" });
   let source: ImageBitmap | HTMLImageElement;
   try {
     source = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
   } catch {
+    // Browsers without createImageBitmap's options (main thread only).
     source = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
@@ -97,14 +99,21 @@ async function decodeImage(url: string): Promise<{ width: number; height: number
     });
   }
   const { width, height } = source;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null;
+  if (typeof OffscreenCanvas !== "undefined") {
+    ctx = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true });
+  } else {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    ctx = canvas.getContext("2d", { willReadFrequently: true });
+  }
   if (!ctx) throw new Error("2D canvas unavailable");
   ctx.drawImage(source, 0, 0);
   if ("close" in source) source.close();
-  return { width, height, data: ctx.getImageData(0, 0, width, height).data };
+  const data = ctx.getImageData(0, 0, width, height).data;
+  mark(`decoded ${name}`);
+  return { width, height, data };
 }
 
 function decodeLine(enc: number[]): Polyline {
@@ -148,48 +157,79 @@ function decodeVectors(raw: RawVectors): Vectors {
   };
 }
 
-const json = <T,>(name: string) =>
-  fetch(`${BASE}/${name}`).then((r) => {
-    if (!r.ok) throw new Error(`${name}: ${r.status}`);
-    return r.json() as Promise<T>;
-  });
+type FileSet = ReturnType<typeof atlasFiles>;
+/** The regional map's files as fetched; the country beyond the map (outer) may be missing. */
+export type RegionalFiles = Record<keyof FileSet["regional"], ArrayBuffer | null>;
+export type CentralFiles = Record<keyof FileSet["central"], ArrayBuffer>;
 
-const binary = (name: string) =>
-  fetch(`${BASE}/${name}`).then((r) => {
-    if (!r.ok) throw new Error(`${name}: ${r.status}`);
-    return r.arrayBuffer();
-  });
+/** Rough shares of the bytes, for the progress bar. */
+const REGIONAL_WEIGHTS: Record<keyof FileSet["regional"], number> = {
+  meta: 0.01,
+  terrain: 0.36,
+  surface: 0.3,
+  vectors: 0.07,
+  buildings: 0.08,
+  outer: 0.18,
+};
+const CENTRAL_WEIGHTS: Record<keyof FileSet["central"], number> = {
+  terrain: 0.22,
+  surface: 0.34,
+  data: 0.03,
+  trees: 0.09,
+  buildings: 0.32,
+};
 
-/** Progress over parallel loads, each weighted by its rough share of the bytes. */
-function progress(onProgress?: (p: number) => void) {
+async function fetchAll<K extends string>(
+  names: Record<K, string>,
+  weights: Record<K, number>,
+  optional: K[],
+  onProgress?: (p: number) => void,
+): Promise<Record<K, ArrayBuffer | null>> {
   let done = 0;
-  return (w: number) =>
-    <T,>(v: T): T => {
-      done += w;
-      onProgress?.(Math.min(1, done));
-      return v;
-    };
+  const keys = Object.keys(names) as K[];
+  const bufs = await Promise.all(
+    keys.map((k) =>
+      fetch(`${BASE}/${names[k]}`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${names[k]}: ${r.status}`);
+          return r.arrayBuffer();
+        })
+        .catch((err) => {
+          if (optional.includes(k)) return null;
+          throw err;
+        })
+        .then((b) => {
+          mark(`got ${names[k]}`);
+          done += weights[k];
+          onProgress?.(Math.min(1, done));
+          return b;
+        }),
+    ),
+  );
+  return Object.fromEntries(keys.map((k, i) => [k, bufs[i]])) as Record<K, ArrayBuffer | null>;
 }
 
-/**
- * The regional map: enough to draw the whole Austin area. Low-power devices get the rasters at
- * half resolution (built by scripts/atlas/build_lowres.py), matching their coarser meshes.
- */
-export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number) => void): Promise<AtlasAssets> {
-  const tick = progress(onProgress);
-  const lo = lowPower ? "_lo" : "";
-  const [meta, terrain, surface, vectors, buildings, outerImg] = await Promise.all([
-    json<Meta>("meta.json").then(tick(0.01)),
-    decodeImage(`${BASE}/terrain${lo}.webp`).then(tick(lowPower ? 0.25 : 0.4)),
-    decodeImage(`${BASE}/surface${lo}.webp`).then(tick(lowPower ? 0.3 : 0.35)),
-    json<RawVectors>("vectors.json").then(tick(lowPower ? 0.18 : 0.06)),
-    binary("buildings.bin").then(decodeBuildings).then(tick(lowPower ? 0.12 : 0.06)),
-    // The country beyond the map is scenery: without it the map still works, edge and all.
-    decodeImage(`${BASE}/outer${lo}.webp`)
-      .catch(() => null)
-      .then(tick(lowPower ? 0.15 : 0.13)),
-  ]);
+/** Fetch the regional map's files (decoded by decodeAtlasAssets). */
+export function fetchRegionalFiles(lowPower: boolean, onProgress?: (p: number) => void): Promise<RegionalFiles> {
+  // The country beyond the map is scenery: without it the map still works, edge and all.
+  return fetchAll<keyof FileSet["regional"]>(atlasFiles(lowPower).regional, REGIONAL_WEIGHTS, ["outer"], onProgress);
+}
 
+/** Fetch central Austin's files (decoded by decodeCentralAssets). */
+export function fetchCentralFiles(lowPower: boolean, onProgress?: (p: number) => void): Promise<CentralFiles> {
+  return fetchAll<keyof FileSet["central"]>(atlasFiles(lowPower).central, CENTRAL_WEIGHTS, [], onProgress) as Promise<CentralFiles>;
+}
+
+const text = (buf: ArrayBuffer | null) => new TextDecoder().decode(buf ?? new ArrayBuffer(0));
+
+/** The regional map, decoded: enough to draw the whole Austin area. */
+export async function decodeAtlasAssets(f: RegionalFiles): Promise<AtlasAssets> {
+  const meta = JSON.parse(text(f.meta)) as Meta;
+  const [terrain, surface, outerImg] = await Promise.all([
+    decodeImage(f.terrain!, "terrain.webp"),
+    decodeImage(f.surface!, "surface.webp"),
+    f.outer ? decodeImage(f.outer, "outer.webp").catch(() => null) : Promise.resolve(null),
+  ]);
   const n = terrain.width * terrain.height;
   const elev = new Float32Array(n);
   const density = new Uint8Array(n);
@@ -215,26 +255,18 @@ export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number
     height: new RegionRaster(terrain.width, terrain.height, elev),
     density,
     surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
-    vectors: decodeVectors(vectors),
-    buildings,
+    vectors: decodeVectors(JSON.parse(text(f.vectors)) as RawVectors),
+    buildings: decodeBuildings(f.buildings!),
     outer,
   };
 }
 
-/**
- * Central Austin's street-scale detail: terrain, surface, paths, trees and every building. The
- * atlas opens on the city, so this loads alongside the regional map rather than after it.
- */
-export async function loadCentralAssets(lowPower: boolean, onProgress?: (p: number) => void): Promise<CentralAssets> {
-  const tick = progress(onProgress);
-  const lo = lowPower ? "_lo" : "";
-  const [meta, cTerrain, cSurface, cVectors, cTrees, buildings] = await Promise.all([
-    json<Meta>("meta.json"),
-    decodeImage(`${BASE}/central_terrain${lo}.webp`).then(tick(0.26)),
-    decodeImage(`${BASE}/central_surface${lo}.webp`).then(tick(0.41)),
-    json<CentralRaw>("central.json").then(tick(0.03)),
-    binary("central_trees.bin").then(tick(0.1)),
-    binary("central_buildings.bin").then(decodeBuildings).then(tick(0.2)),
+/** Central Austin's street-scale detail, decoded: terrain, surface, paths, trees and every building. */
+export async function decodeCentralAssets(meta: Meta, f: CentralFiles): Promise<CentralAssets> {
+  const [cTerrain, cSurface] = await Promise.all([
+    decodeImage(f.terrain, "central_terrain.webp"),
+    decodeImage(f.surface, "central_surface.webp"),
   ]);
-  return { central: decodeCentral(meta.central, cTerrain, cSurface, cVectors, cTrees), buildings };
+  const raw = JSON.parse(text(f.data)) as CentralRaw;
+  return { central: decodeCentral(meta.central, cTerrain, cSurface, raw, f.trees), buildings: decodeBuildings(f.buildings) };
 }

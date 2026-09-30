@@ -14,6 +14,7 @@ import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/g
 import { coverRectangles, hipRoof } from "@/lib/atlas/roofs";
 import { sky } from "@/lib/atlas/timeOfDay";
 import Buildings from "./Buildings";
+import { aoCaster } from "./Occlusion";
 
 // Austin's landmarks as procedural low-poly models: the Texas State Capitol in sunset-red
 // granite and its grounds, with the Governor's Mansion, the Old Land Office and St. Mary
@@ -1586,16 +1587,22 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
     warmPoints: new THREE.Points(),
   };
   const root = new THREE.Group();
-  root.add(new THREE.Mesh(stone.geometry(), parts.stone));
-  root.add(new THREE.Mesh(arena.geometry(), parts.arena));
-  root.add(new THREE.Mesh(field.geometry(), parts.field));
-  root.add(new THREE.Mesh(stands.geometry(), parts.stands));
-  root.add(new THREE.Mesh(soft.geometry(), parts.soft));
-  root.add(new THREE.Mesh(hot.geometry(), parts.hot));
-  root.add(new THREE.Mesh(lamps.geometry(), parts.lamps));
-  root.add(new THREE.Mesh(lit.geometry(), parts.lit));
-  root.add(new THREE.Mesh(warm.geometry(), parts.warm));
-  root.add(new THREE.Mesh(pave.geometry(), parts.pave));
+  const solid = (ms: Mesher, m: THREE.Material) => {
+    const mesh = new THREE.Mesh(ms.geometry(), m);
+    mesh.castShadow = mesh.receiveShadow = true;
+    aoCaster(mesh);
+    root.add(mesh);
+  };
+  solid(stone, parts.stone);
+  solid(arena, parts.arena);
+  solid(field, parts.field);
+  solid(stands, parts.stands);
+  solid(soft, parts.soft);
+  solid(hot, parts.hot);
+  solid(lamps, parts.lamps);
+  solid(lit, parts.lit);
+  solid(warm, parts.warm);
+  solid(pave, parts.pave);
   const lg = new THREE.BufferGeometry();
   lg.setAttribute("position", new THREE.Float32BufferAttribute(lines, 3));
   lg.setAttribute("color", new THREE.Float32BufferAttribute(lcol, 3));

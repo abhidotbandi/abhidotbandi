@@ -1,7 +1,5 @@
 import * as THREE from "three";
-import type { BuildingsData } from "./buildingsCodec";
-import { extrudeBuildings, type BuildingArrays } from "./extrude";
-import type { HeightField } from "./geo";
+import type { BuildingArrays } from "./extrude";
 
 export { KIND_PITCHED, KIND_PLAIN, KIND_ROOF_PLANT } from "./extrude";
 
@@ -20,22 +18,4 @@ export function buildingGeometry(a: Omit<BuildingArrays, "siteTop">): THREE.Buff
   geometry.setIndex(new THREE.BufferAttribute(a.index, 1));
   geometry.computeBoundingSphere();
   return geometry;
-}
-
-/**
- * Extrude footprints into one merged geometry, with roofs to match (see extrudeBuildings).
- */
-export function buildBuildings(
-  data: BuildingsData,
-  height: HeightField,
-  siteIndexOf: (id: string) => number,
-  siteCount: number,
-  minFootprintM2 = 0,
-  /** leave out footprints this accepts, by centre (km) and SITES index: modelled separately */
-  skip?: (x: number, z: number, site: number) => boolean,
-  /** a building style (STYLE_* in extrude.ts) by footprint, height and area */
-  style?: (ring: number[], hM: number, areaM2: number) => number,
-): BuildingMesh {
-  const a = extrudeBuildings(data, height, data.sites.map(siteIndexOf), siteCount, minFootprintM2, skip, style);
-  return { geometry: buildingGeometry(a), siteTop: a.siteTop };
 }

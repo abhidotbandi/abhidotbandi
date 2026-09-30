@@ -6,6 +6,7 @@ import * as THREE from "three";
 import type { Trees as TreeData } from "@/lib/atlas/central";
 import { CX_MIN, CZ_MIN, C_HEIGHT_KM, C_WIDTH_KM, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
+import { aoCaster } from "./Occlusion";
 
 // Central Austin's trees as low-poly instances: live oaks, cedar elms and pecans as rounded
 // crowns, bald cypress along the river and Ashe juniper in the western hills as cones. Only
@@ -68,6 +69,14 @@ export function crownGeometry(conical: boolean): THREE.BufferGeometry {
   return out;
 }
 
+/**
+ * Whether trees cast sun shadows: only close enough in to see them (and not on low-power
+ * devices, where the shadow pass keeps to buildings), as each tree is ~90 triangles to draw again.
+ */
+export function treesCastShadows(dist: number, lowPower: boolean): boolean {
+  return !lowPower && dist < 3.2;
+}
+
 export const ROUND = ["#3f8a35", "#4f9a3c", "#62a845", "#357a30", "#6fb24c", "#4b8d40"].map((c) => new THREE.Color(c));
 export const CONE = ["#2a6a38", "#347a40", "#448846", "#5a8c3e"].map((c) => new THREE.Color(c));
 
@@ -86,6 +95,8 @@ function makeLayer(trees: TreeData, capacity: number): THREE.Group {
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     m.count = 0;
     m.frustumCulled = false;
+    m.receiveShadow = true;
+    aoCaster(m);
     return m;
   };
   const root = new THREE.Group();
@@ -114,6 +125,7 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
     g.visible = show;
     if (!show) return;
     const layer = g.userData.layer as Layer;
+    layer.round.castShadow = layer.cone.castShadow = treesCastShadows(cam.dist, lowPower);
     const radius = Math.min(4.2, Math.max(0.9, cam.dist * 1.7));
     const last = layer.last;
     // Refill only when the view has moved enough to matter.

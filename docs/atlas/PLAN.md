@@ -733,3 +733,60 @@ look vibrant, while this one opened on the whole region at dawn and looked drab.
   sees about as much of the city across as a laptop. In the tour, each stop's subject sits in the
   open map above its card.
 
+### 2.15 Instant first view, toy-model shading, clouds and water (2026-09-30)
+
+Asked for after 2.14: drifting clouds and toy-model shading; less blocky, more detailed; more
+realistic water; and a first view as instant as the levels.fyi atlases'.
+
+- **The first view is a picture, straight away.** The opening view is pre-rendered as two images
+  (`public/atlas/poster.webp`, 2400×1200 and about 550 KB, and `poster-portrait.webp` for phones,
+  about 260 KB), shown the moment the page loads, over a tiny blurred copy inlined in the page
+  (1 KB for both) until the image itself arrives. Each is the tour's first view from the live
+  camera's own position and direction, so fitting it to any screen is only a scale (the field of
+  view) and a shift (the focal point): CSS does it before any script runs, and the live map
+  cross-fades in over it, lined up, when ready. Scrolling waits for the live map, and the tour card's hint
+  reads "Loading the live map" with a progress bar until then. The posters are renders of the
+  app (`scripts/atlas/render_poster.py`): re-render them whenever the opening view's look changes.
+- **Loading starts with the HTML.** A small inline script in the atlas's layout asks for the poster
+  and the first view's data files (the phone set on phones, by the same test the app uses) as
+  the page arrives, before any JavaScript loads; the app's own requests then reuse them.
+- **The heavy lifting moved off the main thread.** A worker (`src/lib/atlas/prep/`) decodes the
+  images and does all the preparation (terrain textures, building extrusion, the site models, the
+  central patch's grid, trees, the lakes' water levels), handing back plain arrays, so the page
+  stays responsive while it loads. Where workers can't decode images, the same code runs on the
+  main thread.
+- **No fly-in.** The camera is on the opening view from the first frame.
+- **Measured**: the page's `atlas:*` performance marks break the load down (see
+  `scripts/atlas/README.md`). Locally, the data files start downloading about 60 ms into the page
+  load instead of 1.4 s; the rest is download size and the GPU.
+- **Toy-model shading:**
+  - Sun shadows from buildings, company sites, landmarks, bridges and trees, sharp up close and
+    broader from afar. They fade out at dusk.
+  - Contact shadows: the ground darkens where buildings meet it, down narrow streets and under
+    trees, walls darken lower down between towers, and roofs darken around their plant rooms.
+    The buildings are drawn from straight above into a height map around the view, redrawn as it
+    moves, and each surface looks at the heights around it. Desktop only, up close.
+  - Walls darken toward the ground, and rooflines catch a bright edge.
+- **Detail:**
+  - Flat roofs sit behind parapets.
+  - Towers are crowned with a penthouse, a smaller plant room on top of it, and plant units either
+    side.
+  - Mid-rises and towers have dark glazed shopfronts and lobbies under a pale fascia at street level.
+  - Curtain-wall glass varies panel by panel.
+- **Clouds:** fair-weather cumulus, soft flat-bottomed cushions drifting on a south-easterly
+  breeze and casting soft shadows on the ground and buildings.
+  - They keep to the edges of the picture: any drifting over the middle, around what the camera
+    looks at, or too close to the camera, shrinks away.
+  - They thin out in the widest views.
+  - Three are placed to frame the opening view. They're in the poster, and start drifting when the
+    live map appears.
+  - At night they're dark, with the city's glow underneath.
+- **Water:**
+  - Lady Bird Lake and Lake Austin mirror the skyline, bridges and trees, broken up by wind
+    ripples. The scene is drawn again from below the surface each frame. Desktop only, up close.
+  - Ripples at two scales everywhere.
+  - Deeper colour, from green shallows to deep blue, with more of the sky at a glancing angle and
+    the sun's glint (not in shadow).
+  - Wet, darker banks. The drawn shorelines are gone.
+- **Phones** get smaller shadow maps and fewer clouds, and no reflections or contact shadows.
+

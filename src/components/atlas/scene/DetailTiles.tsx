@@ -12,8 +12,10 @@ import { runtime } from "@/lib/atlas/store";
 import type { TileIndex } from "@/lib/atlas/tiles";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { makeBuildingMaterial } from "./Buildings";
+import { aoCaster } from "./Occlusion";
+import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
 import type { PreparedScene } from "./prepare";
-import { CONE, ROUND, TREE_EXAG, crownGeometry } from "./Trees";
+import { CONE, ROUND, TREE_EXAG, crownGeometry, treesCastShadows } from "./Trees";
 import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
 
 // Street-scale detail beyond central Austin, streamed in 2 km tiles around the camera once it
@@ -68,6 +70,7 @@ function polyDistance(poly: number[], x: number, z: number): number {
 }
 
 const LIT = /* glsl */ `
+  ${SHADOW_FRAGMENT_PARS}
   uniform vec3 uSunColor;
   uniform vec3 uSunDir;
   uniform vec3 uAmbient;
@@ -80,8 +83,9 @@ const LIT = /* glsl */ `
   // Lit like the ground beneath, so paint and paving sit in the terrain's light.
   vec3 groundLit(vec3 col, vec3 world) {
     vec3 n = normalize(texture2D(uNormal, (world.xz - uRegion.xy) / uRegion.zw).xyz * 2.0 - 1.0);
-    float diff = max(dot(n, uSunDir), 0.0);
-    return col * (uAmbient * (0.6 + 0.4 * n.y) * 0.78 + uSunColor * diff * 0.52) * (1.0 - uNight * 0.82);
+    float diff = max(dot(n, uSunDir), 0.0) * sunShadow(n, uSunDir) * cloudShadow(world, uSunDir);
+    float open = skyOpen(world, n);
+    return col * (uAmbient * (0.6 + 0.4 * n.y) * 0.78 * open + uSunColor * diff * 0.52 * mix(1.0, open, 0.35)) * (1.0 - uNight * 0.82);
   }
 `;
 
@@ -96,6 +100,7 @@ const ribbonVertex = /* glsl */ `
   varying float vHalfM;
   varying float vDepth;
   #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
   void main() {
     vec4 c = viewMatrix * vec4(position, 1.0);
     vDepth = -c.z;
@@ -110,6 +115,7 @@ const ribbonVertex = /* glsl */ `
     vec4 mvPosition = viewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
+    ${shadowVertex("p")}
   }
 `;
 
@@ -193,6 +199,7 @@ const areaVertex = /* glsl */ `
   varying float vKind;
   varying float vDepth;
   #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
   void main() {
     vec3 p = position;
     p.y += uLift * 0.7;
@@ -202,6 +209,7 @@ const areaVertex = /* glsl */ `
     vDepth = -mvPosition.z;
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
+    ${shadowVertex("p")}
   }
 `;
 
@@ -262,7 +270,8 @@ function paintMaterial(shared: Shared, appear: { value: number }, vertexShader: 
     fog: true,
     transparent: true,
     depthWrite: false,
-    uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...shared, uAppear: appear },
+    lights: true,
+    uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...shadowUniforms(), ...shared, uAppear: appear },
   });
 }
 
@@ -293,6 +302,8 @@ class TreePool {
       m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
       m.count = 0;
       m.frustumCulled = false;
+      m.receiveShadow = true;
+      aoCaster(m);
       return m;
     };
     this.round = mk(false);
@@ -412,7 +423,10 @@ function tileGroup(m: TileMeshes, st: State, appear: { value: number }): THREE.G
     mat.uniforms.uGrow = appear;
     const geo = buildingGeometry(m.buildings);
     freeAfterUpload(geo);
-    g.add(new THREE.Mesh(geo, mat));
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = mesh.receiveShadow = true;
+    aoCaster(mesh);
+    g.add(mesh);
   }
   return g;
 }
@@ -646,6 +660,8 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
       // Nearest first; over budget, the furthest wait (and aren't drawn) until the view comes closer.
       const want = [...wanted.values()].sort((p, q) => p.d - q.d).slice(0, lim.tiles);
       for (const { t } of want) t.seen = now;
+      // The first view waits for these (see ReadySignal), so it opens complete.
+      runtime.tilesSettled = want.every(({ t }) => t.status === 3 || (t.status === 2 && t.appear.value >= 1));
       for (const { t } of want) {
         if (st.inflight >= 6) break;
         if (t.status === 3 && now - t.failedAt > 20000) t.status = 0;
@@ -706,6 +722,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
     // From afar single trees read as speckle; the terrain's canopy tint carries the woods.
     const treesOn = cam.dist < 8;
     st.pool.round.visible = st.pool.cone.visible = treesOn;
+    st.pool.round.castShadow = st.pool.cone.castShadow = treesCastShadows(cam.dist, st.lowPower);
     if (treesOn) fillTrees(st, cam, visible.filter((t) => t.appear.value >= 1));
 
     const carMax = st.lowPower ? 3.6 : 5.5;

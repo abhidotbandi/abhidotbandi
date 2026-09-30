@@ -7,6 +7,8 @@ import { BUILDING_EXAG } from "@/lib/atlas/geo";
 import type { SiteModelSet } from "@/lib/atlas/siteModels";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
+import { aoCaster } from "./Occlusion";
 import { siteUniforms } from "./siteState";
 
 // The company sites' models (built in siteModels/): lit like the buildings, with trim in the
@@ -21,6 +23,7 @@ const vertex = /* glsl */ `
   varying vec2 vKind;
   varying vec3 vWorld;
   #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
   void main() {
     vColor = aColor;
     vKind = aKind;
@@ -28,6 +31,7 @@ const vertex = /* glsl */ `
     vec4 mvPosition = viewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
+    ${shadowVertex("position")}
   }
 `;
 
@@ -46,6 +50,7 @@ const fragment = /* glsl */ `
   varying vec2 vKind;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
+  ${SHADOW_FRAGMENT_PARS}
 
   float hash(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
 
@@ -94,8 +99,9 @@ const fragment = /* glsl */ `
     // Picked, hovered or in the tour's focus: the model takes on its domain's colour.
     if (on) base = mix(base, site.rgb, 0.3 * smoothstep(0.55, 1.0, emph));
 
-    float diff = max(dot(n, uSunDir), 0.0);
-    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * 0.9 + uSunColor * diff * 0.7);
+    float diff = max(dot(n, uSunDir), 0.0) * sunShadow(n, uSunDir) * cloudShadow(vWorld, uSunDir);
+    float open = skyOpen(vWorld, n);
+    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * open * 0.9 + uSunColor * diff * 0.7 * mix(1.0, open, 0.25));
     col *= 1.0 - uNight * 0.84;
 
     float dark = smoothstep(0.35, 1.0, uNight);
@@ -193,8 +199,10 @@ export default function SiteModels({ models }: { models: SiteModelSet }) {
         fragmentShader: fragment,
         fog: true,
         side: THREE.DoubleSide,
+        lights: true,
         uniforms: {
           ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+          ...shadowUniforms(),
           uSunColor: sky.uSunColor,
           uSunDir: sky.uSunDir,
           uAmbient: sky.uAmbient,
@@ -242,7 +250,7 @@ export default function SiteModels({ models }: { models: SiteModelSet }) {
   if (!models.geometry) return null;
   return (
     <group>
-      <mesh ref={mesh} geometry={models.geometry} material={material} />
+      <mesh ref={mesh} geometry={models.geometry} material={material} castShadow receiveShadow onUpdate={aoCaster} />
       {steam && <primitive ref={steamRef} object={steam} />}
     </group>
   );

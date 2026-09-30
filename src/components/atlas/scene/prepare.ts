@@ -1,15 +1,15 @@
-import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
-import type { AtlasAssets, CentralAssets } from "@/lib/atlas/assets";
-import { buildBuildings, type BuildingMesh } from "@/lib/atlas/buildings";
+import { SITES } from "@/data/atlas/companies";
+import type { AtlasAssets } from "@/lib/atlas/assets";
+import { buildingGeometry, type BuildingMesh } from "@/lib/atlas/buildings";
 import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
-import { capitolClearings, isCapitolSkylight } from "@/lib/atlas/capitol";
-import { districtStyle } from "@/lib/atlas/districtStyle";
-import { pointInPoly } from "@/lib/atlas/polygon";
-import { MODELLED_LANDMARKS, buildPatchGrid, clearTrees, type Central, type Trees } from "@/lib/atlas/central";
-import { BaseMeshField, Ground, type PatchGrid } from "@/lib/atlas/geo";
-import { MODELLED_SITES, buildSiteModels, type SiteModelSet } from "@/lib/atlas/siteModels";
-import { isLowPower } from "@/lib/atlas/tier";
-import { makeCentralTextures, makeTextures, type AtlasTextures } from "./textures";
+import type { Central, Trees } from "@/lib/atlas/central";
+import { BaseMeshField, Ground, PatchGrid, RegionRaster } from "@/lib/atlas/geo";
+import type { CentralPrep, RegionalPrep, WaterLevels } from "@/lib/atlas/prep/compute";
+import { emptySiteModels, siteModelSet, type SiteModelArrays, type SiteModelSet } from "@/lib/atlas/siteModels";
+import { makeTextures, type AtlasTextures } from "./textures";
+
+// The scene's three.js objects, wrapped around what the prep worker computed (lib/atlas/prep):
+// textures, geometries, and the ground everything stands on.
 
 /** Central Austin's detail, once it has loaded. */
 export interface CentralScene {
@@ -23,19 +23,21 @@ export interface CentralScene {
   footprints: BuildingsData;
   /** the patch's trees, clear of the site models' plant and the Capitol's walks and monuments */
   trees: Trees;
+  /** the water's level across the patch, for the lake's reflections */
+  water: WaterLevels;
 }
 
 export interface PreparedScene {
   assets: AtlasAssets;
   tex: AtlasTextures;
-  /** street-scale central Austin; null until it loads (the regional map draws first) */
+  /** street-scale central Austin; null until it loads */
   central: CentralScene | null;
   /** the ground everything stands on (the patch where there is one, else the base terrain) */
   ground: Ground;
   /** the surface the base terrain mesh draws, which the patch edge meets */
   baseSurface: BaseMeshField;
   buildings: BuildingMesh;
-  /** the signature sites, modelled (their plain extrusions are left out of `buildings`) */
+  /** the company sites, modelled (their plain extrusions are left out of `buildings`) */
   models: SiteModelSet;
   /** per SITES index: highest roof of the site's buildings in any set (world y), or NaN */
   siteTop: Float32Array;
@@ -44,85 +46,56 @@ export interface PreparedScene {
   lowPower: boolean;
 }
 
-const siteIndex = (id: string) => SITE_BY_ID.get(id)?.index ?? -1;
-
-/** Each footprint's outer ring (flat x, z km). */
-function outerRings(d: BuildingsData): number[][] {
-  const out: number[][] = [];
-  for (let b = 0; b < d.count; b++) {
-    const r: number[] = [];
-    for (let v = d.vertStart[d.ringStart[b]]; v < d.vertStart[d.ringStart[b] + 1]; v++) r.push(d.x[v] / 1000, d.z[v] / 1000);
-    out.push(r);
-  }
-  return out;
-}
-
 /** Per-site highest roofs from two sets, either of which may lack a site (NaN). */
 function maxTop(a: Float32Array, b: Float32Array): Float32Array {
   return a.map((v, i) => (Number.isNaN(v) ? b[i] : Number.isNaN(b[i]) ? v : Math.max(v, b[i])));
 }
 
-/** CPU-side prep of the regional map, run once while the loader is still up. */
-export function prepareScene(assets: AtlasAssets): PreparedScene {
-  const lowPower = isLowPower();
-  const tex = makeTextures(assets);
-  const terrainSegments = lowPower ? 320 : 560;
-  // Objects and the patch edge follow the surface the base mesh draws, not the raster.
-  const baseSurface = new BaseMeshField(assets.height, terrainSegments);
-  const ground = new Ground(baseSurface, null);
-  const modelled = new Set(MODELLED_SITES.map(siteIndex));
-  const buildings = buildBuildings(assets.buildings, ground, siteIndex, SITES.length, lowPower ? 120 : 0, (_x, _z, site) =>
-    modelled.has(site),
-  );
-  const models = buildSiteModels([assets.buildings], ground, SITES.length);
+/** The regional map's scene. The site models come with central Austin (or withSiteModels). */
+export function prepareScene(r: RegionalPrep): PreparedScene {
+  // Class instances don't survive the trip from the worker: rebuild the raster around its data.
+  const h = r.assets.height;
+  const assets: AtlasAssets = { ...r.assets, height: new RegionRaster(h.width, h.height, h.data) };
+  const baseSurface = new BaseMeshField(assets.height, r.terrainSegments);
+  const buildings = { geometry: buildingGeometry(r.buildings), siteTop: r.buildings.siteTop };
   return {
     assets,
-    tex,
+    tex: makeTextures(r.pixels),
     central: null,
-    ground,
+    ground: new Ground(baseSurface, null),
     baseSurface,
     buildings,
-    models,
-    siteTop: maxTop(buildings.siteTop, models.siteTop),
-    terrainSegments,
-    lowPower,
+    models: siteModelSet(emptySiteModels(SITES.length)),
+    siteTop: buildings.siteTop,
+    terrainSegments: r.terrainSegments,
+    lowPower: r.lowPower,
   };
 }
 
-/** Add central Austin to a prepared scene: its patch terrain, the ground on it, and its buildings. */
-export function upgradeScene(scene: PreparedScene, c: CentralAssets): PreparedScene {
-  const { lowPower } = scene;
-  // ~16 m mesh cells on desktop (the DEM is ~8 m), ~28 m on phones.
-  const patch = buildPatchGrid(c.central, scene.baseSurface, lowPower ? 0.028 : 0.016);
-  const ground = new Ground(scene.baseSurface, patch);
-  // The Capitol, the Tower and the other modelled landmarks drop their plain extrusions (the
-  // Capitol Extension's skylights too), as do the company sites modelled in their place.
-  const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
-  const sites = new Set(MODELLED_SITES.map(siteIndex));
-  const central = buildBuildings(
-    c.buildings,
-    ground,
-    siteIndex,
-    SITES.length,
-    lowPower ? 120 : 0,
-    (x, z, site) => sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z),
-    districtStyle,
-  );
-  // The site models again, now with central Austin's footprints too.
-  const models = buildSiteModels([scene.assets.buildings, c.buildings], ground, SITES.length);
-  const siteTop = maxTop(maxTop(scene.buildings.siteTop, models.siteTop), central.siteTop);
+/** Add central Austin to a prepared scene: its patch terrain, the ground on it, its buildings and the sites' models. */
+export function upgradeScene(scene: PreparedScene, c: CentralPrep): PreparedScene {
+  const patch = new PatchGrid(c.patch.nx, c.patch.nz, c.patch.data);
+  const buildings = { geometry: buildingGeometry(c.buildings), siteTop: c.buildings.siteTop };
+  const models = siteModelSet(c.models);
   return {
     ...scene,
     central: {
       data: c.central,
-      tex: makeCentralTextures(c.central),
+      tex: makeTextures(c.pixels),
       patch,
-      buildings: central,
-      footprints: c.buildings,
-      trees: clearTrees(c.central.trees, [...outerRings(models.clearings), ...capitolClearings()]),
+      buildings,
+      footprints: c.footprints,
+      trees: c.trees,
+      water: c.water,
     },
-    ground,
+    ground: new Ground(scene.baseSurface, patch),
     models,
-    siteTop,
+    siteTop: maxTop(maxTop(scene.buildings.siteTop, models.siteTop), buildings.siteTop),
   };
+}
+
+/** The sites' models on the regional map alone, when central Austin's detail couldn't load. */
+export function withSiteModels(scene: PreparedScene, m: SiteModelArrays): PreparedScene {
+  const models = siteModelSet(m);
+  return { ...scene, models, siteTop: maxTop(scene.buildings.siteTop, models.siteTop) };
 }

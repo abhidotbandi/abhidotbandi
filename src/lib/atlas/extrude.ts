@@ -86,13 +86,14 @@ export function extrudeBuildings(
     if (!skip || !skip(...outerCentre(data, b), data.site[b] >= 0 ? siteMap[data.site[b]] : -1)) records.push(b);
   }
 
-  // Upper bounds on sizes: walls, doubled ring starts, roofs and up to four roof boxes.
+  // Upper bounds on sizes: walls (with parapets), doubled ring starts, roofs and up to four roof
+  // boxes.
   let maxV = 0;
   let maxI = 0;
   for (const b of records) {
     const rings = ringStart[b + 1] - ringStart[b];
     const pts = vertStart[ringStart[b + 1]] - vertStart[ringStart[b]];
-    maxV += pts * 2 + rings * 2 + 6 + 4 * 8;
+    maxV += pts * 3 + rings * 3 + 6 + 4 * 8;
     maxI += pts * 6 + (pts - 2 + 2 * (rings - 1)) * 3 + 18 + 4 * 30;
   }
 
@@ -216,14 +217,23 @@ export function extrudeBuildings(
       }
       perim.push(cum + Math.hypot(flat[s0 * 2] - flat[(s1 - 1) * 2], flat[s0 * 2 + 1] - flat[(s1 - 1) * 2 + 1]) * 1000);
     }
+    const house = site < 0 && !flags && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450;
+    // Flat roofs sit behind a parapet: the walls rise a little above them (the material draws
+    // both faces, so the parapet's inside shows from above).
+    const parapet = !house && flags !== STYLE_CAMPUS_TILE && hM >= 6 ? ((hM >= 45 ? 1.5 : 1.0) / 1000) * BUILDING_EXAG : 0;
     const bottom = v;
     for (let j = 0; j < nPts; j++) vert(flat[j * 2], yBase, flat[j * 2 + 1], kind, yBase, hM, r, ringU[j]);
     const top = v;
     for (let j = 0; j < nPts; j++) vert(flat[j * 2], yTop, flat[j * 2 + 1], kind, yBase, hM, r, ringU[j]);
+    let wallTop = top;
+    if (parapet > 0) {
+      wallTop = v;
+      for (let j = 0; j < nPts; j++) vert(flat[j * 2], yTop + parapet, flat[j * 2 + 1], kind, yBase, hM, r, ringU[j]);
+    }
     const wrapB = v;
     for (let ri = 0; ri < rings; ri++) vert(flat[starts[ri] * 2], yBase, flat[starts[ri] * 2 + 1], kind, yBase, hM, r, perim[ri]);
     const wrapT = v;
-    for (let ri = 0; ri < rings; ri++) vert(flat[starts[ri] * 2], yTop, flat[starts[ri] * 2 + 1], kind, yBase, hM, r, perim[ri]);
+    for (let ri = 0; ri < rings; ri++) vert(flat[starts[ri] * 2], yTop + parapet, flat[starts[ri] * 2 + 1], kind, yBase, hM, r, perim[ri]);
 
     // Walls, ring by ring.
     for (let ri = 0; ri < rings; ri++) {
@@ -232,9 +242,9 @@ export function extrudeBuildings(
       for (let j = s0; j < s1; j++) {
         const last = j + 1 >= s1;
         const b2 = last ? wrapB + ri : bottom + j + 1;
-        const t2 = last ? wrapT + ri : top + j + 1;
+        const t2 = last ? wrapT + ri : wallTop + j + 1;
         tri(bottom + j, b2, t2);
-        tri(bottom + j, t2, top + j);
+        tri(bottom + j, t2, wallTop + j);
       }
     }
 
@@ -255,7 +265,7 @@ export function extrudeBuildings(
     }
 
     // Houses get a pitched roof over the footprint's bounding rectangle, with eaves.
-    if (site < 0 && !flags && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450) {
+    if (house) {
       let a0 = Infinity;
       let a1 = -Infinity;
       let b0 = Infinity;
@@ -384,7 +394,20 @@ export function extrudeBuildings(
           ea = Math.max(ea, Math.abs(dx * ux + dz * uz));
           eb = Math.max(eb, Math.abs(-dx * uz + dz * ux));
         }
-        roofBox(sx, sz, ux, uz, ea * 0.42, eb * 0.42, yTop, 5 + rand * 3, rand);
+        const ph = 5 + rand * 3;
+        roofBox(sx, sz, ux, uz, ea * 0.42, eb * 0.42, yTop, ph, rand);
+        // A smaller plant room on the penthouse, and on rectangular towers plant units either side.
+        if (rand > 0.35) {
+          const y1 = yTop + (ph / 1000) * BUILDING_EXAG;
+          roofBox(sx + ux * ea * 0.1, sz + uz * ea * 0.1, ux, uz, ea * 0.2, eb * 0.24, y1, 3 + rand * 2, rand);
+        }
+        if (areaM2 >= 4 * ea * eb * 1e6 * 0.82) {
+          for (const side of [-1, 1]) {
+            const rr = hash(sx + side * 0.01, sz);
+            if (rr < 0.3) continue;
+            roofBox(sx + ux * ea * 0.62 * side, sz + uz * ea * 0.62 * side, ux, uz, ea * 0.08, eb * (0.14 + rr * 0.1), yTop, 2 + rr * 1.5, rand);
+          }
+        }
       } else {
         // Boxes at the largest roof triangles.
         const n = 1 + Math.floor(rand * 3);

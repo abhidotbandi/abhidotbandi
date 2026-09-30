@@ -2,7 +2,9 @@
 
 import { useMemo } from "react";
 import * as THREE from "three";
+import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
 import type { AtlasTextures } from "./textures";
+import { waterUniforms } from "./Water";
 import { sky } from "@/lib/atlas/timeOfDay";
 import {
   BASE_ELEV_M,
@@ -36,6 +38,7 @@ const vertex = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
 
   void main() {
     vec3 p = position;
@@ -58,6 +61,7 @@ const vertex = /* glsl */ `
     vec4 mvPosition = viewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
+    ${shadowVertex("p")}
   }
 `;
 
@@ -80,6 +84,12 @@ const fragment = /* glsl */ `
   uniform vec3 uGround;
   uniform vec4 uRegion;
   uniform vec4 uPatchRect;
+  uniform sampler2D uWaterNormals;
+  uniform sampler2D uReflection;
+  uniform mat4 uReflMatrix;
+  uniform float uReflOn;
+  uniform float uReflY;
+  uniform float uMirror;
   #ifdef OUTER
     uniform sampler2D uOuterHeight;
     uniform sampler2D uOuterNormal;
@@ -97,6 +107,7 @@ const fragment = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
+  ${SHADOW_FRAGMENT_PARS}
 
   vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -143,6 +154,10 @@ const fragment = /* glsl */ `
   #endif
 
   void main() {
+    // Drawn for the lakes' reflection, the ground is seen from below the water: only its top,
+    // so the reflection shows the sky past gently rising banks (the patch is double-sided for
+    // its skirt).
+    if (uMirror > 0.5 && !gl_FrontFacing) discard;
     #ifndef PATCH
       // The central patch draws its own, finer terrain here.
       if (vWorld.x > uPatchRect.x && vWorld.x < uPatchRect.z && vWorld.z > uPatchRect.y && vWorld.z < uPatchRect.w) discard;
@@ -230,9 +245,13 @@ const fragment = /* glsl */ `
     land = mix(land, crown, canopy * mix(0.8, 0.7, uZoomOut));
     land = mix(land, lin(vec3(0.86, 0.84, 0.80)), smoothstep(0.05, 0.6, dens) * 0.5 * (1.0 - canopy));
 
-    float diff = max(dot(n, uSunDir), 0.0);
+    // Shadows of the buildings, trees and landmarks, cooled by the sky's light in them.
+    float sun = sunShadow(n, uSunDir) * cloudShadow(vWorld, uSunDir);
+    float diff = max(dot(n, uSunDir), 0.0) * sun;
     float skyl = 0.6 + 0.4 * n.y;
-    vec3 col = land * (uAmbient * skyl * 0.78 + uSunColor * diff * 0.52);
+    // Contact shadows: less sky beside and between buildings and under trees.
+    float open = skyOpen(vWorld, n);
+    vec3 col = land * (uAmbient * skyl * 0.78 * open + uSunColor * diff * 0.52 * mix(1.0, open, 0.35));
 
     // Contours every 20 m, index contours every 100 m; fade out before they moiré.
     float c20 = band(h / 20.0, 1.0) * (1.0 - smoothstep(0.1, 0.35, fwidth(h / 20.0)));
@@ -244,7 +263,6 @@ const fragment = /* glsl */ `
     float aa = max(fwidth(sdfM), 0.35);
     float water = smoothstep(-aa, aa, sdfM);
     if (water > 0.001) {
-      vec3 body = mix(lin(vec3(0.33, 0.66, 0.78)), lin(vec3(0.16, 0.47, 0.68)), smoothstep(6.0, 110.0, sdfM));
       // Creeks (Waller, Shoal, Boggy...): water that is nowhere more than a few metres from a bank
       // within 9 m of here. They run in the shade of the trees along them: darker, greener and
       // stiller than open water, so they read as creeks, not rivers.
@@ -255,51 +273,66 @@ const fragment = /* glsl */ `
                                    max(sdfAt(vUv + vec2(0.0, du.y)), sdfAt(vUv - vec2(0.0, du.y)))));
         creek = (1.0 - smoothstep(4.5, 8.0, deep)) * ew;
       #endif
-      body = mix(body, lin(vec3(0.22, 0.46, 0.43)), creek);
-      // Engraved waterlines following the shore, like an old survey map; they give way to the
-      // moving surface up close.
-      float wl = 0.0;
-      for (int k = 1; k <= 3; k++) {
-        float r = float(k) * 34.0;
-        wl += (1.0 - smoothstep(0.45 * aa, 1.3 * aa, abs(sdfM - r))) * (1.05 - float(k) * 0.28);
-      }
-      wl *= (1.0 - smoothstep(8.0, 30.0, aa)) * smoothstep(0.6, 2.0, fp);
-      body *= 1.0 - wl * 0.16;
+      // The water's own colour, seen through the surface: green-brown in the shallows by the
+      // banks, where the bottom shows, and a deep blue-green further out.
+      vec3 body = mix(lin(vec3(0.22, 0.36, 0.29)), lin(vec3(0.05, 0.18, 0.21)), smoothstep(1.0, 28.0, sdfM));
+      body = mix(body, lin(vec3(0.12, 0.25, 0.19)), creek);
 
-      vec2 g = waterSlope(wp, uTime, fp) * smoothstep(-2.0, 6.0, sdfM) * (1.0 - 0.6 * creek);
+      // The surface: wind ripples from a tiling normal map at two scales drifting on the breeze
+      // (mipmapped, so from afar they average out and the water mirrors more cleanly), and the
+      // finer waves up close.
+      vec2 g = waterSlope(wp, uTime, fp);
+      vec3 r1 = texture2D(uWaterNormals, wp / 31.0 + vec2(0.017, 0.023) * uTime).xyz * 2.0 - 1.0;
+      vec3 r2 = texture2D(uWaterNormals, mat2(0.8, -0.6, 0.6, 0.8) * wp / 113.0 + vec2(-0.006, 0.009) * uTime).xyz * 2.0 - 1.0;
+      g += r1.xz / max(r1.y, 0.3) * 0.2 + r2.xz / max(r2.y, 0.3) * 0.28;
+      g *= smoothstep(-2.0, 6.0, sdfM) * (1.0 - 0.6 * creek);
       vec3 wn = normalize(vec3(-g.x, 1.0, -g.y));
       vec3 V = normalize(uCamPos - vWorld);
       float wdiff = max(dot(wn, uSunDir), 0.0);
-      vec3 wcol = body * (uAmbient * 0.72 + uSunColor * (0.28 + 0.12 * wdiff));
-      // Sky reflection with Fresnel, then the sun's glitter path.
+      vec3 bodyLit = body * (uAmbient * 0.7 + uSunColor * (0.22 + 0.1 * wdiff) * sun);
+      bodyLit = mix(bodyLit, lin(vec3(0.02, 0.045, 0.07)), uNight * 0.9);
+      // What the surface mirrors: the sky, and where the lake's reflection is rendered
+      // (Water.tsx), the banks, trees and skyline too, broken up by the ripples.
       vec3 R = reflect(-V, wn);
       vec3 skyc = mix(uHorizon, uZenith, pow(clamp(R.y, 0.0, 1.0), 0.35));
+      float mirrored = 0.0;
+      if (uReflOn > 0.5) {
+        vec4 rc = uReflMatrix * vec4(vWorld.x, uReflY, vWorld.z, 1.0);
+        // Ripples break the reflection up, more across it than along (as they stretch it).
+        vec2 ruv = rc.xy / rc.w + vec2(wn.x * 0.012, wn.z * 0.02);
+        // Only the water at the reflected level (not a creek or lake at another).
+        mirrored = 1.0 - smoothstep(0.004, 0.01, abs(vWorld.y - uReflY));
+        skyc = mix(skyc, texture2D(uReflection, clamp(ruv, vec2(0.002), vec2(0.998))).rgb, mirrored);
+      }
       float fres = 0.02 + 0.98 * pow(1.0 - clamp(dot(wn, V), 0.0, 1.0), 5.0);
-      wcol = mix(wcol, skyc, clamp(fres, 0.0, 1.0) * 0.55 * (1.0 - 0.6 * creek));
+      // A little more than the physics would give, so the reflections read from above.
+      vec3 wcol = mix(bodyLit, skyc, clamp(0.3 + fres * 1.6, 0.0, 0.94) * (1.0 - 0.5 * creek));
+      // The sun's glitter path, where nothing shades the water.
       vec3 Hs = normalize(uSunDir + V);
       float nh = max(dot(wn, Hs), 0.0);
       float glint = pow(nh, 420.0) * 4.5 + pow(nh, 60.0) * 0.14;
       float sunUp = smoothstep(-0.02, 0.08, uSunDir.y);
-      wcol += uSunColor * glint * sunUp * (1.0 - uNight) * (1.0 - 0.8 * creek);
+      wcol += uSunColor * glint * sunUp * sun * (1.0 - uNight) * (1.0 - 0.8 * creek);
 
-      // Night: dark water carrying the city's lights near lit shores.
-      wcol = mix(wcol, lin(vec3(0.035, 0.075, 0.12)) + skyc * 0.08, uNight * 0.9);
+      // Night, where the lake's reflection isn't rendered: the city's lights in the water as
+      // broken streaks across the ripples.
       float nearCity = smoothstep(0.02, 0.4, dens) * (1.0 - smoothstep(0.0, 140.0, sdfM));
-      // Broken reflections: streaks stretched across the ripples, drifting with them.
       float shimmer = pow(vnoise(vec2(wp.x * 0.22, wp.y * 1.3) + vec2(0.0, uTime * 0.6) + g * 3.0), 4.0);
-      float nightK = smoothstep(0.4, 1.0, uNight);
-      wcol += lin(vec3(1.0, 0.72, 0.42)) * nearCity * (0.1 + 2.4 * shimmer) * nightK;
-      wcol += lin(vec3(0.55, 0.62, 0.95)) * pow(vnoise(wp * 0.08 + uTime * 0.15), 6.0) * 0.06 * nightK;
+      float nightK = smoothstep(0.4, 1.0, uNight) * (1.0 - mirrored);
+      wcol += lin(vec3(1.0, 0.72, 0.42)) * nearCity * (0.02 + 0.45 * shimmer) * nightK;
 
       // Lapping at the shoreline, visible when close.
       float lapW = 1.1 + 0.7 * sin(uTime * 1.6 + vnoise(wp * 0.05) * 12.0);
       float lap = (1.0 - smoothstep(0.0, lapW, sdfM)) * step(0.0, sdfM) * (1.0 - smoothstep(0.8, 3.0, fp));
-      wcol = mix(wcol, lin(vec3(0.93, 0.95, 0.92)) * (uAmbient * 0.8 + uSunColor * 0.3), lap * 0.45 * (1.0 - uNight) * (1.0 - creek));
+      wcol = mix(wcol, lin(vec3(0.9, 0.93, 0.9)) * (uAmbient * 0.8 + uSunColor * 0.3), lap * 0.3 * (1.0 - uNight) * (1.0 - creek));
+      // The water is lit for the night already; the land is darkened below.
+      wcol /= max(1.0 - uNight * 0.82, 0.05);
 
       col = mix(col, wcol, water);
     }
-    float shore = 1.0 - smoothstep(0.0, 1.4 * aa, abs(sdfM));
-    col = mix(col, col * 0.72, shore * 0.45 * (1.0 - uNight) * smoothstep(0.8, 3.0, fp));
+    // Wet banks: the ground darkens toward the waterline, up close.
+    float wet = (1.0 - smoothstep(0.0, 3.0, -sdfM)) * step(sdfM, 0.0);
+    col *= 1.0 - 0.2 * wet * (1.0 - smoothstep(1.5, 4.0, fp));
 
     // Night: the land drops away and built-up areas light up as points, at two scales so
     // there is sparkle both up close (streetlights) and from altitude (neighbourhoods).
@@ -376,8 +409,11 @@ function terrainMaterial(
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 2,
+    lights: true,
     uniforms: {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...shadowUniforms(),
+      ...waterUniforms(),
       uHeight: { value: tex.height },
       uNormal: { value: tex.normal },
       uSurface: { value: tex.surface },
@@ -493,7 +529,7 @@ export default function Terrain({
   const geometry = useMemo(() => baseGeometry(segments, bounds), [segments, bounds]);
   const material = useMemo(() => terrainMaterial(tex, false, 7.33, undefined, cutout, bounds), [tex, cutout, bounds]);
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} />;
+  return <mesh geometry={geometry} material={material} frustumCulled={false} receiveShadow />;
 }
 
 /** Skirt depth below the patch edge (world km): hides any crack against the coarser base mesh. */
@@ -579,5 +615,5 @@ export function CentralTerrain({
     m.side = THREE.DoubleSide;
     return m;
   }, [tex, sdfK, baseTex]);
-  return <mesh geometry={geometry} material={material} />;
+  return <mesh geometry={geometry} material={material} receiveShadow />;
 }

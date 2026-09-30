@@ -16,6 +16,7 @@ import {
   type CamState,
   type Flight,
 } from "@/lib/atlas/camera";
+import { tourOffset, viewFov } from "@/lib/atlas/framing";
 import { clamp, groundY, X_MAX, X_MIN, Z_MAX, Z_MIN, type HeightField } from "@/lib/atlas/geo";
 import { runtime, useAtlas } from "@/lib/atlas/store";
 import { applyTimeOfDay, sky } from "@/lib/atlas/timeOfDay";
@@ -34,6 +35,8 @@ export default function CameraDirector({ height }: { height: HeightField }) {
   /** the MapControls instance that has been handed the current view */
   const handedOff = useRef<MapControlsImpl | null>(null);
   const offset = useRef({ x: 0, y: 0 });
+  /** the first frame starts exactly on the view (no fly-in), so it matches the poster */
+  const started = useRef(false);
   const timeline = getTimeline();
 
   useFrame((state, rawDt) => {
@@ -52,8 +55,14 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       rideFly.current = null;
     }
 
+    const first = !started.current;
+    started.current = true;
     if (st.mode === "tour") {
       const { tod, stop } = timeline.sample(runtime.scroll, desired.current);
+      if (first) {
+        Object.assign(cur, desired.current);
+        runtime.tod = tod;
+      }
       dampCam(cur, desired.current, runtime.reducedMotion ? 14 : 4.2, dt);
       runtime.tod += (tod - runtime.tod) * (1 - Math.exp(-5 * dt));
       st.setActiveStop(stop);
@@ -141,10 +150,8 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       runtime.tod += (want - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-1.5 * dt));
     }
 
-    // Portrait screens get a wider field of view, as map apps do, so a phone sees about as much
-    // of the city across as a laptop, rather than a sliver of it.
-    const aspect = size.width / Math.max(1, size.height);
-    camera.fov = 32 + 16 * clamp((1 - aspect) / 0.55, 0, 1);
+    const poster = runtime.poster;
+    camera.fov = poster ? poster.fov : viewFov(size.width, size.height);
     // Clip planes that follow the zoom level keep depth precision where it's needed.
     camera.near = Math.max(0.004, cur.dist * 0.006);
     camera.far = cur.dist * 9 + 90;
@@ -152,10 +159,14 @@ export default function CameraDirector({ height }: { height: HeightField }) {
     // Shift the focal point to make room for story cards (desktop: right; phone: up, into the
     // open map above the card) and, while riding, for the HUD along the bottom.
     const wide = size.width >= 900;
-    const wantX = st.mode === "tour" && wide ? Math.min(250, size.width * 0.15) : st.selectedSite && wide ? -170 : 0;
-    const wantY =
-      st.mode === "tour" && !wide ? size.height * 0.25 : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
-    const k = 1 - Math.exp(-4 * dt);
+    const tourShift = tourOffset(size.width, size.height);
+    let wantX = st.mode === "tour" ? tourShift.x : st.selectedSite && wide ? -170 : 0;
+    let wantY = st.mode === "tour" ? tourShift.y : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
+    if (poster) {
+      wantX = poster.ppx - size.width / 2;
+      wantY = size.height / 2 - poster.ppy;
+    }
+    const k = first || poster ? 1 : 1 - Math.exp(-4 * dt);
     offset.current.x += (wantX - offset.current.x) * k;
     offset.current.y += (wantY - offset.current.y) * k;
     runtime.viewOffset.x = offset.current.x;

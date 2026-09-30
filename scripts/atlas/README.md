@@ -31,5 +31,32 @@ python scripts/atlas/preview_central.py    # QA renders of the central Austin de
 - Rerun `build_buildings.py` after editing company sites; it tags each site's footprints.
 - The central patch bounds (`C_*` in `config.py`) must match `CENTRAL` in `src/lib/atlas/geo.ts`.
 
+## The opening posters
+
+`public/atlas/poster.webp` and `poster-portrait.webp` are renders of the app's opening view,
+shown the moment the page loads while the live map gets ready (`src/data/atlas/poster.ts`).
+Re-render them whenever the opening view's look changes (the tour's first stop, colours, models):
+
+```bash
+npm run build && npm run start &
+python scripts/atlas/render_poster.py --base http://localhost:3000
+```
+
+Set `CHROMIUM` to a Chromium binary if Playwright's own isn't installed. The landscape poster is
+rendered as desktops draw the map, the portrait one as phones do. The script also regenerates
+`src/data/atlas/posterThumbs.ts`, the posters' tiny blurred copies inlined in the page
+(`--thumbs` does only that).
+
+## Measuring the load
+
+The page records `atlas:*` performance marks: `start`, `got <file>` and `decoded <file>` for each
+download, the prep worker's steps (`regional textures`, `central buildings`, ...),
+`regional prepared`, `central prepared`, `first frame` and `ready` (the live map fades in). In
+the browser console:
+
+```js
+performance.getEntriesByType("mark").filter((m) => m.name.startsWith("atlas:")).map((m) => [m.name, Math.round(m.startTime)])
+```
+
 Attribution: © Overture Maps Foundation (CDLA Permissive 2.0) including © OpenStreetMap
 contributors (ODbL); terrain from Mapzen/AWS Terrain Tiles (USGS 3DEP, SRTM).

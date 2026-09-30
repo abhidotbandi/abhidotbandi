@@ -9,6 +9,7 @@ import type { Central } from "@/lib/atlas/central";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { aoCaster } from "./Occlusion";
 
 // Things built over the water: bridge decks on their piers, the Boardwalk along the south
 // shore, and the docks and piers the rowing and paddling clubs launch from.
@@ -276,5 +277,5 @@ export default function Structures({ central, ground }: { central: Central; grou
     m.visible = runtime.cam.dist < 9;
     (m.material as THREE.MeshLambertMaterial).emissive.setRGB(0.12, 0.1, 0.08).multiplyScalar(sky.uNight.value);
   });
-  return <mesh ref={ref} geometry={geometry} material={material} />;
+  return <mesh ref={ref} geometry={geometry} material={material} castShadow receiveShadow onUpdate={aoCaster} />;
 }

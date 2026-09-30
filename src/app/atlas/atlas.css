@@ -64,6 +64,49 @@
 
 /* ---------- layers ---------- */
 
+/* The opening shot as an image, under the map until the map fades in over it (placed by
+   posterCss() and AtlasApp to line up with it exactly). Deep links open elsewhere: no poster. */
+.atlas-poster {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #cdc7b5;
+  pointer-events: none;
+}
+
+.atlas-poster i {
+  position: absolute;
+  display: block;
+  background: center / 100% 100% no-repeat;
+}
+
+html.atlas-capture .atlas-poster {
+  display: none;
+}
+
+/* Until the live map is ready the tour waits, and the map's labels fade in with it. */
+.atlas[data-ready="0"] .atlas-scroller {
+  overflow-y: hidden;
+}
+
+.atlas-labels {
+  transition: opacity 0.9s ease;
+}
+
+.atlas[data-ready="0"] .atlas-labels {
+  opacity: 0;
+}
+
+/* Rendering the poster (scripts/atlas/render_poster.py): the map alone. */
+html.atlas-capture .atlas-labels,
+html.atlas-capture .atlas-scroller,
+html.atlas-capture .atlas-header,
+html.atlas-capture .chapter-rail,
+html.atlas-capture .loader {
+  display: none !important;
+}
+
 .atlas-canvas {
   position: fixed;
   inset: 0;
@@ -197,6 +240,26 @@
   display: inline-block;
   margin-left: 6px;
   animation: atlas-bob 1.6s ease-in-out infinite;
+}
+
+.scroll-hint .hint-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 72px;
+  height: 3px;
+  margin-left: 10px;
+  border-radius: 2px;
+  background: var(--rule);
+  overflow: hidden;
+  animation: none;
+}
+
+.scroll-hint .hint-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent, #b4541f);
+  transform-origin: left;
+  transition: transform 0.3s ease;
 }
 
 @keyframes atlas-bob {
@@ -1523,6 +1586,12 @@ button.ct-name:hover {
 .loader[data-done="1"] {
   opacity: 0;
   visibility: hidden;
+}
+
+/* The opening shot has its poster; only deep links (the page's early script shows it for them)
+   and failures get the full loader. */
+.loader:not(.is-failed) {
+  display: none;
 }
 
 .loader-inner {

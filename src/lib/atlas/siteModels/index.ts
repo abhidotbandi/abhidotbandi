@@ -51,8 +51,19 @@ function asFootprints(rings: number[][]): BuildingsData {
   return { sites: [], count, height: new Uint16Array(count), site: new Int16Array(count).fill(-1), ringStart, vertStart, x, z };
 }
 
+/** A site model set as plain arrays, built off the main thread (see prep/worker.ts). */
+export interface SiteModelArrays {
+  position: Float32Array;
+  color: Float32Array;
+  kind: Float32Array;
+  siteTop: Float32Array;
+  steam: Float32Array;
+  engine: [number, number, number] | null;
+  clearings: BuildingsData;
+}
+
 /** Models for the company sites, on their footprints in the building files given. */
-export function buildSiteModels(sources: BuildingsData[], ground: HeightField, siteCount: number): SiteModelSet {
+export function buildSiteModelArrays(sources: BuildingsData[], ground: HeightField, siteCount: number): SiteModelArrays {
   const kit = new Kit();
   const steam: number[] = [];
   let engine: THREE.Vector3 | null = null;
@@ -70,13 +81,45 @@ export function buildSiteModels(sources: BuildingsData[], ground: HeightField, s
   }
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
   for (const [i, y] of kit.top) siteTop[i] = y;
+  return {
+    position: new Float32Array(kit.pos),
+    color: new Float32Array(kit.col),
+    kind: new Float32Array(kit.kind),
+    siteTop,
+    steam: new Float32Array(steam),
+    engine: engine ? [engine.x, engine.y, engine.z] : null,
+    clearings: asFootprints(kit.clear),
+  };
+}
+
+/** No models yet (the regional map before central Austin's detail is in). */
+export function emptySiteModels(siteCount: number): SiteModelArrays {
+  return {
+    position: new Float32Array(0),
+    color: new Float32Array(0),
+    kind: new Float32Array(0),
+    siteTop: new Float32Array(siteCount).fill(Number.NaN),
+    steam: new Float32Array(0),
+    engine: null,
+    clearings: asFootprints([]),
+  };
+}
+
+/** The set as the scene uses it: one geometry, and the engine's nozzle as a vector. */
+export function siteModelSet(a: SiteModelArrays): SiteModelSet {
   let geometry: THREE.BufferGeometry | null = null;
-  if (kit.pos.length) {
+  if (a.position.length) {
     geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(kit.pos, 3));
-    geometry.setAttribute("aColor", new THREE.Float32BufferAttribute(kit.col, 3));
-    geometry.setAttribute("aKind", new THREE.Float32BufferAttribute(kit.kind, 2));
+    geometry.setAttribute("position", new THREE.BufferAttribute(a.position, 3));
+    geometry.setAttribute("aColor", new THREE.BufferAttribute(a.color, 3));
+    geometry.setAttribute("aKind", new THREE.BufferAttribute(a.kind, 2));
     geometry.computeBoundingSphere();
   }
-  return { geometry, siteTop, steam: new Float32Array(steam), engine, clearings: asFootprints(kit.clear) };
+  return {
+    geometry,
+    siteTop: a.siteTop,
+    steam: a.steam,
+    engine: a.engine ? new THREE.Vector3(...a.engine) : null,
+    clearings: a.clearings,
+  };
 }

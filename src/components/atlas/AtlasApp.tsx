@@ -4,11 +4,15 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { PLACE_BY_ID } from "@/data/atlas/places";
+import { PORTRAIT_POSTER_MEDIA, POSTERS } from "@/data/atlas/poster";
 import { STOPS } from "@/data/atlas/tour";
-import { loadAtlasAssets, loadCentralAssets } from "@/lib/atlas/assets";
+import { fetchCentralFiles, fetchRegionalFiles } from "@/lib/atlas/assets";
+import { posterCss, posterPlacement } from "@/lib/atlas/framing";
 import { clamp, project } from "@/lib/atlas/geo";
 import { makePaddleRoute } from "@/lib/atlas/paddle";
 import { runtime, seekPaddle, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
+import { mark } from "@/lib/atlas/perf";
+import { startPrep } from "@/lib/atlas/prep/client";
 import { isLowPower } from "@/lib/atlas/tier";
 import { getTimeline } from "@/lib/atlas/tour";
 import type { PreparedScene } from "./scene/prepare";
@@ -62,6 +66,9 @@ export default function AtlasApp() {
   const [scene, setScene] = useState<PreparedScene | null>(null);
   /** central Austin's detail couldn't load: the regional map carries on without it */
   const [centralFailed, setCentralFailed] = useState(false);
+  /** the opening shot's poster image, until the live map has faded in over it */
+  const [poster, setPoster] = useState(true);
+  const posterImg = useRef<HTMLElement>(null);
   const [vh, setVh] = useState(900);
   const [narrow, setNarrow] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -88,33 +95,43 @@ export default function AtlasApp() {
     }
     runtime.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // The atlas opens on the city, so central Austin's street-scale detail loads alongside the
-    // regional map, and the loader stays up until both are in. The regional scene mounts first,
-    // so its shaders compile while the detail is still arriving.
+    // regional map. The files were already requested by the page's early script (layout.tsx);
+    // the prep worker decodes them and builds the scene's data off the main thread. The regional
+    // scene mounts first, so its shaders compile while central Austin is still being built.
     const lowPower = isLowPower();
+    mark("start");
     const got = [0, 0];
     const report = (i: number) => (p: number) => {
       got[i] = p;
-      st.setLoadProgress(got[0] * 0.44 + got[1] * 0.44);
+      st.setLoadProgress(got[0] * 0.3 + got[1] * 0.45);
     };
-    const central = loadCentralAssets(lowPower, report(1));
-    loadAtlasAssets(lowPower, report(0))
-      .then(async (assets) => {
-        // Let the progress bar paint before the CPU-heavy extrusion.
-        await new Promise((r) => setTimeout(r, 30));
-        const { prepareScene, upgradeScene } = await import("./scene/prepare");
+    const prep = startPrep(lowPower);
+    const centralFiles = fetchCentralFiles(lowPower, report(1));
+    fetchRegionalFiles(lowPower, report(0))
+      .then((files) => prep.regional(files))
+      .then(async (r) => {
+        const { prepareScene, upgradeScene, withSiteModels } = await import("./scene/prepare");
         if (cancelled) return;
-        const base = prepareScene(assets);
+        mark("regional prepared");
+        st.setLoadProgress(0.8);
+        const base = prepareScene(r);
         setScene(base);
-        central
-          .then(async (c) => {
-            await new Promise((r) => setTimeout(r, 30));
+        centralFiles
+          .then((files) => prep.central(files))
+          .then((c) => {
             if (cancelled) return;
-            st.setLoadProgress(0.94);
+            mark("central prepared");
+            st.setLoadProgress(0.95);
             setScene(upgradeScene(base, c));
           })
           .catch((err) => {
             console.error("atlas: central Austin detail failed to load", err);
-            if (!cancelled) setCentralFailed(true);
+            if (cancelled) return;
+            setCentralFailed(true);
+            prep
+              .models()
+              .then((m) => !cancelled && setScene(withSiteModels(base, m)))
+              .catch(() => {});
           });
       })
       .catch((err) => {
@@ -123,8 +140,42 @@ export default function AtlasApp() {
       });
     return () => {
       cancelled = true;
+      prep.dispose();
     };
   }, []);
+
+  // The poster: lined up exactly with where the live map will be, and gone once the map has
+  // faded in over it. Deep links (they open elsewhere) and rendering the poster itself
+  // (?poster=landscape|portrait, see scripts/atlas/render_poster.py) hide it.
+  useLayoutEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("poster");
+    const capture = q === "landscape" || q === "portrait" ? POSTERS[q] : null;
+    if (capture) {
+      runtime.poster = { fov: capture.fov, ppx: capture.ppx, ppy: capture.ppy };
+      document.documentElement.classList.add("atlas-capture");
+      return;
+    }
+    const place = () => {
+      const img = posterImg.current;
+      const box = document.getElementById("atlas-canvas");
+      if (!img || !box) return;
+      const p = window.matchMedia(PORTRAIT_POSTER_MEDIA).matches ? POSTERS.portrait : POSTERS.landscape;
+      const r = posterPlacement(p, box.clientWidth, box.clientHeight);
+      img.style.left = `${r.left}px`;
+      img.style.top = `${r.top}px`;
+      img.style.width = `${r.width}px`;
+      img.style.height = `${r.height}px`;
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !poster) return;
+    const t = setTimeout(() => setPoster(false), 1400);
+    return () => clearTimeout(t);
+  }, [ready, poster]);
 
   // Viewport height drives the scroll timeline (1 "screen" = 1 viewport height).
   useLayoutEffect(() => {
@@ -243,6 +294,12 @@ export default function AtlasApp() {
 
   return (
     <div className="atlas" data-mode={mode} data-ready={ready ? "1" : "0"} data-selected={selected || selectedPlace ? "1" : "0"}>
+      {poster && (
+        <div className="atlas-poster" aria-hidden="true">
+          <style>{posterCss()}</style>
+          <i ref={posterImg} />
+        </div>
+      )}
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
         {scene && !webglFailed && <AtlasCanvas scene={scene} settled={!!scene.central || centralFailed} />}
       </div>

@@ -37,6 +37,28 @@ function SiteRow({ id }: { id: string }) {
   );
 }
 
+/** "Scroll to fly the loop", or, until the live map is ready, how far along it is. */
+function ScrollHint() {
+  const ready = useAtlas((s) => s.ready);
+  const progress = useAtlas((s) => s.loadProgress);
+  return (
+    <p className="scroll-hint" aria-hidden="true">
+      {ready ? (
+        <>
+          Scroll to fly the loop <span>↓</span>
+        </>
+      ) : (
+        <>
+          Loading the live map
+          <span className="hint-bar">
+            <i style={{ transform: `scaleX(${Math.max(0.04, progress)})` }} />
+          </span>
+        </>
+      )}
+    </p>
+  );
+}
+
 interface CardProps {
   stop: Stop;
   index: number;
@@ -80,9 +102,7 @@ export const StoryCard = forwardRef<HTMLElement, CardProps>(function StoryCard({
               <dd>{COMPANIES.filter((c) => c.defense).length}</dd>
             </div>
           </dl>
-          <p className="scroll-hint" aria-hidden="true">
-            Scroll to fly the loop <span>↓</span>
-          </p>
+          <ScrollHint />
         </>
       )}
       {stop.sites.length > 0 && (

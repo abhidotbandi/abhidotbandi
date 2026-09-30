@@ -179,6 +179,26 @@ const CENTRAL_WEIGHTS: Record<keyof FileSet["central"], number> = {
   buildings: 0.32,
 };
 
+/**
+ * A file's bytes, tried up to three times: a network error or a server error (5xx, 429) is often
+ * gone a moment later, and one lost file would otherwise sink the whole map.
+ */
+async function fetchBytes(url: string, tries = 3): Promise<ArrayBuffer> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 400 * 3 ** (i - 1)));
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.arrayBuffer();
+      last = new Error(`${url}: ${r.status}`);
+      if (r.status < 500 && r.status !== 429) break;
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last;
+}
+
 async function fetchAll<K extends string>(
   names: Record<K, string>,
   weights: Record<K, number>,
@@ -189,11 +209,7 @@ async function fetchAll<K extends string>(
   const keys = Object.keys(names) as K[];
   const bufs = await Promise.all(
     keys.map((k) =>
-      fetch(`${BASE}/${names[k]}`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`${names[k]}: ${r.status}`);
-          return r.arrayBuffer();
-        })
+      fetchBytes(`${BASE}/${names[k]}`)
         .catch((err) => {
           if (optional.includes(k)) return null;
           throw err;

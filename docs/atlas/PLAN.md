@@ -714,7 +714,7 @@ look vibrant, while this one opened on the whole region at dawn and looked drab.
 - **Loading**: central Austin's detail now loads alongside the regional map, not after it, and
   the loader stays up until both are in. Before, the first view had no downtown until the
   detail arrived. The first reveal costs about 8 MB on desktop and 4.5 MB on phones, up from
-  3.8 and 1.6.
+  3.8 and 1.7 (file sizes; JSON and binaries travel compressed).
 - **Colour**:
   - Sky: a clear blue by day, with a light blue horizon instead of cream, and a little less haze.
   - Light: stronger sun against cooler, sky-lit shade, so buildings read in relief.

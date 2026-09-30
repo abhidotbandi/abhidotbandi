@@ -89,14 +89,20 @@ const fragment = /* glsl */ `
     // The Capitol's sunset-red granite; the state's Texas limestone and pink and grey granite.
     else if (capitol) walls = lin(vec3(0.78, 0.56, 0.47));
     else if (state) walls = pick(r, lin(vec3(0.92, 0.88, 0.78)), lin(vec3(0.88, 0.8, 0.67)), lin(vec3(0.94, 0.91, 0.83)), lin(vec3(0.84, 0.69, 0.6)));
-    else if (glass) walls = pick(r, lin(vec3(0.55, 0.64, 0.72)), lin(vec3(0.47, 0.6, 0.62)), lin(vec3(0.72, 0.74, 0.76)), lin(vec3(0.62, 0.57, 0.52)));
-    else if (hM >= 10.0) walls = pick(r, lin(vec3(0.93, 0.89, 0.8)), lin(vec3(0.86, 0.79, 0.66)), lin(vec3(0.83, 0.83, 0.81)), lin(vec3(0.76, 0.58, 0.48)));
-    else walls = pick(r, lin(vec3(0.96, 0.95, 0.92)), lin(vec3(0.9, 0.85, 0.75)), lin(vec3(0.8, 0.84, 0.86)), lin(vec3(0.94, 0.88, 0.72)));
+    // Towers in blue, teal, steel and bronze glass; mid-rises in limestone, sand, concrete and
+    // brick; houses painted white, butter, pale blue and terracotta.
+    else if (glass) walls = pick(r, lin(vec3(0.38, 0.56, 0.76)), lin(vec3(0.3, 0.58, 0.64)), lin(vec3(0.64, 0.72, 0.8)), lin(vec3(0.58, 0.5, 0.42)));
+    else if (hM >= 10.0) walls = pick(r, lin(vec3(0.95, 0.89, 0.77)), lin(vec3(0.88, 0.75, 0.55)), lin(vec3(0.87, 0.87, 0.85)), lin(vec3(0.74, 0.43, 0.32)));
+    else walls = pick(r, lin(vec3(0.97, 0.96, 0.93)), lin(vec3(0.95, 0.85, 0.6)), lin(vec3(0.7, 0.8, 0.88)), lin(vec3(0.9, 0.66, 0.5)));
     vec3 mat;
     if (pitched) {
+      // Houses: mostly grey and brown shingle and galvanised metal, some slate, a few in tile.
+      float q = fract(r * 7.13);
+      vec3 house = q < 0.3 ? lin(vec3(0.4, 0.41, 0.44)) : q < 0.55 ? lin(vec3(0.52, 0.4, 0.32)) : q < 0.8 ? lin(vec3(0.66, 0.7, 0.74))
+        : q < 0.92 ? lin(vec3(0.31, 0.35, 0.42)) : lin(vec3(0.72, 0.42, 0.29));
       vec3 shingle = campus
-        ? pick(fract(r * 7.13), lin(vec3(0.72, 0.34, 0.22)), lin(vec3(0.65, 0.29, 0.19)), lin(vec3(0.77, 0.4, 0.26)), lin(vec3(0.69, 0.36, 0.26)))
-        : pick(fract(r * 7.13), lin(vec3(0.34, 0.35, 0.37)), lin(vec3(0.46, 0.37, 0.31)), lin(vec3(0.66, 0.39, 0.29)), lin(vec3(0.68, 0.7, 0.72)));
+        ? pick(q, lin(vec3(0.72, 0.34, 0.22)), lin(vec3(0.65, 0.29, 0.19)), lin(vec3(0.77, 0.4, 0.26)), lin(vec3(0.69, 0.36, 0.26)))
+        : house;
       mat = n.y > 0.3 ? shingle : walls;
       if (campus) {
         // Courses of clay tile down the slope, faint, gone before they'd shimmer.
@@ -105,11 +111,11 @@ const fragment = /* glsl */ `
         mat *= 1.0 - 0.14 * smoothstep(0.6, 1.0, fract(tc)) * d;
       }
     } else if (plant) {
-      mat = lin(vec3(0.36, 0.37, 0.39));
+      mat = lin(vec3(0.56, 0.57, 0.6));
     } else if (pool) {
       mat = lin(vec3(0.3, 0.68, 0.8));
     } else {
-      mat = mix(walls, capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.76, 0.73, 0.68)) : lin(vec3(0.8, 0.79, 0.76)), roof);
+      mat = mix(walls, capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : lin(vec3(0.86, 0.85, 0.82)), roof);
     }
 
     // Facade detail by day, faded out before it can shimmer.
@@ -158,7 +164,7 @@ const fragment = /* glsl */ `
     float rel = clamp((vWorld.y - vInfo.y) / max(1e-4, hM * 0.001 * uBuildingExag), 0.0, 1.0);
     float ao = mix(0.72, 1.0, smoothstep(0.0, 0.4, rel));
     float diff = max(dot(n, uSunDir), 0.0);
-    vec3 col = base * (uAmbient * (0.6 + 0.4 * n.y) * ao + uSunColor * diff * 0.55);
+    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * ao * 0.9 + uSunColor * diff * 0.7);
 
     col *= 1.0 - uNight * 0.84;
     // The Capitol is floodlit after dark, like the stone of the landmarks.

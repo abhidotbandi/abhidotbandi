@@ -68,8 +68,8 @@ export function crownGeometry(conical: boolean): THREE.BufferGeometry {
   return out;
 }
 
-export const ROUND = ["#50703d", "#5d7c42", "#6a8747", "#47653a", "#738f4e", "#587a4a"].map((c) => new THREE.Color(c));
-export const CONE = ["#3f5f3d", "#4b6b43", "#58744a", "#6f7f45"].map((c) => new THREE.Color(c));
+export const ROUND = ["#3f8a35", "#4f9a3c", "#62a845", "#357a30", "#6fb24c", "#4b8d40"].map((c) => new THREE.Color(c));
+export const CONE = ["#2a6a38", "#347a40", "#448846", "#5a8c3e"].map((c) => new THREE.Color(c));
 
 interface Layer {
   grid: Grid;

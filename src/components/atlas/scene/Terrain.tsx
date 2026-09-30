@@ -210,29 +210,29 @@ const fragment = /* glsl */ `
       #endif
     #endif
 
-    // Land: prairie cream in the east, limestone and cedar in the hills.
+    // Land: prairie sand in the east, limestone and cedar in the hills.
     float tH = smoothstep(120.0, 370.0, h);
-    vec3 land = mix(lin(vec3(0.929, 0.898, 0.824)), lin(vec3(0.855, 0.820, 0.706)), tH);
+    vec3 land = mix(lin(vec3(0.925, 0.866, 0.73)), lin(vec3(0.86, 0.80, 0.63)), tH);
     float slope = 1.0 - n.y;
-    land = mix(land, lin(vec3(0.73, 0.74, 0.60)), smoothstep(0.03, 0.16, slope) * (0.25 + 0.45 * tH));
+    land = mix(land, lin(vec3(0.66, 0.72, 0.48)), smoothstep(0.03, 0.16, slope) * (0.25 + 0.45 * tH));
     #ifdef PATCH
       // Lawns read greener up close.
-      land = mix(land, mix(lin(vec3(0.77, 0.81, 0.63)), lin(vec3(0.74, 0.80, 0.58)), ew), park * 0.62);
+      land = mix(land, mix(lin(vec3(0.66, 0.81, 0.45)), lin(vec3(0.58, 0.79, 0.37)), ew), park * 0.7);
     #else
-      land = mix(land, lin(vec3(0.77, 0.81, 0.63)), park * 0.6);
+      land = mix(land, lin(vec3(0.66, 0.81, 0.45)), park * 0.65);
     #endif
     // Tree canopy (live oak, cedar elm, Ashe juniper), mottled like crowns seen from above;
     // the mottling fades out before it can shimmer at a distance.
     float mott = vnoise(wp * 0.11) * 0.6 + vnoise(wp * 0.37) * 0.4;
     mott = mix(0.5, mott, 1.0 - smoothstep(3.0, 10.0, fp));
-    vec3 crown = mix(lin(vec3(0.47, 0.56, 0.37)), lin(vec3(0.61, 0.67, 0.45)), mott);
-    // Softer from altitude, so the region still reads as a paper map.
-    land = mix(land, crown, canopy * mix(0.72, 0.45, uZoomOut));
-    land = mix(land, lin(vec3(0.86, 0.845, 0.815)), smoothstep(0.05, 0.6, dens) * 0.55 * (1.0 - canopy));
+    vec3 crown = mix(lin(vec3(0.27, 0.52, 0.22)), lin(vec3(0.45, 0.68, 0.31)), mott);
+    // A little softer from altitude, so the region still reads as a map.
+    land = mix(land, crown, canopy * mix(0.8, 0.7, uZoomOut));
+    land = mix(land, lin(vec3(0.86, 0.84, 0.80)), smoothstep(0.05, 0.6, dens) * 0.5 * (1.0 - canopy));
 
     float diff = max(dot(n, uSunDir), 0.0);
     float skyl = 0.6 + 0.4 * n.y;
-    vec3 col = land * (uAmbient * skyl * 0.72 + uSunColor * diff * 0.5);
+    vec3 col = land * (uAmbient * skyl * 0.78 + uSunColor * diff * 0.52);
 
     // Contours every 20 m, index contours every 100 m; fade out before they moiré.
     float c20 = band(h / 20.0, 1.0) * (1.0 - smoothstep(0.1, 0.35, fwidth(h / 20.0)));
@@ -244,7 +244,7 @@ const fragment = /* glsl */ `
     float aa = max(fwidth(sdfM), 0.35);
     float water = smoothstep(-aa, aa, sdfM);
     if (water > 0.001) {
-      vec3 body = mix(lin(vec3(0.58, 0.76, 0.76)), lin(vec3(0.36, 0.60, 0.64)), smoothstep(6.0, 160.0, sdfM));
+      vec3 body = mix(lin(vec3(0.33, 0.66, 0.78)), lin(vec3(0.16, 0.47, 0.68)), smoothstep(6.0, 110.0, sdfM));
       // Creeks (Waller, Shoal, Boggy...): water that is nowhere more than a few metres from a bank
       // within 9 m of here. They run in the shade of the trees along them: darker, greener and
       // stiller than open water, so they read as creeks, not rivers.
@@ -255,7 +255,7 @@ const fragment = /* glsl */ `
                                    max(sdfAt(vUv + vec2(0.0, du.y)), sdfAt(vUv - vec2(0.0, du.y)))));
         creek = (1.0 - smoothstep(4.5, 8.0, deep)) * ew;
       #endif
-      body = mix(body, lin(vec3(0.34, 0.45, 0.4)), creek);
+      body = mix(body, lin(vec3(0.22, 0.46, 0.43)), creek);
       // Engraved waterlines following the shore, like an old survey map; they give way to the
       // moving surface up close.
       float wl = 0.0;

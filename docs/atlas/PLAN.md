@@ -699,3 +699,37 @@ the campus and the stadium.
   - The Old Land Office (the Visitors Center), with its crenellations.
   - St. Mary Cathedral, with its tower and spire.
 
+### 2.14 Opening on the city, in colour (2026-09-30)
+
+Asked for after 2.13, comparing with the levels.fyi atlases: they open close in on the city and
+look vibrant, while this one opened on the whole region at dawn and looked drab.
+
+- **The opening view** is now central Austin at street scale, 4.4 km out, looking up Congress
+  Avenue: Lady Bird Lake in front, the skyline, the Capitol and the UT Tower and stadium behind.
+  - The opener's text describes that view. The Balcones Escarpment line moved to the Hills
+    stop, which is where the real hills are.
+  - The tour's first stops moved later into the morning, so the light keeps brightening from
+    the opener. Downtown now looks north-northwest from the south shore, closer than the opener.
+  - The whole region still closes the tour, at night.
+- **Loading**: central Austin's detail now loads alongside the regional map, not after it, and
+  the loader stays up until both are in. Before, the first view had no downtown until the
+  detail arrived. The first reveal costs about 8 MB on desktop and 4.5 MB on phones, up from
+  3.8 and 1.6.
+- **Colour**:
+  - Sky: a clear blue by day, with a light blue horizon instead of cream, and a little less haze.
+  - Light: stronger sun against cooler, sky-lit shade, so buildings read in relief.
+  - Water: deep blue-teal, lighter in the shallows; creeks greener.
+  - Land and trees: warm sand land; saturated lawns, canopy and trees (live oak and pecan greens,
+    darker cedar and cypress).
+  - Buildings:
+    - glass towers in blue, teal, steel and bronze
+    - mid-rises in limestone, sand, concrete and brick
+    - houses painted white, butter, pale blue and terracotta, under mostly grey, brown and metal
+      roofs
+    - rooftop plant lighter, so it doesn't read as black boxes
+  - Streets: asphalt grey instead of paper white, with dashed centre lines on two-lane streets up
+    close. Parking lots are grey, pools a brighter blue.
+- **Phones**: portrait screens get a wider field of view (up to 48° vertical, from 32°), so a phone
+  sees about as much of the city across as a laptop. In the tour, each stop's subject sits in the
+  open map above its card.
+

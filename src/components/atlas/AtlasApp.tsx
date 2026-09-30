@@ -60,6 +60,8 @@ export function flyToPlace(id: string) {
 
 export default function AtlasApp() {
   const [scene, setScene] = useState<PreparedScene | null>(null);
+  /** central Austin's detail couldn't load: the regional map carries on without it */
+  const [centralFailed, setCentralFailed] = useState(false);
   const [vh, setVh] = useState(900);
   const [narrow, setNarrow] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -85,24 +87,35 @@ export default function AtlasApp() {
       return;
     }
     runtime.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // The regional map first, so the atlas opens quickly; central Austin's street-scale detail
-    // (about as many bytes again) follows, and the scene upgrades in place.
+    // The atlas opens on the city, so central Austin's street-scale detail loads alongside the
+    // regional map, and the loader stays up until both are in. The regional scene mounts first,
+    // so its shaders compile while the detail is still arriving.
     const lowPower = isLowPower();
-    loadAtlasAssets(lowPower, (p) => st.setLoadProgress(p * 0.85))
+    const got = [0, 0];
+    const report = (i: number) => (p: number) => {
+      got[i] = p;
+      st.setLoadProgress(got[0] * 0.44 + got[1] * 0.44);
+    };
+    const central = loadCentralAssets(lowPower, report(1));
+    loadAtlasAssets(lowPower, report(0))
       .then(async (assets) => {
         // Let the progress bar paint before the CPU-heavy extrusion.
         await new Promise((r) => setTimeout(r, 30));
         const { prepareScene, upgradeScene } = await import("./scene/prepare");
         if (cancelled) return;
-        st.setLoadProgress(0.92);
         const base = prepareScene(assets);
         setScene(base);
-        loadCentralAssets(assets.meta, lowPower)
-          .then(async (central) => {
+        central
+          .then(async (c) => {
             await new Promise((r) => setTimeout(r, 30));
-            if (!cancelled) setScene(upgradeScene(base, central));
+            if (cancelled) return;
+            st.setLoadProgress(0.94);
+            setScene(upgradeScene(base, c));
           })
-          .catch((err) => console.error("atlas: central Austin detail failed to load", err));
+          .catch((err) => {
+            console.error("atlas: central Austin detail failed to load", err);
+            if (!cancelled) setCentralFailed(true);
+          });
       })
       .catch((err) => {
         console.error("atlas: failed to load map data", err);
@@ -231,7 +244,7 @@ export default function AtlasApp() {
   return (
     <div className="atlas" data-mode={mode} data-ready={ready ? "1" : "0"} data-selected={selected || selectedPlace ? "1" : "0"}>
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
-        {scene && !webglFailed && <AtlasCanvas scene={scene} />}
+        {scene && !webglFailed && <AtlasCanvas scene={scene} settled={!!scene.central || centralFailed} />}
       </div>
       {scene && !webglFailed && <LabelLayer assets={scene.assets} ground={scene.ground} />}
 
@@ -259,11 +272,6 @@ export default function AtlasApp() {
       {mode === "explore" && <ExplorePanel />}
       {mode === "ride" && scene && <RideHud stations={scene.assets.vectors.redLine.stations} />}
       {mode === "paddle" && paddleRoute && <PaddleHud route={paddleRoute} />}
-      {ready && scene && !scene.central && !webglFailed && (
-        <p className="detail-loading" role="status">
-          {mode === "paddle" ? "Loading the lake…" : "Loading downtown detail…"}
-        </p>
-      )}
       <CompanyPanel onShowOnMap={(id) => {
         switchMode("explore");
         flyToSite(id);

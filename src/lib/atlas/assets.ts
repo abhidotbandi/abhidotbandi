@@ -221,11 +221,15 @@ export async function loadAtlasAssets(lowPower: boolean, onProgress?: (p: number
   };
 }
 
-/** Central Austin's street-scale detail: terrain, surface, paths, trees and every building. */
-export async function loadCentralAssets(meta: Meta, lowPower: boolean, onProgress?: (p: number) => void): Promise<CentralAssets> {
+/**
+ * Central Austin's street-scale detail: terrain, surface, paths, trees and every building. The
+ * atlas opens on the city, so this loads alongside the regional map rather than after it.
+ */
+export async function loadCentralAssets(lowPower: boolean, onProgress?: (p: number) => void): Promise<CentralAssets> {
   const tick = progress(onProgress);
   const lo = lowPower ? "_lo" : "";
-  const [cTerrain, cSurface, cVectors, cTrees, buildings] = await Promise.all([
+  const [meta, cTerrain, cSurface, cVectors, cTrees, buildings] = await Promise.all([
+    json<Meta>("meta.json"),
     decodeImage(`${BASE}/central_terrain${lo}.webp`).then(tick(0.26)),
     decodeImage(`${BASE}/central_surface${lo}.webp`).then(tick(0.41)),
     json<CentralRaw>("central.json").then(tick(0.03)),

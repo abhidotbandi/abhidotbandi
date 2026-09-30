@@ -141,16 +141,20 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       runtime.tod += (want - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-1.5 * dt));
     }
 
+    // Portrait screens get a wider field of view, as map apps do, so a phone sees about as much
+    // of the city across as a laptop, rather than a sliver of it.
+    const aspect = size.width / Math.max(1, size.height);
+    camera.fov = 32 + 16 * clamp((1 - aspect) / 0.55, 0, 1);
     // Clip planes that follow the zoom level keep depth precision where it's needed.
     camera.near = Math.max(0.004, cur.dist * 0.006);
     camera.far = cur.dist * 9 + 90;
 
-    // Shift the focal point to make room for story cards (desktop: right; phone: up)
-    // and, while riding, for the HUD along the bottom.
+    // Shift the focal point to make room for story cards (desktop: right; phone: up, into the
+    // open map above the card) and, while riding, for the HUD along the bottom.
     const wide = size.width >= 900;
     const wantX = st.mode === "tour" && wide ? Math.min(250, size.width * 0.15) : st.selectedSite && wide ? -170 : 0;
     const wantY =
-      st.mode === "tour" && !wide ? size.height * 0.17 : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
+      st.mode === "tour" && !wide ? size.height * 0.25 : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
     const k = 1 - Math.exp(-4 * dt);
     offset.current.x += (wantX - offset.current.x) * k;
     offset.current.y += (wantY - offset.current.y) * k;
@@ -170,7 +174,8 @@ export default function CameraDirector({ height }: { height: HeightField }) {
     if (fog) {
       fog.color.copy(sky.uHorizon.value);
       const d50 = cur.dist * 2.1 + 22;
-      fog.density = (0.83 / d50) * (1 + 0.35 * sky.uNight.value);
+      // Clear air by day, so the colour carries into the distance; hazier at night.
+      fog.density = (0.83 / d50) * (0.8 + 0.55 * sky.uNight.value);
       sky.uFogDensity.value = fog.density;
       sky.uFogColor.value.copy(fog.color).convertLinearToSRGB();
     }

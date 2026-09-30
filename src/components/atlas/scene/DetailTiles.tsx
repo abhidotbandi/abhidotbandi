@@ -81,7 +81,7 @@ const LIT = /* glsl */ `
   vec3 groundLit(vec3 col, vec3 world) {
     vec3 n = normalize(texture2D(uNormal, (world.xz - uRegion.xy) / uRegion.zw).xyz * 2.0 - 1.0);
     float diff = max(dot(n, uSunDir), 0.0);
-    return col * (uAmbient * (0.6 + 0.4 * n.y) * 0.72 + uSunColor * diff * 0.5) * (1.0 - uNight * 0.82);
+    return col * (uAmbient * (0.6 + 0.4 * n.y) * 0.78 + uSunColor * diff * 0.52) * (1.0 - uNight * 0.82);
   }
 `;
 
@@ -131,12 +131,14 @@ const ribbonFragment = /* glsl */ `
     bool unpaved = abs(cls - 7.0) < 0.5 || abs(cls - 9.0) < 0.5;
     vec3 col;
     if (cls > 29.5) col = cls < 30.5 ? lin(vec3(0.64, 0.64, 0.64)) : lin(vec3(0.7, 0.7, 0.69));
-    else if (unpaved) col = lin(vec3(0.87, 0.8, 0.67));
-    else col = lin(vec3(0.975, 0.966, 0.945));
+    else if (unpaved) col = lin(vec3(0.84, 0.74, 0.58));
+    else col = lin(vec3(0.56, 0.56, 0.58)); // asphalt
     // A kerb: the edge a shade darker, up close.
     if (cls < 29.5 && !unpaved) col *= 1.0 - 0.12 * smoothstep(wM - 1.3, wM - 0.3, across) * close;
     float marks = 0.0;
     vec3 markCol = lin(vec3(0.98, 0.98, 0.96));
+    // Local streets wide enough for two lanes get a dashed white centreline, up close.
+    if (cls < 19.5 && !unpaved && wM > 3.5) marks = step(fract(m / 9.0), 0.5) * (1.0 - smoothstep(0.1, 0.3, across)) * close * 0.7;
     if (cls > 29.5 && cls < 30.5) {
       // Runway: a dashed centreline and edge stripes.
       float dash = step(fract(m / 60.0), 0.55) * (1.0 - smoothstep(0.5, 1.0, across));
@@ -213,11 +215,11 @@ const areaFragment = /* glsl */ `
   void main() {
     float k = vKind;
     vec3 col;
-    if (k < 1.5) col = lin(vec3(0.86, 0.85, 0.82)); // parking
-    else if (k < 2.5) col = lin(vec3(0.74, 0.74, 0.73)); // apron
-    else if (k < 3.5) col = lin(vec3(0.7, 0.7, 0.7)); // helipad
-    else if (k < 10.5) col = lin(vec3(0.42, 0.8, 0.87)); // swimming pool
-    else col = lin(vec3(0.58, 0.76, 0.76)); // pond
+    if (k < 1.5) col = lin(vec3(0.66, 0.66, 0.67)); // parking
+    else if (k < 2.5) col = lin(vec3(0.7, 0.7, 0.7)); // apron
+    else if (k < 3.5) col = lin(vec3(0.66, 0.66, 0.66)); // helipad
+    else if (k < 10.5) col = lin(vec3(0.3, 0.78, 0.9)); // swimming pool
+    else col = lin(vec3(0.3, 0.6, 0.74)); // pond
     vec3 lit = groundLit(col, vWorld);
     // Floodlit aprons and lit car parks after dark.
     float dark = smoothstep(0.35, 1.0, uNight);

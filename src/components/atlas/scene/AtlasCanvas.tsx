@@ -72,11 +72,14 @@ function DebugHandle() {
   return null;
 }
 
-/** Lifts the loader once the scene has actually drawn, not just mounted. */
-function ReadySignal() {
+/**
+ * Lifts the loader once the scene has actually drawn, not just mounted: the city the atlas opens
+ * on, so not before central Austin's detail is in (or has failed to load).
+ */
+function ReadySignal({ settled }: { settled: boolean }) {
   const frames = useRef(0);
   useFrame(() => {
-    if (frames.current < 0) return;
+    if (frames.current < 0 || !settled) return;
     if (++frames.current >= 2) {
       frames.current = -1;
       useAtlas.getState().setReady();
@@ -100,7 +103,7 @@ function Precompile({ token }: { token: unknown }) {
   return null;
 }
 
-export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
+export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; settled: boolean }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
   const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
   const { assets, tex, buildings, ground, central } = scene;
@@ -151,7 +154,7 @@ export default function AtlasCanvas({ scene }: { scene: PreparedScene }) {
       <LabelDriver />
       <Precompile token={central} />
       <DebugHandle />
-      <ReadySignal />
+      <ReadySignal settled={settled} />
     </Canvas>
   );
 }

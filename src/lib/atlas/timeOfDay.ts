@@ -13,14 +13,15 @@ interface Key {
   night: number;
 }
 
-// Dawn over the Hill Country to night over the city. Warm, slightly hazy Texas light.
+// Dawn over the Hill Country to night over the city: clear Texas light, a deep blue sky by day,
+// and shade lit by the sky, cooler than the sun, so the city reads in colour and in relief.
 const KEYS: Key[] = [
   { t: 0.0, zenith: "#27365c", horizon: "#e2a584", ground: "#b9ab98", sun: "#ff9d6a", sunElev: -1, ambient: "#8e8aa4", night: 0.55 },
-  { t: 0.08, zenith: "#7d97bf", horizon: "#f3cfac", ground: "#e6dccb", sun: "#ffc08c", sunElev: 7, ambient: "#b8b3bf", night: 0.12 },
-  { t: 0.24, zenith: "#86b1d9", horizon: "#eef0ea", ground: "#ebe4d4", sun: "#fff1dc", sunElev: 34, ambient: "#c9d0d6", night: 0 },
-  { t: 0.5, zenith: "#79acdc", horizon: "#f1f2ec", ground: "#ece5d5", sun: "#ffffff", sunElev: 64, ambient: "#cfd6db", night: 0 },
-  { t: 0.7, zenith: "#7aa5d3", horizon: "#f3ecdd", ground: "#ebe2d0", sun: "#fff3dc", sunElev: 34, ambient: "#cdd0d2", night: 0 },
-  { t: 0.79, zenith: "#8196c3", horizon: "#f7d6a4", ground: "#e6d8bf", sun: "#ffc27e", sunElev: 13, ambient: "#c9c2bd", night: 0 },
+  { t: 0.08, zenith: "#6d8fc4", horizon: "#f6cda6", ground: "#e3d6bd", sun: "#ffbf85", sunElev: 7, ambient: "#aeb0c4", night: 0.12 },
+  { t: 0.24, zenith: "#4b8fd6", horizon: "#d9e9f2", ground: "#e6d9bc", sun: "#fff0d8", sunElev: 34, ambient: "#adc1d6", night: 0 },
+  { t: 0.5, zenith: "#3f89d6", horizon: "#d4e8f4", ground: "#e8dcc0", sun: "#fffaf0", sunElev: 64, ambient: "#b3c7da", night: 0 },
+  { t: 0.7, zenith: "#4686d0", horizon: "#dfe8ec", ground: "#e8dabd", sun: "#fff2da", sunElev: 34, ambient: "#b6c4d2", night: 0 },
+  { t: 0.79, zenith: "#6b8cc6", horizon: "#f8cf96", ground: "#e4d2b1", sun: "#ffbc6e", sunElev: 13, ambient: "#bdb5b6", night: 0 },
   { t: 0.86, zenith: "#4c5a90", horizon: "#f3a176", ground: "#a79382", sun: "#ff8d55", sunElev: 2.5, ambient: "#a29aa8", night: 0.28 },
   { t: 0.92, zenith: "#1f2752", horizon: "#7b5b87", ground: "#2c2a3e", sun: "#ff6d45", sunElev: -5, ambient: "#5e6384", night: 0.75 },
   { t: 1.0, zenith: "#070b1a", horizon: "#19203c", ground: "#0b0f1e", sun: "#ff6d45", sunElev: -18, ambient: "#39406a", night: 1 },

@@ -101,9 +101,9 @@ interface LayerStyle {
 
 const STYLES: Record<string, LayerStyle> = {
   creeks: { day: "#7fb2c3", night: "#1d4660", width: 1, near: 0.55, far: 0.0, yOff: 0.004 },
-  tertiary: { day: "#fffaf0", night: "#6f6b78", width: 1, near: 0.7, far: 0.0, yOff: 0.006 },
-  secondary: { day: "#fffaf0", night: "#8b8290", width: 1.3, near: 0.85, far: 0.05, yOff: 0.007 },
-  primary: { day: "#fffdf7", night: "#b2a18a", width: 1.8, near: 0.95, far: 0.25, yOff: 0.008 },
+  tertiary: { day: "#8c8781", night: "#6f6b78", width: 1.1, near: 0.8, far: 0.0, yOff: 0.006 },
+  secondary: { day: "#7a756f", night: "#8b8290", width: 1.4, near: 0.9, far: 0.05, yOff: 0.007 },
+  primary: { day: "#6b6660", night: "#b2a18a", width: 1.9, near: 0.95, far: 0.25, yOff: 0.008 },
   trunk: { day: "#f4c58c", night: "#d8995a", width: 2.2, near: 1, far: 0.55, yOff: 0.009 },
   motorway: { day: "#e8a15c", night: "#f0a24e", width: 2.8, near: 1, far: 0.8, yOff: 0.01 },
   rail: { day: "#8c7d6a", night: "#5d5a6e", width: 1.1, near: 0.7, far: 0.1, yOff: 0.008 },

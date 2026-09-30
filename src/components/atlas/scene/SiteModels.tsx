@@ -95,7 +95,7 @@ const fragment = /* glsl */ `
     if (on) base = mix(base, site.rgb, 0.3 * smoothstep(0.55, 1.0, emph));
 
     float diff = max(dot(n, uSunDir), 0.0);
-    vec3 col = base * (uAmbient * (0.6 + 0.4 * n.y) + uSunColor * diff * 0.55);
+    vec3 col = base * (uAmbient * (0.52 + 0.48 * n.y) * 0.9 + uSunColor * diff * 0.7);
     col *= 1.0 - uNight * 0.84;
 
     float dark = smoothstep(0.35, 1.0, uNight);

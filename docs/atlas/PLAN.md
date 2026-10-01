@@ -840,7 +840,7 @@ what blocks):
 - **What the opening view doesn't show** (traffic, boats and rowers, people in the parks and
   streets, the bats, the airport, the town lights, the launch plume) is built only once the live
   map has faded in, a piece at a time, each shown once its shaders are ready.
-- **The reveal waits at most a second** for the detail tiles at the far edge of the opening view
+- **The reveal waits at most 1.2 s** for the detail tiles at the far edge of the opening view
   (it was two and a half); the quality governor waits 4 s after it before judging the frame rate.
 - **Result** here: main-thread stalls before the reveal down from 8.1 s to 2.5 s, and central
   Austin prepared at 2.7 s instead of 7.3 s. (Browsers without KHR_parallel_shader_compile, like

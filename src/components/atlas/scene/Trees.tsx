@@ -56,7 +56,9 @@ export function crownGeometry(conical: boolean, far = false): THREE.BufferGeomet
   }
   const trunk = new THREE.CylinderGeometry(0.1, 0.14, conical ? 0.8 : 0.9, 5, 1);
   trunk.translate(0, conical ? 0.4 : 0.45, 0);
-  const parts = far ? [crown.toNonIndexed()] : [crown.toNonIndexed(), trunk.toNonIndexed()];
+  // (Icosahedra come non-indexed already.)
+  const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g);
+  const parts = far ? [flat(crown)] : [flat(crown), flat(trunk)];
   const pos: number[] = [];
   const nrm: number[] = [];
   const colr: number[] = [];

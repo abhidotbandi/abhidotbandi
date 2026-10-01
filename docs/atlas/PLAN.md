@@ -804,13 +804,13 @@ and the contact shadows' height map redrew it on every frame the camera moved.
 - **The reflection draws only what shows in it**: the buildings 12 m and up, as a small mesh of
   their own (extruded in the prep worker, desktop only), the bridges, the sky and its clouds:
   0.4 million triangles instead of 7.6.
-- **Shadows redraw when it matters**: when the view has moved a twelfth of the way across the
-  shadow box, zoomed a step, or the sun has turned about half a degree (flying between stops
-  turns it), not every frame; in between, the box and its map stay together, so shadows stay
+- **Shadows redraw when it matters**: when the view has moved 4% of the way across the shadow
+  box, zoomed a step, or the sun has turned about half a degree (flying between stops turns it),
+  not every frame; in between, the box and its map stay together, so shadows stay
   right. Trees cast shadows only within 2 km.
 - **Contact shadows**: the trees are left out of the height map (2.6 million triangles), it
-  redraws after a fifth of its width rather than an eighth, and each pixel takes 12 samples on the
-  ground and 6 on walls, down from 16 and 10.
+  redraws after the view moves a tenth of its width rather than a sixteenth, and each pixel takes
+  12 samples on the ground and 6 on walls, down from 16 and 10.
 - **Trees**: indexed (about 55 vertices a tree instead of 300), and the ones over 1.6 km from the
   camera, a few pixels across, are low-poly crowns without trunks (26 triangles instead of 100).
 - **Cloud shadows** loop over the clouds near the view only (at most 12).

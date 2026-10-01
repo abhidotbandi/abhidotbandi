@@ -29,7 +29,7 @@ import Landmarks from "./Landmarks";
 import DetailTiles from "./DetailTiles";
 import Airport from "./Airport";
 import Clouds from "./Clouds";
-import WaterReflection from "./Water";
+import WaterReflection, { mirrored } from "./Water";
 import Occlusion from "./Occlusion";
 import Construction from "./Construction";
 import { LabelDriver } from "../ui/labels";
@@ -45,9 +45,11 @@ const _c = new THREE.Vector3();
 
 /**
  * The sun and the sky's light, and the sun's shadows: an orthographic box around what the camera
- * looks at, sized to the view (sharp up close, broad from afar), its centre snapped to whole
- * shadow-map texels so shadow edges hold still as the camera moves. The map is redrawn when the
- * view or the sun moves, and a few times a second otherwise.
+ * looks at, sized to the view in steps (sharp up close, broad from afar), its centre snapped to
+ * whole shadow-map texels so shadow edges hold still. Redrawing the map draws the city again, so
+ * it's redrawn only when the view has moved a good way across the box, zoomed a step or the sun
+ * has turned a little, and now and then while still (for what streams in); in between the box
+ * stays put and the shadows in it stay right.
  */
 function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }) {
   const hemi = useRef<THREE.HemisphereLight>(null);
@@ -78,7 +80,8 @@ function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }
     // No sun, no shadows (the map stays compiled for them, so nothing recompiles at dusk).
     s.shadow.intensity = THREE.MathUtils.smoothstep(dir.y, 0.02, 0.12) * (1 - n) * 0.9;
     const cam = runtime.cam;
-    const r = THREE.MathUtils.clamp(cam.dist * 1.05, 0.35, 7);
+    const want = THREE.MathUtils.clamp(cam.dist * 1.05, 0.35, 7);
+    const r = Math.min(7, 0.35 * Math.pow(1.25, Math.ceil(Math.log(want / 0.35) / Math.log(1.25) - 1e-9)));
     // A little toward the camera from what it looks at: the near ground fills more of the screen.
     const b = THREE.MathUtils.degToRad(cam.bearing);
     _c.set(cam.x - Math.sin(b) * r * 0.25, 0, cam.z + Math.cos(b) * r * 0.25);
@@ -91,6 +94,14 @@ function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }
     const bb = Math.round(_c.dot(_y) / texel) * texel;
     const d = _c.dot(dir);
     _c.copy(_x).multiplyScalar(a).addScaledVector(_y, bb).addScaledVector(dir, d);
+    const l = last.current;
+    const moved =
+      Math.hypot(_c.x - l.x, _c.z - l.z) > r * 0.08 ||
+      r !== l.r ||
+      Math.abs(dir.x - l.sx) + Math.abs(dir.y - l.sy) + Math.abs(dir.z - l.sz) > 0.012;
+    if (!moved && !Number.isNaN(l.x) && ++l.frames < 45) return;
+    // The light takes its new place only as the map is redrawn: until then its old box and old
+    // map stay together.
     s.target.position.copy(_c);
     s.target.updateMatrixWorld();
     s.position.copy(_c).addScaledVector(dir, 20);
@@ -104,23 +115,13 @@ function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }
       sc.far = 26;
       sc.updateProjectionMatrix();
     }
-    const l = last.current;
-    const moved =
-      Math.abs(_c.x - l.x) > texel * 0.5 ||
-      Math.abs(_c.z - l.z) > texel * 0.5 ||
-      Math.abs(r - l.r) > 1e-6 ||
-      Math.abs(dir.x - l.sx) + Math.abs(dir.y - l.sy) + Math.abs(dir.z - l.sz) > 1e-4;
-    // Also a few times a second while still: buildings, tiles and trees stream in under a
-    // camera that isn't moving.
-    if (moved || Number.isNaN(l.x) || ++l.frames > 20) {
-      state.gl.shadowMap.needsUpdate = s.shadow.intensity > 0.001;
-      Object.assign(l, { x: _c.x, z: _c.z, r, sx: dir.x, sy: dir.y, sz: dir.z, frames: 0 });
-    }
+    state.gl.shadowMap.needsUpdate = s.shadow.intensity > 0.001;
+    Object.assign(l, { x: _c.x, z: _c.z, r, sx: dir.x, sy: dir.y, sz: dir.z, frames: 0 });
   });
   return (
     <>
-      <hemisphereLight ref={hemi} args={["#ffffff", "#8a7a66", 1.4]} />
-      <directionalLight ref={sun} position={[20, 40, 10]} intensity={2} castShadow />
+      <hemisphereLight ref={hemi} args={["#ffffff", "#8a7a66", 1.4]} onUpdate={mirrored} />
+      <directionalLight ref={sun} position={[20, 40, 10]} intensity={2} castShadow onUpdate={mirrored} />
     </>
   );
 }
@@ -183,28 +184,30 @@ function ReadySignal({ settled }: { settled: boolean }) {
 }
 
 /**
- * Keeps the map smooth on weaker GPUs: if frames stay slow (under ~35 fps) for a couple of
- * seconds once the map is up, the costliest extras go, one step at a time: the lakes'
- * reflections, then the contact shadows, then the pixel ratio drops to 1. It never steps back
- * up. Automated renders (the posters, QA screenshots) keep full quality however slowly they draw.
+ * Keeps the map smooth on weaker GPUs: if frames stay slow (under ~42 fps) for a second and a
+ * half once the map is up, quality steps down, one step at a time (runtime.quality): the pixel
+ * ratio to 1.5, then no contact shadows, then no lake reflections, then a pixel ratio of 1. It
+ * never steps back up. Automated renders (the posters, QA screenshots) keep full quality however
+ * slowly they draw.
  */
 function Governor() {
   const ready = useAtlas((s) => s.ready);
   const st = useRef({ ema: 16, slow: 0, since: 0 });
   useFrame((state, dt) => {
-    if (!ready || runtime.poster || runtime.quality >= 3 || navigator.webdriver || document.hidden) return;
+    if (!ready || runtime.poster || runtime.quality >= 4 || navigator.webdriver || document.hidden) return;
     const s = st.current;
     const now = performance.now();
     s.since ||= now;
     // Let the reveal (and each step down) settle before judging.
-    if (now - s.since < 3000) return;
+    if (now - s.since < 2000) return;
     // A smoothed frame time, so one hitch (a shader compiling, a tile arriving) doesn't count;
     // then how long it has stayed slow.
     s.ema += (Math.min(dt, 0.1) * 1000 - s.ema) * 0.05;
-    s.slow = s.ema > 28 ? s.slow + dt : Math.max(0, s.slow - dt);
-    if (s.slow < 2) return;
+    s.slow = s.ema > 24 ? s.slow + dt : Math.max(0, s.slow - dt);
+    if (s.slow < 1.5) return;
     runtime.quality++;
-    if (runtime.quality === 3) state.setDpr(1);
+    const dpr = runtime.quality === 1 ? 1.5 : runtime.quality === 4 ? 1 : 0;
+    if (dpr && state.viewport.dpr > dpr) state.setDpr(dpr);
     Object.assign(s, { ema: 16, slow: 0, since: now });
   });
   return null;
@@ -273,7 +276,7 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       <Airport ground={ground} />
       <Clouds ground={ground} lowPower={scene.lowPower} />
       <Occlusion ground={ground} lowPower={scene.lowPower} />
-      {central && !scene.lowPower && <WaterReflection levels={central.water} />}
+      {central && !scene.lowPower && <WaterReflection levels={central.water} skyline={central.skyline} />}
       <Construction ground={ground} />
       <SiteModels models={scene.models} />
       <Plume height={ground} origin={scene.models.engine} />

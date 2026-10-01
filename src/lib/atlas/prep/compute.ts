@@ -34,6 +34,8 @@ export interface CentralPrep {
   pixels: TerrainPixels;
   patch: { nx: number; nz: number; data: Float32Array };
   buildings: BuildingArrays;
+  /** the buildings 12 m and up, which the lakes mirror (desktop only) */
+  skyline: BuildingArrays | null;
   models: SiteModelArrays;
   /** the patch's trees, clear of the site models' plant and the Capitol's walks and monuments */
   trees: Trees;
@@ -126,15 +128,13 @@ export function computeCentral(r: Pick<RegionalPrep, "assets" | "terrainSegments
   // Capitol Extension's skylights too), as do the company sites modelled in their place.
   const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
   const sites = new Set(MODELLED_SITES.map(siteIndex));
-  const buildings = extrudeBuildings(
-    c.buildings,
-    ground,
-    c.buildings.sites.map(siteIndex),
-    SITES.length,
-    r.lowPower ? 120 : 0,
-    (x, z, site) => sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z),
-    districtStyle,
-  );
+  const skip = (x: number, z: number, site: number) =>
+    sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z);
+  const siteMap = c.buildings.sites.map(siteIndex);
+  const buildings = extrudeBuildings(c.buildings, ground, siteMap, SITES.length, r.lowPower ? 120 : 0, skip, districtStyle);
+  // The lakes mirror only what stands tall enough to show in them: a small mesh of its own, so
+  // the reflection doesn't draw the whole city again.
+  const skyline = r.lowPower ? null : extrudeBuildings(c.buildings, ground, siteMap, SITES.length, 0, skip, districtStyle, 12);
   mark("central buildings");
   const models = buildSiteModelArrays([r.assets.buildings, c.buildings], ground, SITES.length);
   mark("central models");
@@ -148,6 +148,7 @@ export function computeCentral(r: Pick<RegionalPrep, "assets" | "terrainSegments
     pixels,
     patch: { nx: patch.nx, nz: patch.nz, data: patch.data },
     buildings,
+    skyline,
     models,
     trees,
     water,

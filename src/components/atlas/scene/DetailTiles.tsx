@@ -303,7 +303,6 @@ class TreePool {
       m.count = 0;
       m.frustumCulled = false;
       m.receiveShadow = true;
-      aoCaster(m);
       return m;
     };
     this.round = mk(false);

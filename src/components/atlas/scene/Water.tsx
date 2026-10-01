@@ -8,11 +8,13 @@ import { CX_MIN, CZ_MIN, elevToY } from "@/lib/atlas/geo";
 import type { WaterLevels } from "@/lib/atlas/prep/compute";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { makeBuildingMaterial } from "./Buildings";
 
-// The lakes' reflections. Each frame the scene is drawn again, at half resolution, from the
-// camera mirrored in the water's surface, clipped at the surface (an oblique near plane, so no
-// material needs to know); the terrain's water samples it (see Terrain.tsx), ripples breaking it
-// up. Lady Bird Lake and Lake Austin lie at different levels, and a mirror is one plane: it
+// The lakes' reflections. Each frame what stands tall enough to show in them (the skyline, as
+// a mesh of its own, the bridges, the sky and its clouds: the mirror layer) is drawn again, at
+// half resolution, from the camera mirrored in the water's surface, clipped at the surface (an
+// oblique near plane, so no material needs to know); the terrain's water samples it (see
+// Terrain.tsx), ripples breaking it up. Lady Bird Lake and Lake Austin lie at different levels, and a mirror is one plane: it
 // takes the level of the water that fills most of the view around what the camera looks at,
 // and water at other levels keeps to the sky's reflection. Desktop only.
 
@@ -70,6 +72,14 @@ function rippleNormals(size = 128): THREE.DataTexture {
   return t;
 }
 
+/** Objects the lakes mirror are on this layer as well as (or, the skyline, instead of) the default. */
+export const MIRROR_LAYER = 3;
+
+/** Put an object in the lakes' reflection. */
+export function mirrored(o: THREE.Object3D) {
+  o.layers.enable(MIRROR_LAYER);
+}
+
 const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
 blank.needsUpdate = true;
 
@@ -80,8 +90,6 @@ export const water = {
   uReflMatrix: { value: new THREE.Matrix4() },
   uReflOn: { value: 0 },
   uReflY: { value: 0 },
-  /** 1 while the reflection is drawn */
-  uMirror: { value: 0 },
 };
 
 /** The ripple map, made on first use. */
@@ -128,14 +136,20 @@ const clip = new THREE.Vector4();
 const q = new THREE.Vector4();
 const savedCam = new THREE.Vector3();
 
-export default function WaterReflection({ levels }: { levels: WaterLevels }) {
+/** The skyline mesh: in the reflection only. */
+const skylineOnly = (m: THREE.Object3D) => m.layers.set(MIRROR_LAYER);
+
+export default function WaterReflection({ levels, skyline }: { levels: WaterLevels; skyline: THREE.BufferGeometry | null }) {
   const holder = useMemo(() => {
     const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: true, generateMipmaps: false });
     rt.texture.minFilter = THREE.LinearFilter;
+    const mirror = new THREE.PerspectiveCamera();
+    mirror.layers.set(MIRROR_LAYER);
     const o = new THREE.Object3D();
-    o.userData = { rt, mirror: new THREE.PerspectiveCamera() };
+    o.userData = { rt, mirror, level: { x: Number.NaN, z: Number.NaN, r: 0, value: Number.NaN } };
     return o;
   }, []);
+  const material = useMemo(() => makeBuildingMaterial(), []);
   const ref = useRef<THREE.Object3D>(null);
   useEffect(
     () => () => {
@@ -149,14 +163,23 @@ export default function WaterReflection({ levels }: { levels: WaterLevels }) {
   useFrame((state) => {
     const o = ref.current;
     if (!o) return;
-    const { rt, mirror } = o.userData as { rt: THREE.WebGLRenderTarget; mirror: THREE.PerspectiveCamera };
+    const { rt, mirror, level: lv } = o.userData as {
+      rt: THREE.WebGLRenderTarget;
+      mirror: THREE.PerspectiveCamera;
+      level: { x: number; z: number; r: number; value: number };
+    };
     const gl = state.gl;
     const cam = runtime.cam;
     const camera = state.camera as THREE.PerspectiveCamera;
     water.uReflOn.value = 0;
     // Off if the frame rate governor has dropped it (AtlasCanvas).
-    if (runtime.quality >= 1 || cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
-    const level = levelAround(levels, cam.x, cam.z, Math.min(4, Math.max(1, cam.dist * 0.8)));
+    if (runtime.quality >= 3 || cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
+    // Which water fills the view: looked up again only when the view has moved a little.
+    const r = Math.min(4, Math.max(1, cam.dist * 0.8));
+    if (!(Math.hypot(cam.x - lv.x, cam.z - lv.z) < 0.05 && Math.abs(r - lv.r) < lv.r * 0.1)) {
+      Object.assign(lv, { x: cam.x, z: cam.z, r, value: levelAround(levels, cam.x, cam.z, r) });
+    }
+    const level = lv.value;
     if (Number.isNaN(level)) return;
     const y = elevToY(level);
     camera.updateMatrixWorld();
@@ -204,13 +227,15 @@ export default function WaterReflection({ levels }: { levels: WaterLevels }) {
     savedCam.copy(sky.uCamPos.value);
     sky.uCamPos.value.copy(mirrorPos);
     water.uReflection.value = blank;
-    water.uMirror.value = 1;
+    // (The shadow map is left for the main pass: drawn from here it would hold the mirror layer only.)
+    const shadows = gl.shadowMap.needsUpdate;
+    gl.shadowMap.needsUpdate = false;
     const prev = gl.getRenderTarget();
     gl.setRenderTarget(rt);
     gl.clear();
     gl.render(state.scene, mirror);
     gl.setRenderTarget(prev);
-    water.uMirror.value = 0;
+    gl.shadowMap.needsUpdate = shadows;
     sky.uCamPos.value.copy(savedCam);
 
     water.uReflection.value = rt.texture;
@@ -219,5 +244,10 @@ export default function WaterReflection({ levels }: { levels: WaterLevels }) {
     water.uReflMatrix.value.multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
     water.uReflOn.value = 1;
   });
-  return <primitive ref={ref} object={holder} />;
+  return (
+    <>
+      <primitive ref={ref} object={holder} />
+      {skyline && <mesh geometry={skyline} material={material} frustumCulled={false} onUpdate={skylineOnly} />}
+    </>
+  );
 }

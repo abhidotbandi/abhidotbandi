@@ -10,6 +10,7 @@ import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { aoCaster } from "./Occlusion";
+import { mirrored } from "./Water";
 
 // Things built over the water: bridge decks on their piers, the Boardwalk along the south
 // shore, and the docks and piers the rowing and paddling clubs launch from.
@@ -261,6 +262,12 @@ function build(c: Central, ground: HeightField): THREE.BufferGeometry {
   return g;
 }
 
+/** Bridges and piers shade the ground beside them and show in the lakes. */
+const standing = (m: THREE.Object3D) => {
+  aoCaster(m);
+  mirrored(m);
+};
+
 export default function Structures({ central, ground }: { central: Central; ground: HeightField }) {
   const ref = useRef<THREE.Mesh>(null);
   const { geometry, material } = useMemo(
@@ -277,5 +284,5 @@ export default function Structures({ central, ground }: { central: Central; grou
     m.visible = runtime.cam.dist < 9;
     (m.material as THREE.MeshLambertMaterial).emissive.setRGB(0.12, 0.1, 0.08).multiplyScalar(sky.uNight.value);
   });
-  return <mesh ref={ref} geometry={geometry} material={material} castShadow receiveShadow onUpdate={aoCaster} />;
+  return <mesh ref={ref} geometry={geometry} material={material} castShadow receiveShadow onUpdate={standing} />;
 }

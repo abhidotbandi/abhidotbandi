@@ -142,8 +142,9 @@ export const runtime = {
   /** the detail tiles in view have all arrived (or failed), so the first view is complete */
   tilesSettled: false,
   /**
-   * Steps taken down from full quality because frames were slow (AtlasCanvas's Governor): 1 no
-   * lake reflections, 2 no contact shadows either, 3 a pixel ratio of 1 too.
+   * Steps taken down from full quality because frames were slow (AtlasCanvas's Governor), each
+   * keeping the ones before: 1 a pixel ratio of at most 1.5, 2 no contact shadows, 3 no lake
+   * reflections, 4 a pixel ratio of 1.
    */
   quality: 0,
 };

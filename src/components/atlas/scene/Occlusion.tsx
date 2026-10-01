@@ -6,12 +6,13 @@ import * as THREE from "three";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 
-// Contact shadows, as in a toy model: the soft darkening where buildings meet the ground, down
-// narrow streets and under trees. The buildings, trees, landmarks and site models around what
-// the camera looks at are drawn from straight above into a height map (again only when the view
-// has moved well across it, or zoomed a step); the ground, street and building shaders look
-// round each point at the heights nearby and darken the sky's light by how much of the sky they
-// hide. Desktop only, and faded out in wide views, where it would be under a pixel.
+// Contact shadows, as in a toy model: the soft darkening where buildings meet the ground and
+// down narrow streets. The buildings, landmarks, bridges and site models around what the camera
+// looks at are drawn from straight above into a height map (again only when the view has moved
+// well across it, or zoomed a step); the ground, street and building shaders look round each
+// point at the heights nearby and darken the sky's light by how much of the sky they hide.
+// Desktop only, and faded out in wide views, where it would be under a pixel. (The trees are left
+// out: tens of thousands of them, for little.)
 
 /** Objects drawn into the height map are on this layer as well as the default one. */
 export const AO_LAYER = 2;
@@ -68,18 +69,16 @@ export const OCCLUSION_PARS = /* glsl */ `
       vec2 f = normalize(n.xz);
       vec2 s = vec2(-f.y, f.x);
       vec3 q = p + vec3(f.x, 0.0, f.y) * (0.0008 + 2.0 * uAoBox.z / ${RES.toFixed(1)});
-      occ = (aoRise(q.xz, q.y, f, lod0) + aoRise(q.xz, q.y, normalize(f + s * 0.6), lod0) +
-        aoRise(q.xz, q.y, normalize(f - s * 0.6), lod0) + aoRise(q.xz, q.y, normalize(f + s * 1.7), lod0) +
-        aoRise(q.xz, q.y, normalize(f - s * 1.7), lod0)) / 5.0;
+      occ = (aoRise(q.xz, q.y, f, lod0) + aoRise(q.xz, q.y, normalize(f + s), lod0) + aoRise(q.xz, q.y, normalize(f - s), lod0)) / 3.0;
       occ = min(occ, 0.4);
     } else {
       // A little above the surface, so it doesn't see itself.
       vec3 q = p + vec3(0.0, 0.0008, 0.0);
-      for (int i = 0; i < 8; i++) {
-        float a = float(i) * 0.7853982;
+      for (int i = 0; i < 6; i++) {
+        float a = float(i) * 1.0471976;
         occ += aoRise(q.xz, q.y, vec2(cos(a), sin(a)), lod0);
       }
-      occ /= 8.0;
+      occ /= 6.0;
     }
     // (Averaged heights understate a wall's: made up for here.)
     return 1.0 - min(1.0, occ * 1.8) * edge * uAoBox.w;
@@ -159,7 +158,7 @@ export default function Occlusion({ ground, lowPower }: { ground: HeightField; l
     const z = Math.round((cam.z + Math.cos(b) * r * 0.3) / texel) * texel;
     // Redraw when the view has moved a good way across the map, or zoomed a step, and now and
     // then while still (tiles and trees stream in).
-    const moved = Math.hypot(x - u.x, z - u.z) > r * 0.12 || r !== u.r || Number.isNaN(u.x);
+    const moved = Math.hypot(x - u.x, z - u.z) > r * 0.2 || r !== u.r || Number.isNaN(u.x);
     if (moved || ++u.frames > 45) {
       const gy = groundY(ground, cam.x, cam.z);
       occlusion.uAoBase.value = gy - 0.3;

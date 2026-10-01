@@ -8,6 +8,7 @@ import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime, useAtlas } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { CLOUD_SLOTS, cloudShadows } from "./shadows";
+import { mirrored } from "./Water";
 
 // Fair-weather cumulus drifting over the map on the south-easterly breeze: puffy, faceted, lit
 // like the rest of the model (bright tops, cool grey-blue bellies, the sun's colour at dawn and
@@ -239,6 +240,7 @@ export default function Clouds({ ground, lowPower }: { ground: HeightField; lowP
       const m = new THREE.InstancedMesh(cloudGeometry(v + 1, detail), material, c);
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mirrored(m);
       return m;
     });
     const g = new THREE.Group();
@@ -311,7 +313,7 @@ export default function Clouds({ ground, lowPower }: { ground: HeightField; lowP
     // distance from it, as the view pulls back, and as the sun gets low.
     const A = cloudShadows.uCloudA.value;
     const B = cloudShadows.uCloudB.value;
-    A.fill(0);
+    cloudShadows.uCloudN.value = 0;
     const sun = sky.uSunDir.value;
     const strength = 0.72 * (1 - smoothstep(cam.dist, 10, 20)) * smoothstep(sun.y, 0.05, 0.2);
     if (!visible || strength <= 0) return;
@@ -335,6 +337,7 @@ export default function Clouds({ ground, lowPower }: { ground: HeightField; lowP
     for (let i = 0; i < CLOUD_SLOTS; i++) {
       const c = nearC[i];
       if (!c) break;
+      cloudShadows.uCloudN.value = i + 1;
       A[i * 4] = c.px;
       A[i * 4 + 1] = c.pz;
       A[i * 4 + 2] = c.base + c.height * 0.35;

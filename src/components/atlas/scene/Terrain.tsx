@@ -89,7 +89,6 @@ const fragment = /* glsl */ `
   uniform mat4 uReflMatrix;
   uniform float uReflOn;
   uniform float uReflY;
-  uniform float uMirror;
   #ifdef OUTER
     uniform sampler2D uOuterHeight;
     uniform sampler2D uOuterNormal;
@@ -154,10 +153,6 @@ const fragment = /* glsl */ `
   #endif
 
   void main() {
-    // Drawn for the lakes' reflection, the ground is seen from below the water: only its top,
-    // so the reflection shows the sky past gently rising banks (the patch is double-sided for
-    // its skirt).
-    if (uMirror > 0.5 && !gl_FrontFacing) discard;
     #ifndef PATCH
       // The central patch draws its own, finer terrain here.
       if (vWorld.x > uPatchRect.x && vWorld.x < uPatchRect.z && vWorld.z > uPatchRect.y && vWorld.z < uPatchRect.w) discard;
@@ -249,7 +244,7 @@ const fragment = /* glsl */ `
     float sun = sunShadow(n, uSunDir) * cloudShadow(vWorld, uSunDir);
     float diff = max(dot(n, uSunDir), 0.0) * sun;
     float skyl = 0.6 + 0.4 * n.y;
-    // Contact shadows: less sky beside and between buildings and under trees.
+    // Contact shadows: less sky beside and between buildings.
     float open = skyOpen(vWorld, n);
     vec3 col = land * (uAmbient * skyl * 0.78 * open + uSunColor * diff * 0.52 * mix(1.0, open, 0.35));
 

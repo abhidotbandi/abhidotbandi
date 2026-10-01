@@ -3,14 +3,15 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Trees as TreeData } from "@/lib/atlas/central";
 import { CX_MIN, CZ_MIN, C_HEIGHT_KM, C_WIDTH_KM, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
-import { aoCaster } from "./Occlusion";
 
 // Central Austin's trees as low-poly instances: live oaks, cedar elms and pecans as rounded
 // crowns, bald cypress along the river and Ashe juniper in the western hills as cones. Only
-// the trees around the camera are drawn; the terrain's canopy tint carries the rest.
+// the trees around the camera are drawn; the terrain's canopy tint carries the rest. Trees well
+// away from the camera, a few pixels across, are drawn with a fifth of the triangles.
 
 const CELL = 0.25; // km
 export const TREE_EXAG = 1.3; // matches the buildings' gentle vertical boost
@@ -41,10 +42,13 @@ function buildGrid(t: TreeData): Grid {
   return { nx, nz, start, order };
 }
 
-export function crownGeometry(conical: boolean): THREE.BufferGeometry {
+/** Beyond this from the camera (km) a tree is a few pixels across: drawn low-poly, no trunk. */
+const LOD_KM = 1.6;
+
+export function crownGeometry(conical: boolean, far = false): THREE.BufferGeometry {
   // Unit tree standing at the origin; crown colour comes from the instance, the trunk is a
   // darker vertex colour multiplied by it.
-  const crown = conical ? new THREE.ConeGeometry(1, 3.2, 7, 1) : new THREE.IcosahedronGeometry(1, 1);
+  const crown = conical ? new THREE.ConeGeometry(1, 3.2, far ? 5 : 7, 1) : new THREE.IcosahedronGeometry(1, far ? 0 : 1);
   if (conical) crown.translate(0, 1.6 + 0.5, 0);
   else {
     crown.scale(1, 0.82, 1);
@@ -52,7 +56,7 @@ export function crownGeometry(conical: boolean): THREE.BufferGeometry {
   }
   const trunk = new THREE.CylinderGeometry(0.1, 0.14, conical ? 0.8 : 0.9, 5, 1);
   trunk.translate(0, conical ? 0.4 : 0.45, 0);
-  const parts = [crown.toNonIndexed(), trunk.toNonIndexed()];
+  const parts = far ? [crown.toNonIndexed()] : [crown.toNonIndexed(), trunk.toNonIndexed()];
   const pos: number[] = [];
   const nrm: number[] = [];
   const colr: number[] = [];
@@ -66,15 +70,17 @@ export function crownGeometry(conical: boolean): THREE.BufferGeometry {
   out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   out.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
   out.setAttribute("color", new THREE.Float32BufferAttribute(colr, 3));
-  return out;
+  // Shared corners merged (same position, normal and colour): ~55 vertices a tree, not ~300, for
+  // tens of thousands of trees.
+  return mergeVertices(out);
 }
 
 /**
- * Whether trees cast sun shadows: only close enough in to see them (and not on low-power
- * devices, where the shadow pass keeps to buildings), as each tree is ~90 triangles to draw again.
+ * Whether trees cast sun shadows: only close in, where they show (and not on low-power devices,
+ * where the shadow pass keeps to buildings), as tens of thousands of trees are a lot to draw again.
  */
 export function treesCastShadows(dist: number, lowPower: boolean): boolean {
-  return !lowPower && dist < 3.2;
+  return !lowPower && dist < 2;
 }
 
 export const ROUND = ["#3f8a35", "#4f9a3c", "#62a845", "#357a30", "#6fb24c", "#4b8d40"].map((c) => new THREE.Color(c));
@@ -84,24 +90,34 @@ interface Layer {
   grid: Grid;
   round: THREE.InstancedMesh;
   cone: THREE.InstancedMesh;
-  last: { x: number; z: number; r: number };
+  /** the same, low-poly, for trees beyond LOD_KM from the camera */
+  roundFar: THREE.InstancedMesh;
+  coneFar: THREE.InstancedMesh;
+  /** target and camera at the last fill */
+  last: { x: number; z: number; r: number; ex: number; ey: number; ez: number };
 }
 
 function makeLayer(trees: TreeData, capacity: number): THREE.Group {
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const mk = (conical: boolean) => {
-    const m = new THREE.InstancedMesh(crownGeometry(conical), mat, capacity);
+  const mk = (conical: boolean, far = false) => {
+    const m = new THREE.InstancedMesh(crownGeometry(conical, far), mat, capacity);
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     m.count = 0;
     m.frustumCulled = false;
     m.receiveShadow = true;
-    aoCaster(m);
     return m;
   };
   const root = new THREE.Group();
-  const layer: Layer = { grid: buildGrid(trees), round: mk(false), cone: mk(true), last: { x: 1e9, z: 1e9, r: 0 } };
-  root.add(layer.round, layer.cone);
+  const layer: Layer = {
+    grid: buildGrid(trees),
+    round: mk(false),
+    cone: mk(true),
+    roundFar: mk(false, true),
+    coneFar: mk(true, true),
+    last: { x: 1e9, z: 1e9, r: 0, ex: 1e9, ey: 1e9, ez: 1e9 },
+  };
+  root.add(layer.round, layer.cone, layer.roundFar, layer.coneFar);
   root.userData.layer = layer;
   return root;
 }
@@ -117,7 +133,7 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
   const capacity = lowPower ? 9000 : 26000;
   const root = useMemo(() => makeLayer(trees, capacity), [trees, capacity]);
 
-  useFrame(() => {
+  useFrame((state) => {
     const g = ref.current;
     if (!g) return;
     const cam = runtime.cam;
@@ -128,14 +144,20 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
     layer.round.castShadow = layer.cone.castShadow = treesCastShadows(cam.dist, lowPower);
     const radius = Math.min(4.2, Math.max(0.9, cam.dist * 1.7));
     const last = layer.last;
-    // Refill only when the view has moved enough to matter.
-    if (Math.hypot(cam.x - last.x, cam.z - last.z) < radius * 0.12 && Math.abs(radius - last.r) < last.r * 0.15) return;
-    last.x = cam.x;
-    last.z = cam.z;
-    last.r = radius;
-    const { grid, round, cone } = layer;
+    const eye = state.camera.position;
+    // Refill only when the view (or the camera, for which trees are near) has moved enough to matter.
+    if (
+      Math.hypot(cam.x - last.x, cam.z - last.z) < radius * 0.12 &&
+      Math.abs(radius - last.r) < last.r * 0.15 &&
+      Math.hypot(eye.x - last.ex, eye.y - last.ey, eye.z - last.ez) < Math.max(0.15, radius * 0.12)
+    )
+      return;
+    Object.assign(last, { x: cam.x, z: cam.z, r: radius, ex: eye.x, ey: eye.y, ez: eye.z });
+    const { grid, round, cone, roundFar, coneFar } = layer;
     let nr = 0;
     let nc = 0;
+    let fr = 0;
+    let fc = 0;
     const cx = Math.floor((cam.x - CX_MIN) / CELL);
     const cz = Math.floor((cam.z - CZ_MIN) / CELL);
     const reach = Math.ceil(radius / CELL);
@@ -151,7 +173,7 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
           for (let k = grid.start[c]; k < grid.start[c + 1]; k++) {
             const i = grid.order[k];
             const conical = (trees.v[i] & 128) !== 0;
-            if (conical ? nc >= capacity : nr >= capacity) continue;
+            if (conical ? nc + fc >= capacity : nr + fr >= capacity) continue;
             const x = trees.x[i];
             const z = trees.z[i];
             if (Math.hypot(x - cam.x, z - cam.z) > radius) continue;
@@ -161,12 +183,17 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
             pos.set(x, groundY(ground, x, z) - 0.0004, z);
             scl.set(r, r * TREE_EXAG, r);
             m4.compose(pos, quat, scl);
+            const far = pos.distanceTo(eye) > LOD_KM;
             if (conical) {
-              cone.setMatrixAt(nc, m4);
-              cone.setColorAt(nc++, CONE[tint % CONE.length]);
+              const m = far ? coneFar : cone;
+              const n = far ? fc++ : nc++;
+              m.setMatrixAt(n, m4);
+              m.setColorAt(n, CONE[tint % CONE.length]);
             } else {
-              round.setMatrixAt(nr, m4);
-              round.setColorAt(nr++, ROUND[tint % ROUND.length]);
+              const m = far ? roundFar : round;
+              const n = far ? fr++ : nr++;
+              m.setMatrixAt(n, m4);
+              m.setColorAt(n, ROUND[tint % ROUND.length]);
             }
           }
         }
@@ -174,7 +201,9 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
     }
     round.count = nr;
     cone.count = nc;
-    for (const m of [round, cone]) {
+    roundFar.count = fr;
+    coneFar.count = fc;
+    for (const m of [round, cone, roundFar, coneFar]) {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }

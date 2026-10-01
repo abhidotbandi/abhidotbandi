@@ -762,10 +762,10 @@ realistic water; and a first view as instant as the levels.fyi atlases'.
 - **Toy-model shading:**
   - Sun shadows from buildings, company sites, landmarks, bridges and trees, sharp up close and
     broader from afar. They fade out at dusk.
-  - Contact shadows: the ground darkens where buildings meet it, down narrow streets and under
-    trees, walls darken lower down between towers, and roofs darken around their plant rooms.
-    The buildings are drawn from straight above into a height map around the view, redrawn as it
-    moves, and each surface looks at the heights around it. Desktop only, up close.
+  - Contact shadows: the ground darkens where buildings meet it and down narrow streets, walls
+    darken lower down between towers, and roofs darken around their plant rooms. The buildings
+    are drawn from straight above into a height map around the view, redrawn as it moves, and
+    each surface looks at the heights around it. Desktop only, up close.
   - Walls darken toward the ground, and rooflines catch a bright edge.
 - **Detail:**
   - Flat roofs sit behind parapets.
@@ -789,7 +789,32 @@ realistic water; and a first view as instant as the levels.fyi atlases'.
     the sun's glint (not in shadow).
   - Wet, darker banks. The drawn shorelines are gone.
 - **Phones** get smaller shadow maps and fewer clouds, and no reflections or contact shadows.
-- **Slow GPUs**: if frames stay under about 35 fps for a couple of seconds once the map is up, the
-  costliest extras go, one step at a time: the lakes' reflections, then the contact shadows, then
-  the pixel ratio drops to 1. Automated renders (the posters, QA screenshots) keep full quality.
+- **Slow GPUs**: if frames stay under about 42 fps for a second and a half once the map is up,
+  quality steps down, one step at a time: a pixel ratio of 1.5, then no contact shadows, then no
+  lake reflections, then a pixel ratio of 1. Automated renders (the posters, QA screenshots) keep
+  full quality.
+
+### 2.16 Smooth again (2026-10-01)
+
+Reported after 2.15: very laggy. Measured at the opening view (triangles drawn per frame, all
+passes): 15.2 million at rest and about 21 million flying the tour, against about 7.5 million
+before 2.15. The lakes' reflection drew the whole city again every frame; the sun's shadow map
+and the contact shadows' height map redrew it on every frame the camera moved.
+
+- **The reflection draws only what shows in it**: the buildings 12 m and up, as a small mesh of
+  their own (extruded in the prep worker, desktop only), the bridges, the sky and its clouds:
+  0.4 million triangles instead of 7.6.
+- **Shadows redraw when it matters**: when the view has moved a twelfth of the way across the
+  shadow box, zoomed a step, or the sun has turned about half a degree (flying between stops
+  turns it), not every frame; in between, the box and its map stay together, so shadows stay
+  right. Trees cast shadows only within 2 km.
+- **Contact shadows**: the trees are left out of the height map (2.6 million triangles), it
+  redraws after a fifth of its width rather than an eighth, and each pixel takes 12 samples on the
+  ground and 6 on walls, down from 16 and 10.
+- **Trees**: indexed (about 55 vertices a tree instead of 300), and the ones over 1.6 km from the
+  camera, a few pixels across, are low-poly crowns without trunks (26 triangles instead of 100).
+- **Cloud shadows** loop over the clouds near the view only (at most 12).
+- **Result** at the opening view: 5.8 million triangles a frame at rest (fewer than before 2.15),
+  and about 7 million flying.
+- **Slow GPUs** step down sooner and gentler: a pixel ratio of 1.5 first.
 

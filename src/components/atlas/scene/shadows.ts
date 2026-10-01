@@ -7,12 +7,14 @@ import { OCCLUSION_PARS, occlusion } from "./Occlusion";
 // these chunks, and multiply their sunlight by sunShadow() and cloudShadow().
 
 /** The clouds nearest the view, for their shadows (filled each frame by Clouds.tsx). */
-export const CLOUD_SLOTS = 16;
+export const CLOUD_SLOTS = 12;
 export const cloudShadows = {
   /** per cloud: x, z (km), the altitude it shades from, and its half-length (0 = empty slot) */
   uCloudA: { value: new Float32Array(CLOUD_SLOTS * 4) },
   /** per cloud: its heading as (cos, -sin), its width over its length, and its shadow's strength */
   uCloudB: { value: new Float32Array(CLOUD_SLOTS * 4) },
+  /** how many slots are in use (nearest first) */
+  uCloudN: { value: 0 },
 };
 
 /** The light uniforms three fills in when a material has `lights: true`; the clouds' and the
@@ -45,6 +47,7 @@ export const SHADOW_FRAGMENT_PARS = /* glsl */ `
       float edge = smoothstep( 0.0, 0.07, min( min( uv.x, uv.y ), min( 1.0 - uv.x, 1.0 - uv.y ) ) );
       if ( edge <= 0.0 ) return 1.0;
       DirectionalLightShadow s = directionalLightShadows[ 0 ];
+      if ( s.shadowIntensity <= 0.0 ) return 1.0;
       float ndl = clamp( dot( n, sunDir ), 0.08, 1.0 );
       float bias = s.shadowBias * ( 1.0 + 2.5 * sqrt( 1.0 - ndl * ndl ) / ndl );
       float lit = getShadow( directionalShadowMap[ 0 ], s.shadowMapSize, s.shadowIntensity, bias, s.shadowRadius, sc );
@@ -56,13 +59,14 @@ export const SHADOW_FRAGMENT_PARS = /* glsl */ `
   // The clouds' shadows: soft ellipses where the line to the sun passes under a cloud.
   uniform vec4 uCloudA[ ${CLOUD_SLOTS} ];
   uniform vec4 uCloudB[ ${CLOUD_SLOTS} ];
+  uniform int uCloudN;
   float cloudShadow( vec3 p, vec3 sunDir ) {
-    if ( sunDir.y < 0.03 ) return 1.0;
+    if ( uCloudN == 0 || sunDir.y < 0.03 ) return 1.0;
     vec2 k = sunDir.xz / sunDir.y;
     float shade = 0.0;
     for ( int i = 0; i < ${CLOUD_SLOTS}; i++ ) {
+      if ( i >= uCloudN ) break;
       vec4 a = uCloudA[ i ];
-      if ( a.w <= 0.0 ) continue;
       vec4 b = uCloudB[ i ];
       vec2 q = p.xz + k * ( a.z - p.y ) - a.xy;
       vec2 l = vec2( dot( q, b.xy ), dot( q, vec2( -b.y, b.x ) ) / b.z ) / a.w;

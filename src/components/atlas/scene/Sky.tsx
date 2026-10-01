@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { mirrored } from "./Water";
 
 const vertex = /* glsl */ `
   varying vec3 vDir;
@@ -76,5 +77,5 @@ export default function Sky() {
     [],
   );
   const geometry = useMemo(() => new THREE.SphereGeometry(10, 48, 24), []);
-  return <mesh geometry={geometry} material={material} frustumCulled={false} renderOrder={-1000} />;
+  return <mesh geometry={geometry} material={material} frustumCulled={false} renderOrder={-1000} onUpdate={mirrored} />;
 }

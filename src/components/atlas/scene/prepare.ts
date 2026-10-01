@@ -1,3 +1,4 @@
+import type { BufferGeometry } from "three";
 import { SITES } from "@/data/atlas/companies";
 import type { AtlasAssets } from "@/lib/atlas/assets";
 import { buildingGeometry, type BuildingMesh } from "@/lib/atlas/buildings";
@@ -19,6 +20,8 @@ export interface CentralScene {
   /** mesh-resolution heights of the central patch */
   patch: PatchGrid;
   buildings: BuildingMesh;
+  /** the buildings 12 m and up, for the lakes' reflections (desktop only) */
+  skyline: BufferGeometry | null;
   /** the footprints behind `buildings`, which the detail tiles' trees keep clear of */
   footprints: BuildingsData;
   /** the patch's trees, clear of the site models' plant and the Capitol's walks and monuments */
@@ -84,6 +87,7 @@ export function upgradeScene(scene: PreparedScene, c: CentralPrep): PreparedScen
       tex: makeTextures(c.pixels),
       patch,
       buildings,
+      skyline: c.skyline && buildingGeometry(c.skyline),
       footprints: c.footprints,
       trees: c.trees,
       water: c.water,

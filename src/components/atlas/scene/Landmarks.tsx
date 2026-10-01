@@ -15,6 +15,7 @@ import { coverRectangles, hipRoof } from "@/lib/atlas/roofs";
 import { sky } from "@/lib/atlas/timeOfDay";
 import Buildings from "./Buildings";
 import { aoCaster } from "./Occlusion";
+import { radialTexture } from "./glow";
 
 // Austin's landmarks as procedural low-poly models: the Texas State Capitol in sunset-red
 // granite and its grounds, with the Governor's Mansion, the Old Land Office and St. Mary
@@ -1502,18 +1503,12 @@ interface Parts {
 }
 
 function glowTexture(): THREE.Texture {
-  const s = 64;
-  const cv = document.createElement("canvas");
-  cv.width = cv.height = s;
-  const g = cv.getContext("2d")!;
-  const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  grd.addColorStop(0, "rgba(255,255,255,1)");
-  grd.addColorStop(0.18, "rgba(235,242,255,0.85)");
-  grd.addColorStop(0.45, "rgba(200,215,255,0.25)");
-  grd.addColorStop(1, "rgba(200,215,255,0)");
-  g.fillStyle = grd;
-  g.fillRect(0, 0, s, s);
-  const t = new THREE.CanvasTexture(cv);
+  const t = radialTexture(64, [
+    [0, 255, 255, 255, 1],
+    [0.18, 235, 242, 255, 0.85],
+    [0.45, 200, 215, 255, 0.25],
+    [1, 200, 215, 255, 0],
+  ]);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }

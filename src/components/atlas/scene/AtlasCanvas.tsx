@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Children, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -159,8 +159,9 @@ function DebugHandle() {
 
 /**
  * Reveals the live map once the scene has actually drawn, not just mounted: the city the atlas
- * opens on, so not before central Austin's detail is in (or has failed to load), and its detail
- * tiles in view (for at most a couple of seconds more), so it matches the opening poster.
+ * opens on, so not before central Austin's detail is in (or has failed to load) and its shaders
+ * have compiled, and its detail tiles in view (for at most a second more), so it matches the
+ * opening poster.
  */
 function ReadySignal({ settled }: { settled: boolean }) {
   const frames = useRef(0);
@@ -171,9 +172,10 @@ function ReadySignal({ settled }: { settled: boolean }) {
       first.current = false;
       mark("first frame");
     }
-    if (frames.current < 0 || !settled) return;
+    if (frames.current < 0 || !settled || runtime.compiling) return;
     since.current ||= performance.now();
-    if (!runtime.tilesSettled && performance.now() - since.current < 2500) return;
+    // (The tiles the opening view wants are at the far edge of the picture: a second is plenty.)
+    if (!runtime.tilesSettled && performance.now() - since.current < 1200) return;
     if (++frames.current >= 2) {
       frames.current = -1;
       mark("ready");
@@ -198,8 +200,8 @@ function Governor() {
     const s = st.current;
     const now = performance.now();
     s.since ||= now;
-    // Let the reveal (and each step down) settle before judging.
-    if (now - s.since < 2000) return;
+    // Let the reveal (and the pieces built after it), and each step down, settle before judging.
+    if (now - s.since < (runtime.quality ? 2000 : 4000)) return;
     // A smoothed frame time, so one hitch (a shader compiling, a tile arriving) doesn't count;
     // then how long it has stayed slow.
     s.ema += (Math.min(dt, 0.1) * 1000 - s.ema) * 0.05;
@@ -214,18 +216,95 @@ function Governor() {
 }
 
 /**
- * Compile every material in the scene, visible or not, whenever its contents change. Without this
- * each layer compiles the first time it comes into view (zooming into downtown, the first night),
- * stalling that frame; with KHR_parallel_shader_compile it happens off the main thread.
+ * Compile every material in the scene, visible or not, whenever its contents change, in the
+ * background (KHR_parallel_shader_compile), and draw nothing new until it's done (Render): drawing
+ * with a shader still compiling would stop the page dead until it was. Without this each layer
+ * would also compile the first time it came into view (zooming into downtown, the first night).
  */
 function Precompile({ token }: { token: unknown }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   useEffect(() => {
-    gl.compileAsync(scene, camera).catch(() => {});
+    let live = true;
+    runtime.compiling = true;
+    gl.compileAsync(scene, camera)
+      .catch(() => {})
+      .finally(() => {
+        if (live) runtime.compiling = false;
+      });
+    return () => {
+      live = false;
+    };
   }, [gl, scene, camera, token]);
   return null;
+}
+
+/**
+ * Draws each frame, unless the scene's shaders are still compiling (Precompile): only ever while
+ * the live map is still hidden behind the poster.
+ */
+function Render() {
+  useFrame((state) => {
+    if (!runtime.compiling) state.gl.render(state.scene, state.camera);
+  }, 1);
+  return null;
+}
+
+/**
+ * Mounted hidden, shown once its shaders have compiled in the background (with
+ * KHR_parallel_shader_compile): the map keeps drawing meanwhile, where drawing it at once would
+ * stop the page until they had.
+ */
+function Compiled({ children }: { children: ReactNode }) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const ref = useRef<THREE.Group>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const g = ref.current;
+    if (!g) return;
+    let live = true;
+    gl.compileAsync(g, camera, scene)
+      .catch(() => {})
+      .finally(() => {
+        if (live) setShown(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [gl, scene, camera]);
+  return (
+    <group ref={ref} visible={shown}>
+      {children}
+    </group>
+  );
+}
+
+/**
+ * What the opening view doesn't need (traffic, life on the lake and in the parks and streets, the
+ * bats, the airport, the town lights, the launch plume): built only once the live map is up and
+ * has faded in, a piece at a time, each shown once compiled, so none of it is in the way of the
+ * first reveal or stutters the map after it.
+ */
+function Later({ children }: { children: ReactNode }) {
+  const ready = useAtlas((s) => s.ready);
+  const items = Children.toArray(children);
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!ready || n >= items.length) return;
+    // After the live map has faded in over the poster (1.4 s), then a piece every few frames.
+    const t = setTimeout(() => setN((k) => k + 1), n === 0 ? 1600 : 200);
+    return () => clearTimeout(t);
+  }, [ready, n, items.length]);
+  return (
+    <>
+      {items.slice(0, n).map((item, i) => (
+        <Compiled key={i}>{item}</Compiled>
+      ))}
+    </>
+  );
 }
 
 export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; settled: boolean }) {
@@ -250,7 +329,6 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       <Lights ground={ground} lowPower={scene.lowPower} />
       <Sky />
       <Terrain tex={tex} segments={scene.terrainSegments} cutout={!!central} outer={assets.meta.outer?.bounds} />
-      <TownLights assets={assets} lowPower={scene.lowPower} />
       {central && (
         <CentralTerrain tex={central.tex} baseTex={tex} grid={central.patch} sdfK={assets.meta.central.surface.sdfK} />
       )}
@@ -259,29 +337,33 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       {central && <Buildings geometry={central.buildings.geometry} />}
       <RedLine vectors={assets.vectors} height={ground} />
       <Beacons height={ground} siteTop={scene.siteTop} />
-      {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
       {central && (
         <>
           <Structures central={central.data} ground={ground} />
           <Landmarks central={central.data} ground={ground} />
           <Trees trees={central.trees} ground={ground} lowPower={scene.lowPower} />
-          <RiverLife central={central.data} ground={ground} lowPower={scene.lowPower} />
-          <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />
-          <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />
           <Paddle central={central.data} ground={ground} />
-          <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />
           <DetailTiles scene={scene} />
         </>
       )}
-      <Airport ground={ground} />
+      <Later>
+        {central && <RiverLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
+        {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
+        {central && <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
+        {central && <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
+        <TownLights assets={assets} lowPower={scene.lowPower} />
+        {central && <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />}
+        <Airport ground={ground} />
+        <Plume height={ground} origin={scene.models.engine} />
+      </Later>
       <Clouds ground={ground} lowPower={scene.lowPower} />
       <Occlusion ground={ground} lowPower={scene.lowPower} />
       {central && !scene.lowPower && <WaterReflection levels={central.water} skyline={central.skyline} />}
       <Construction ground={ground} />
       <SiteModels models={scene.models} />
-      <Plume height={ground} origin={scene.models.engine} />
       <LabelDriver />
       <Precompile token={central} />
+      <Render />
       <DebugHandle />
       <ReadySignal settled={settled} />
       <Governor />

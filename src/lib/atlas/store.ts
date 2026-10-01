@@ -147,6 +147,8 @@ export const runtime = {
    * reflections, 4 a pixel ratio of 1.
    */
   quality: 0,
+  /** shaders are compiling in the background: nothing new is drawn until they're done */
+  compiling: false,
 };
 
 export function seekRide(s: number) {

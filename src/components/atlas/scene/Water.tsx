@@ -173,7 +173,7 @@ export default function WaterReflection({ levels, skyline }: { levels: WaterLeve
     const camera = state.camera as THREE.PerspectiveCamera;
     water.uReflOn.value = 0;
     // Off if the frame rate governor has dropped it (AtlasCanvas).
-    if (runtime.quality >= 3 || cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
+    if (runtime.quality >= 3 || runtime.compiling || cam.dist > 9 || !inCentral(cam.x, cam.z)) return;
     // Which water fills the view: looked up again only when the view has moved a little.
     const r = Math.min(4, Math.max(1, cam.dist * 0.8));
     if (!(Math.hypot(cam.x - lv.x, cam.z - lv.z) < 0.05 && Math.abs(r - lv.r) < lv.r * 0.1)) {

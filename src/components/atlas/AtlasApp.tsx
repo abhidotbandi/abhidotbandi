@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { PLACE_BY_ID } from "@/data/atlas/places";
@@ -17,7 +17,6 @@ import { isLowPower } from "@/lib/atlas/tier";
 import { getTimeline } from "@/lib/atlas/tour";
 import type { PreparedScene } from "./scene/prepare";
 import { StoryCard } from "./ui/Story";
-import { LabelLayer } from "./ui/labels";
 import Header from "./ui/Header";
 import ChapterRail from "./ui/ChapterRail";
 import CompanyPanel from "./ui/CompanyPanel";
@@ -30,13 +29,34 @@ import ListView from "./ui/ListView";
 import About from "./ui/About";
 import Loader from "./ui/Loader";
 
-const AtlasCanvas = dynamic(() => import("./scene/AtlasCanvas"), { ssr: false });
+// The map and its labels (three.js and all) load apart from the page's first script, which only
+// has to put up the poster and the story; the load effect asks for them straight away.
+const loadCanvas = () => import("./scene/AtlasCanvas");
+const loadLabels = () => import("./ui/labels");
+const AtlasCanvas = dynamic(loadCanvas, { ssr: false });
+const LabelLayer = dynamic(() => loadLabels().then((m) => m.LabelLayer), { ssr: false });
 
+/**
+ * Whether the browser has WebGL 2 at all. Only the API is checked: making a context just to ask
+ * costs a GPU context of its own at the busiest moment of the load. If the map's own context
+ * can't be made, SceneBoundary catches it.
+ */
 function hasWebGL2(): boolean {
-  try {
-    return !!document.createElement("canvas").getContext("webgl2");
-  } catch {
-    return false;
+  return typeof WebGL2RenderingContext !== "undefined";
+}
+
+/** The map failed to start (no usable WebGL, or a scene error): the page carries on as a list. */
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.error("atlas: the map failed to start", err);
+    useAtlas.getState().setWebglFailed();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
   }
 }
 
@@ -100,6 +120,8 @@ export default function AtlasApp() {
     // scene mounts first, so its shaders compile while central Austin is still being built.
     const lowPower = isLowPower();
     mark("start");
+    void loadCanvas();
+    void loadLabels();
     const got = [0, 0];
     const report = (i: number) => (p: number) => {
       got[i] = p;
@@ -301,7 +323,11 @@ export default function AtlasApp() {
         </div>
       )}
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
-        {scene && !webglFailed && <AtlasCanvas scene={scene} settled={!!scene.central || centralFailed} />}
+        {scene && !webglFailed && (
+          <SceneBoundary>
+            <AtlasCanvas scene={scene} settled={!!scene.central || centralFailed} />
+          </SceneBoundary>
+        )}
       </div>
       {scene && !webglFailed && <LabelLayer assets={scene.assets} ground={scene.ground} />}
 

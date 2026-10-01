@@ -79,24 +79,27 @@ class LabelSystem {
     }
   }
 
-  /** Sizes as shown: compact labels in the unfocused style, detailed ones focused. */
+  /**
+   * Sizes as shown: compact labels in the unfocused style, detailed ones focused. Reads and
+   * style changes go in batches (every label read in one state, then the next), so the page lays
+   * out three times, not twice for every label.
+   */
   measure() {
+    const sites = this.entries.filter((e) => e.kind === "site");
     for (const e of this.entries) {
-      if (e.kind === "site") {
-        const { detail, focus } = e.el.dataset;
-        e.el.dataset.detail = "0";
-        e.el.dataset.focus = "0";
-        e.size = [e.el.offsetWidth, e.el.offsetHeight];
-        e.el.dataset.detail = "1";
-        e.el.dataset.focus = "1";
-        e.sizeDetail = [e.el.offsetWidth, e.el.offsetHeight];
-        e.el.dataset.detail = detail ?? "0";
-        e.el.dataset.focus = focus ?? "0";
-      } else {
-        e.size = [e.el.offsetWidth, e.el.offsetHeight];
-        e.sizeDetail = e.size;
-      }
+      if (e.kind === "site") continue;
+      e.size = [e.el.offsetWidth, e.el.offsetHeight];
+      e.sizeDetail = e.size;
     }
+    const was = sites.map((e) => [e.el.dataset.detail ?? "0", e.el.dataset.focus ?? "0"]);
+    for (const e of sites) e.el.dataset.detail = e.el.dataset.focus = "0";
+    for (const e of sites) e.size = [e.el.offsetWidth, e.el.offsetHeight];
+    for (const e of sites) e.el.dataset.detail = e.el.dataset.focus = "1";
+    for (const e of sites) e.sizeDetail = [e.el.offsetWidth, e.el.offsetHeight];
+    sites.forEach((e, i) => {
+      e.el.dataset.detail = was[i][0];
+      e.el.dataset.focus = was[i][1];
+    });
   }
 
   private visible(e: Entry, dist: number, mode: string): boolean {

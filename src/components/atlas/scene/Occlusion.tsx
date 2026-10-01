@@ -159,6 +159,10 @@ export default function Occlusion({ ground, lowPower }: { ground: HeightField; l
     // Redraw when the view has moved a good way across the map, or zoomed a step, and now and
     // then while still (tiles and trees stream in).
     const moved = Math.hypot(x - u.x, z - u.z) > r * 0.2 || r !== u.r || Number.isNaN(u.x);
+    if (runtime.compiling) {
+      occlusion.uAoBox.value.w = Number.isNaN(u.x) ? 0 : strength;
+      return;
+    }
     if (moved || ++u.frames > 45) {
       const gy = groundY(ground, cam.x, cam.z);
       occlusion.uAoBase.value = gy - 0.3;

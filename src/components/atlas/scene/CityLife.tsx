@@ -10,6 +10,7 @@ import { Path } from "@/lib/atlas/paths";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { SHIRTS, SKIN, figureScale, headGeo, inWindow, instanced, pick, standGeo } from "./figures";
+import { radialTexture } from "./glow";
 
 // Crowds in the streets: Rainey Street's bungalow bars under string lights and East 6th under
 // neon at night, shoppers on South Congress by day, the crowd on the Congress Avenue Bridge
@@ -76,17 +77,11 @@ function along(l: Polyline, step: number): { x: number; z: number; dx: number; d
 }
 
 function glowSprite(): THREE.Texture {
-  const s = 32;
-  const cv = document.createElement("canvas");
-  cv.width = cv.height = s;
-  const g = cv.getContext("2d")!;
-  const grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  grd.addColorStop(0, "rgba(255,255,255,1)");
-  grd.addColorStop(0.35, "rgba(255,255,255,0.55)");
-  grd.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = grd;
-  g.fillRect(0, 0, s, s);
-  return new THREE.CanvasTexture(cv);
+  return radialTexture(32, [
+    [0, 255, 255, 255, 1],
+    [0.35, 255, 255, 255, 0.55],
+    [1, 255, 255, 255, 0],
+  ]);
 }
 
 function points(pos: number[], col: number[], size: number, map: THREE.Texture): THREE.Points {

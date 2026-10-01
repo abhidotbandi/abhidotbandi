@@ -1,4 +1,5 @@
-import * as THREE from "three";
+// Types only: the tour (and with it this) is part of the page's first script, three.js isn't.
+import type * as THREE from "three";
 import { clamp } from "./geo";
 
 /** Orbit-style camera state: a ground target plus distance, tilt and bearing. */
@@ -20,7 +21,7 @@ export function cloneCam(c: CamState): CamState {
 }
 
 /** Place a camera for a state. `groundY` is the terrain height at the target. */
-export function applyCam(camera: THREE.Camera, c: CamState, groundY: number, target = new THREE.Vector3()) {
+export function applyCam(camera: THREE.Camera, c: CamState, groundY: number, target = camera.position.clone()) {
   const t = c.tilt * DEG;
   const b = c.bearing * DEG;
   const horiz = Math.sin(t) * c.dist;

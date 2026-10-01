@@ -818,3 +818,31 @@ and the contact shadows' height map redrew it on every frame the camera moved.
   and about 7 million flying.
 - **Slow GPUs** step down sooner and gentler: a pixel ratio of 1.5 first.
 
+### 2.17 A quicker, smoother start (2026-10-01)
+
+Reported after 2.16: smooth once running, but the start was laggy and slow. Profiled the main
+thread through a first visit (this container's software GPU, so times are long; what matters is
+what blocks):
+
+- **The page's first script carried three.js**: 1.5 MB of JavaScript before the app could start,
+  pulled in by the labels and the camera maths. Now the first script is the page itself (0.6 MB),
+  and three.js, the map and its labels load alongside the data as soon as the app starts. Here the
+  app starts at 0.3 s instead of 1 to 3 s.
+- **A throwaway WebGL context**, made only to check for WebGL 2 (0.6 s here), is gone: the API's
+  presence is checked instead, and an error boundary falls back to the list if the map can't start.
+- **Two glow textures drawn on a 2D canvas** (1.5 s here, as the browser started its 2D renderer for
+  them) are computed directly.
+- **The detail tiles' worker** was sent copies of the regional rasters twice over; they're handed
+  over now.
+- **Label sizes** were measured with a page layout for each label (0.3 s); now three layouts in all.
+- **Shaders compile in the background** before the scene is first drawn (nothing is drawn until
+  they're ready, while the poster is still up), so the page never stops dead waiting on them.
+- **What the opening view doesn't show** (traffic, boats and rowers, people in the parks and
+  streets, the bats, the airport, the town lights, the launch plume) is built only once the live
+  map has faded in, a piece at a time, each shown once its shaders are ready.
+- **The reveal waits at most a second** for the detail tiles at the far edge of the opening view
+  (it was two and a half); the quality governor waits 4 s after it before judging the frame rate.
+- **Result** here: main-thread stalls before the reveal down from 8.1 s to 2.5 s, and central
+  Austin prepared at 2.7 s instead of 7.3 s. (Browsers without KHR_parallel_shader_compile, like
+  this container's, still wait on each piece's shaders the first time it's drawn.)
+

@@ -551,7 +551,8 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
           size: index.size,
           origin: index.origin,
         };
-        worker.postMessage(init);
+        // (The copies are handed over, not cloned again.)
+        worker.postMessage(init, [init.height.data.buffer, init.surface.rgba.buffer, init.density.data.buffer]);
         st.index = index;
         st.have = new Set(index.tiles.map(([ix, iz]) => tileKey(ix, iz)));
         st.worker = worker;

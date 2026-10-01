@@ -829,7 +829,8 @@ what blocks):
   and three.js, the map and its labels load alongside the data as soon as the app starts. Here the
   app starts at 0.3 s instead of 1 to 3 s.
 - **A throwaway WebGL context**, made only to check for WebGL 2 (0.6 s here), is gone: the API's
-  presence is checked instead, and an error boundary falls back to the list if the map can't start.
+  presence is checked instead. If the map's own context can't be made, or the scene fails to start,
+  the page falls back to the list as before.
 - **Two glow textures drawn on a 2D canvas** (1.5 s here, as the browser started its 2D renderer for
   them) are computed directly.
 - **The detail tiles' worker** was sent copies of the regional rasters twice over; they're handed
@@ -852,9 +853,15 @@ what blocks):
     view doesn't draw them.
   - The lakes' skyline is the city mesh's own triangles (the buildings 12 m and up, over the same
     vertices), not a second extrusion: less work in the worker, nothing extra to upload.
-- **The quality governor acts from the reveal**, judging the median of the last 40 frames (so a
-  tile or a piece arriving doesn't count): if frames stay under about 42 fps for most of a second,
-  contact shadows go, then the reflections, then the pixel ratio drops to 1.25, then 1.
+- **The quality governor acts from the reveal**, judging the median of the last 40 frames (or the
+  last second's, if fewer), so a tile or a piece arriving doesn't count: if frames stay under about
+  42 fps for most of a second, contact shadows go, then the reflections, then the pixel ratio drops
+  to 1.25, then 1. A step that would change nothing in the current view (no contact shadows or
+  reflections drawn in it) is passed straight over.
+- **Waiting on shaders never hangs**: three's compileAsync never resolves if a material is disposed
+  while it waits, which with the draw held for compiles could have left the map behind the poster
+  for good. The atlas polls readiness itself, skips materials that went away, and stops waiting
+  after 6 s regardless.
 - **Result** on the preview, as a phone (this container's software GPU): the live map at 11 s
   instead of 17 s. Locally, main-thread stalls before the reveal down from 8.1 s to 2.5 s, and
   central Austin prepared at about 3 s instead of 7.3 s. Shaders themselves compile in 2 to 15 ms

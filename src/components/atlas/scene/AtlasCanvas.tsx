@@ -29,8 +29,8 @@ import Landmarks from "./Landmarks";
 import DetailTiles from "./DetailTiles";
 import Airport from "./Airport";
 import Clouds from "./Clouds";
-import WaterReflection, { mirrored } from "./Water";
-import Occlusion from "./Occlusion";
+import WaterReflection, { mirrored, water } from "./Water";
+import Occlusion, { occlusion } from "./Occlusion";
 import Construction from "./Construction";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
@@ -195,22 +195,30 @@ function ReadySignal({ settled }: { settled: boolean }) {
  */
 function Governor() {
   const ready = useAtlas((s) => s.ready);
-  const st = useRef({ times: new Float32Array(40), n: 0, slow: 0, since: 0 });
+  const st = useRef({ times: new Float32Array(40), n: 0, total: 0, slow: 0, since: 0 });
   useFrame((state, dt) => {
     if (!ready || runtime.poster || runtime.quality >= 4 || navigator.webdriver || document.hidden) return;
     const s = st.current;
     const now = performance.now();
     s.since ||= now;
-    s.times[s.n++ % s.times.length] = Math.min(dt, 0.25) * 1000;
-    // A moment after the reveal and after each step, then judge by the typical frame.
-    if (now - s.since < 500 || s.n < s.times.length) return;
-    const median = [...s.times].sort((a, b) => a - b)[s.times.length >> 1];
+    const ms = Math.min(dt, 0.25) * 1000;
+    s.times[s.n++ % s.times.length] = ms;
+    s.total += ms;
+    // A moment after the reveal and after each step, then judge by the typical frame of the last
+    // 40 (or of the last second, if that's fewer).
+    if (now - s.since < 500 || s.n < 5 || (s.n < s.times.length && s.total < 1000)) return;
+    const k = Math.min(s.n, s.times.length);
+    const median = [...s.times.subarray(0, k)].sort((a, b) => a - b)[k >> 1];
     s.slow = median > 24 ? s.slow + dt : Math.max(0, s.slow - dt);
     if (s.slow < 0.8) return;
     runtime.quality++;
+    // Steps that would change nothing in this view (no contact shadows or reflections drawn in
+    // it) are passed straight over, so the pixel ratio comes down without waiting on them.
+    if (runtime.quality === 1 && !(occlusion.uAoBox.value.w > 0)) runtime.quality++;
+    if (runtime.quality === 2 && !(water.uReflOn.value > 0.5)) runtime.quality++;
     const dpr = runtime.quality === 3 ? 1.25 : runtime.quality === 4 ? 1 : 0;
     if (dpr && state.viewport.dpr > dpr) state.setDpr(dpr);
-    Object.assign(s, { n: 0, slow: 0, since: now });
+    Object.assign(s, { n: 0, total: 0, slow: 0, since: now });
   });
   return null;
 }
@@ -358,7 +366,16 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       shadows={{ enabled: true, type: THREE.PCFShadowMap, autoUpdate: false }}
       dpr={dpr}
       camera={{ fov: 32, near: 0.05, far: 500, position: [0, 70, 60] }}
-      gl={{ antialias: true, powerPreference: "high-performance", alpha: false, stencil: false }}
+      gl={(defaults) => {
+        // A browser can have WebGL 2 and still fail to make a context (a blocklisted GPU, too
+        // many open): the page falls back to the list then.
+        try {
+          return new THREE.WebGLRenderer({ ...defaults, antialias: true, powerPreference: "high-performance", alpha: false, stencil: false });
+        } catch (err) {
+          setWebglFailed();
+          throw err;
+        }
+      }}
       onCreated={({ gl }) => {
         gl.domElement.addEventListener("webglcontextlost", () => setWebglFailed(), { once: true });
       }}

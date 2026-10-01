@@ -216,10 +216,41 @@ function Governor() {
 }
 
 /**
+ * Compile an object's materials (three's compileAsync, in the background where the browser has
+ * KHR_parallel_shader_compile) and resolve once they're ready to draw. Unlike compileAsync, a
+ * material that goes away meanwhile (a tile dropped, a piece rebuilt) doesn't leave it waiting
+ * forever, and it stops waiting after a few seconds whatever happens.
+ */
+function compiled(gl: THREE.WebGLRenderer, object: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene | null = null): Promise<void> {
+  let materials: Set<THREE.Material>;
+  try {
+    materials = gl.compile(object, camera, scene);
+  } catch {
+    return Promise.resolve();
+  }
+  const started = performance.now();
+  return new Promise((resolve) => {
+    const check = () => {
+      for (const m of materials) {
+        const program = (gl.properties.get(m) as { currentProgram?: { isReady(): boolean } }).currentProgram;
+        try {
+          if (!program || program.isReady()) materials.delete(m);
+        } catch {
+          materials.delete(m);
+        }
+      }
+      if (materials.size === 0 || performance.now() - started > 6000) resolve();
+      else setTimeout(check, 10);
+    };
+    setTimeout(check, 0);
+  });
+}
+
+/**
  * Compile every material in the scene, visible or not, whenever its contents change, in the
- * background (KHR_parallel_shader_compile), and draw nothing new until it's done (Render): drawing
- * with a shader still compiling would stop the page dead until it was. Without this each layer
- * would also compile the first time it came into view (zooming into downtown, the first night).
+ * background, and draw nothing new until it's done (Render): drawing with a shader still
+ * compiling would stop the page dead until it was. Without this each layer would also compile
+ * the first time it came into view (zooming into downtown, the first night).
  */
 function Precompile({ token }: { token: unknown }) {
   const gl = useThree((s) => s.gl);
@@ -228,13 +259,12 @@ function Precompile({ token }: { token: unknown }) {
   useEffect(() => {
     let live = true;
     runtime.compiling = true;
-    gl.compileAsync(scene, camera)
-      .catch(() => {})
-      .finally(() => {
-        if (live) runtime.compiling = false;
-      });
+    compiled(gl, scene, camera).then(() => {
+      if (live) runtime.compiling = false;
+    });
     return () => {
       live = false;
+      runtime.compiling = false;
     };
   }, [gl, scene, camera, token]);
   return null;
@@ -266,11 +296,9 @@ function Compiled({ children }: { children: ReactNode }) {
     const g = ref.current;
     if (!g) return;
     let live = true;
-    gl.compileAsync(g, camera, scene)
-      .catch(() => {})
-      .finally(() => {
-        if (live) setShown(true);
-      });
+    compiled(gl, g, camera, scene).then(() => {
+      if (live) setShown(true);
+    });
     return () => {
       live = false;
     };

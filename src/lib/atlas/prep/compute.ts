@@ -34,8 +34,8 @@ export interface CentralPrep {
   pixels: TerrainPixels;
   patch: { nx: number; nz: number; data: Float32Array };
   buildings: BuildingArrays;
-  /** the buildings 12 m and up, which the lakes mirror (desktop only) */
-  skyline: BuildingArrays | null;
+  /** the triangles of the buildings 12 m and up, which the lakes mirror, into `buildings` (desktop only) */
+  skyline: Uint32Array | null;
   models: SiteModelArrays;
   /** the patch's trees, clear of the site models' plant and the Capitol's walks and monuments */
   trees: Trees;
@@ -97,6 +97,20 @@ function outerRings(d: BuildingsData): number[][] {
   return out;
 }
 
+/** The triangles of buildings at least `minHeightM` tall (by their first vertex's aInfo height). */
+function trianglesOf(b: BuildingArrays, minHeightM: number): Uint32Array {
+  const { index, info } = b;
+  const out = new Uint32Array(index.length);
+  let n = 0;
+  for (let t = 0; t < index.length; t += 3) {
+    if (info[index[t] * 4 + 2] < minHeightM) continue;
+    out[n++] = index[t];
+    out[n++] = index[t + 1];
+    out[n++] = index[t + 2];
+  }
+  return out.slice(0, n);
+}
+
 /** The regional map: its textures and its buildings (the modelled sites left out). */
 export function computeRegional(assets: AtlasAssets, lowPower: boolean): RegionalPrep {
   const pixels = regionalPixels(assets);
@@ -132,9 +146,9 @@ export function computeCentral(r: Pick<RegionalPrep, "assets" | "terrainSegments
     sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z);
   const siteMap = c.buildings.sites.map(siteIndex);
   const buildings = extrudeBuildings(c.buildings, ground, siteMap, SITES.length, r.lowPower ? 120 : 0, skip, districtStyle);
-  // The lakes mirror only what stands tall enough to show in them: a small mesh of its own, so
-  // the reflection doesn't draw the whole city again.
-  const skyline = r.lowPower ? null : extrudeBuildings(c.buildings, ground, siteMap, SITES.length, 0, skip, districtStyle, 12);
+  // The lakes mirror only what stands tall enough to show in them, so the reflection doesn't draw
+  // the whole city again: those buildings' triangles, over the same vertices.
+  const skyline = r.lowPower ? null : trianglesOf(buildings, 12);
   mark("central buildings");
   const models = buildSiteModelArrays([r.assets.buildings, c.buildings], ground, SITES.length);
   mark("central models");

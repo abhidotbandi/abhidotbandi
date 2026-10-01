@@ -839,10 +839,25 @@ what blocks):
   they're ready, while the poster is still up), so the page never stops dead waiting on them.
 - **What the opening view doesn't show** (traffic, boats and rowers, people in the parks and
   streets, the bats, the airport, the town lights, the launch plume) is built only once the live
-  map has faded in, a piece at a time, each shown once its shaders are ready.
-- **The reveal waits at most 1.2 s** for the detail tiles at the far edge of the opening view
-  (it was two and a half); the quality governor waits 4 s after it before judging the frame rate.
-- **Result** here: main-thread stalls before the reveal down from 8.1 s to 2.5 s, and central
-  Austin prepared at 2.7 s instead of 7.3 s. (Browsers without KHR_parallel_shader_compile, like
-  this container's, still wait on each piece's shaders the first time it's drawn.)
+  map has faded in, a piece at a time when the browser is idle, each shown once its shaders are
+  ready. (Each is 7 to 25 ms of script here.)
+- **The reveal waits at most 0.6 s** for the detail tiles at the far edge of the opening view
+  (it was 2.5 s); they fade in if they're later.
+- **The story scrolls from the start.** It used to wait for the live map; now the cards move over
+  the poster, and the live map opens on whichever stop the reader has reached.
+- **Less to draw per frame, from the first frame:**
+  - Desktops render at up to 1.5 device pixels a CSS pixel, not 2: a Retina laptop shades 45%
+    fewer pixels, for a picture that's barely softer (labels are HTML, unaffected).
+  - Contact shadows only within about 4 km (they're under a pixel further out), so the opening
+    view doesn't draw them.
+  - The lakes' skyline is the city mesh's own triangles (the buildings 12 m and up, over the same
+    vertices), not a second extrusion: less work in the worker, nothing extra to upload.
+- **The quality governor acts from the reveal**, judging the median of the last 40 frames (so a
+  tile or a piece arriving doesn't count): if frames stay under about 42 fps for most of a second,
+  contact shadows go, then the reflections, then the pixel ratio drops to 1.25, then 1.
+- **Result** on the preview, as a phone (this container's software GPU): the live map at 11 s
+  instead of 17 s. Locally, main-thread stalls before the reveal down from 8.1 s to 2.5 s, and
+  central Austin prepared at about 3 s instead of 7.3 s. Shaders themselves compile in 2 to 15 ms
+  each (about 250 ms for all 38, measured with the shader cache bypassed); the rest of the wait
+  here is the software renderer drawing its first frames, which a real GPU does in milliseconds.
 

@@ -143,8 +143,8 @@ export const runtime = {
   tilesSettled: false,
   /**
    * Steps taken down from full quality because frames were slow (AtlasCanvas's Governor), each
-   * keeping the ones before: 1 a pixel ratio of at most 1.5, 2 no contact shadows, 3 no lake
-   * reflections, 4 a pixel ratio of 1.
+   * keeping the ones before: 1 no contact shadows, 2 no lake reflections, 3 a pixel ratio of at
+   * most 1.25, 4 a pixel ratio of 1.
    */
   quality: 0,
   /** shaders are compiling in the background: nothing new is drawn until they're done */

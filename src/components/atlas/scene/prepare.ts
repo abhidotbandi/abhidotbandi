@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import type { BufferGeometry } from "three";
 import { SITES } from "@/data/atlas/companies";
 import type { AtlasAssets } from "@/lib/atlas/assets";
@@ -20,7 +21,7 @@ export interface CentralScene {
   /** mesh-resolution heights of the central patch */
   patch: PatchGrid;
   buildings: BuildingMesh;
-  /** the buildings 12 m and up, for the lakes' reflections (desktop only) */
+  /** the buildings 12 m and up, for the lakes' reflections, over `buildings`' vertices (desktop only) */
   skyline: BufferGeometry | null;
   /** the footprints behind `buildings`, which the detail tiles' trees keep clear of */
   footprints: BuildingsData;
@@ -87,7 +88,7 @@ export function upgradeScene(scene: PreparedScene, c: CentralPrep): PreparedScen
       tex: makeTextures(c.pixels),
       patch,
       buildings,
-      skyline: c.skyline && buildingGeometry(c.skyline),
+      skyline: c.skyline && subset(buildings.geometry, c.skyline),
       footprints: c.footprints,
       trees: c.trees,
       water: c.water,
@@ -96,6 +97,15 @@ export function upgradeScene(scene: PreparedScene, c: CentralPrep): PreparedScen
     models,
     siteTop: maxTop(maxTop(scene.buildings.siteTop, models.siteTop), buildings.siteTop),
   };
+}
+
+/** Some of a geometry's triangles, as a geometry sharing its vertices (uploaded once). */
+function subset(g: BufferGeometry, index: Uint32Array): BufferGeometry {
+  const s = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(g.attributes)) s.setAttribute(name, attr);
+  s.setIndex(new THREE.BufferAttribute(index, 1));
+  s.boundingSphere = g.boundingSphere;
+  return s;
 }
 
 /** The sites' models on the regional map alone, when central Austin's detail couldn't load. */

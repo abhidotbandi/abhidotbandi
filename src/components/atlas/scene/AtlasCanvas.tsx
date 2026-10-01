@@ -160,7 +160,7 @@ function DebugHandle() {
 /**
  * Reveals the live map once the scene has actually drawn, not just mounted: the city the atlas
  * opens on, so not before central Austin's detail is in (or has failed to load) and its shaders
- * have compiled, and its detail tiles in view (for at most a second more), so it matches the
+ * have compiled, and its detail tiles in view (for at most 0.6 s more), so it matches the
  * opening poster.
  */
 function ReadySignal({ settled }: { settled: boolean }) {
@@ -174,8 +174,8 @@ function ReadySignal({ settled }: { settled: boolean }) {
     }
     if (frames.current < 0 || !settled || runtime.compiling) return;
     since.current ||= performance.now();
-    // (The tiles the opening view wants are at the far edge of the picture: a second is plenty.)
-    if (!runtime.tilesSettled && performance.now() - since.current < 1200) return;
+    // (The tiles the opening view wants are at the far edge of the picture: they can fade in.)
+    if (!runtime.tilesSettled && performance.now() - since.current < 600) return;
     if (++frames.current >= 2) {
       frames.current = -1;
       mark("ready");
@@ -186,31 +186,31 @@ function ReadySignal({ settled }: { settled: boolean }) {
 }
 
 /**
- * Keeps the map smooth on weaker GPUs: if frames stay slow (under ~42 fps) for a second and a
- * half once the map is up, quality steps down, one step at a time (runtime.quality): the pixel
- * ratio to 1.5, then no contact shadows, then no lake reflections, then a pixel ratio of 1. It
- * never steps back up. Automated renders (the posters, QA screenshots) keep full quality however
- * slowly they draw.
+ * Keeps the map smooth on weaker GPUs: from the moment the live map appears, if the typical
+ * frame (the median of the last 40, so a hitch as a tile or a piece arrives doesn't count) stays
+ * slower than ~42 fps for most of a second, quality steps down, one step at a time
+ * (runtime.quality): no contact shadows, then no lake reflections, then a pixel ratio of 1.25,
+ * then 1. It never steps back up. Automated renders (the posters, QA screenshots) keep full
+ * quality however slowly they draw.
  */
 function Governor() {
   const ready = useAtlas((s) => s.ready);
-  const st = useRef({ ema: 16, slow: 0, since: 0 });
+  const st = useRef({ times: new Float32Array(40), n: 0, slow: 0, since: 0 });
   useFrame((state, dt) => {
     if (!ready || runtime.poster || runtime.quality >= 4 || navigator.webdriver || document.hidden) return;
     const s = st.current;
     const now = performance.now();
     s.since ||= now;
-    // Let the reveal (and the pieces built after it), and each step down, settle before judging.
-    if (now - s.since < (runtime.quality ? 2000 : 4000)) return;
-    // A smoothed frame time, so one hitch (a shader compiling, a tile arriving) doesn't count;
-    // then how long it has stayed slow.
-    s.ema += (Math.min(dt, 0.1) * 1000 - s.ema) * 0.05;
-    s.slow = s.ema > 24 ? s.slow + dt : Math.max(0, s.slow - dt);
-    if (s.slow < 1.5) return;
+    s.times[s.n++ % s.times.length] = Math.min(dt, 0.25) * 1000;
+    // A moment after the reveal and after each step, then judge by the typical frame.
+    if (now - s.since < 500 || s.n < s.times.length) return;
+    const median = [...s.times].sort((a, b) => a - b)[s.times.length >> 1];
+    s.slow = median > 24 ? s.slow + dt : Math.max(0, s.slow - dt);
+    if (s.slow < 0.8) return;
     runtime.quality++;
-    const dpr = runtime.quality === 1 ? 1.5 : runtime.quality === 4 ? 1 : 0;
+    const dpr = runtime.quality === 3 ? 1.25 : runtime.quality === 4 ? 1 : 0;
     if (dpr && state.viewport.dpr > dpr) state.setDpr(dpr);
-    Object.assign(s, { ema: 16, slow: 0, since: now });
+    Object.assign(s, { n: 0, slow: 0, since: now });
   });
   return null;
 }
@@ -294,9 +294,18 @@ function Later({ children }: { children: ReactNode }) {
   const [n, setN] = useState(0);
   useEffect(() => {
     if (!ready || n >= items.length) return;
-    // After the live map has faded in over the poster (1.4 s), then a piece every few frames.
-    const t = setTimeout(() => setN((k) => k + 1), n === 0 ? 1600 : 200);
-    return () => clearTimeout(t);
+    // After the live map has faded in over the poster (1.4 s), then a piece at a time, each when
+    // the browser has a moment to spare (or within half a second regardless).
+    let idle = 0;
+    const next = () => setN((k) => k + 1);
+    const t = setTimeout(() => {
+      if (typeof requestIdleCallback === "function") idle = requestIdleCallback(next, { timeout: 500 });
+      else next();
+    }, n === 0 ? 1600 : 150);
+    return () => {
+      clearTimeout(t);
+      if (idle) cancelIdleCallback(idle);
+    };
   }, [ready, n, items.length]);
   return (
     <>
@@ -309,7 +318,9 @@ function Later({ children }: { children: ReactNode }) {
 
 export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; settled: boolean }) {
   const setWebglFailed = useAtlas((s) => s.setWebglFailed);
-  const dpr = useMemo<[number, number]>(() => [1, scene.lowPower ? 1.5 : 2], [scene.lowPower]);
+  // Up to 1.5 device pixels a CSS pixel: past that the extra sharpness isn't worth the GPU time
+  // (a Retina laptop at 2 has 1.8x the pixels to shade).
+  const dpr = useMemo<[number, number]>(() => [1, 1.5], []);
   const { assets, tex, buildings, ground, central } = scene;
   const highways = useMemo(() => clipLines([...assets.vectors.roads.motorway, ...assets.vectors.roads.trunk]), [assets]);
 

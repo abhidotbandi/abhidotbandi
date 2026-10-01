@@ -78,14 +78,11 @@ export function extrudeBuildings(
   skip?: (x: number, z: number, site: number) => boolean,
   /** a STYLE_* for a footprint (outer ring flat x, z km), by its height and area; 0 for none */
   style?: (ring: number[], hM: number, areaM2: number) => number,
-  /** leave out buildings lower than this, metres */
-  minHeightM = 0,
 ): BuildingArrays {
   const siteTop = new Float32Array(siteCount).fill(Number.NaN);
   const { ringStart, vertStart, x: X, z: Z } = data;
   const records: number[] = [];
   for (let b = 0; b < data.count; b++) {
-    if (data.height[b] / 10 < minHeightM) continue;
     if (!skip || !skip(...outerCentre(data, b), data.site[b] >= 0 ? siteMap[data.site[b]] : -1)) records.push(b);
   }
 

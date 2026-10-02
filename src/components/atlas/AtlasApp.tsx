@@ -219,15 +219,42 @@ export default function AtlasApp() {
     runtime.scroll = el.scrollTop / H;
     cards.current.forEach((c, i) => {
       if (!c) return;
-      const d = Math.abs(runtime.scroll - timeline.stopCenter(i));
-      c.style.opacity = String(clamp(1.3 - d * 1.5, 0, 1));
-      c.style.pointerEvents = d < 0.6 ? "auto" : "none";
+      // Fully shown while the camera holds on the card's stop; fading as the camera flies in, and
+      // a little quicker as it flies away (the card rising toward the header).
+      const [a, b] = timeline.dwell[i];
+      const s = runtime.scroll;
+      const fade = s < a ? (a - s) * 2.4 : s > b ? (s - b) * 3.2 : 0;
+      c.style.opacity = String(clamp(1 - fade, 0, 1));
+      c.style.pointerEvents = fade < 0.6 ? "auto" : "none";
     });
   }, [timeline]);
 
   useEffect(() => {
     onScroll();
   }, [onScroll, vh]);
+
+  // Where each card holds: its middle at the anchor, but never under the header or past the
+  // bottom edge (a long card on a short screen holds just under the header). Its lane starts so
+  // the card arrives there exactly as its stop's hold begins. Again whenever a card's size changes.
+  useLayoutEffect(() => {
+    const place = () => {
+      const H = scroller.current?.clientHeight || window.innerHeight;
+      const header = document.querySelector(".atlas-header")?.getBoundingClientRect().bottom ?? 0;
+      cards.current.forEach((c, i) => {
+        if (!c?.parentElement) return;
+        const half = c.offsetHeight / 2;
+        const lo = header + 12 + half;
+        const hi = H - 12 - half;
+        const mid = lo > hi ? lo : clamp(cardAnchor * H, lo, hi);
+        c.style.top = `${mid}px`;
+        c.parentElement.style.top = `${timeline.dwell[i][0] * H + mid}px`;
+      });
+    };
+    place();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    cards.current.forEach((c) => c && ro?.observe(c));
+    return () => ro?.disconnect();
+  }, [cardAnchor, vh, timeline]);
 
   const scrollToStop = useCallback(
     (i: number) => {
@@ -333,20 +360,28 @@ export default function AtlasApp() {
 
       <div id="atlas-scroller" ref={scroller} className="atlas-scroller" onScroll={onScroll} tabIndex={-1}>
         <div className="story-track" style={{ height: trackHeight }}>
-          {STOPS.map((stop, i) => (
-            <StoryCard
-              key={stop.id}
-              ref={(el) => {
-                cards.current[i] = el;
-              }}
-              stop={stop}
-              index={i}
-              top={(timeline.stopCenter(i) + cardAnchor) * vh}
-              onExplore={() => switchMode("explore")}
-              onRide={() => switchMode("ride")}
-              onPaddle={() => switchMode("paddle")}
-            />
-          ))}
+          {STOPS.map((stop, i) => {
+            // Each card's lane: the card scrolls in with the page, holds still at its anchor for
+            // as long as the camera holds on its stop (the lane's spacer), then scrolls on as the
+            // camera flies to the next.
+            const [a, b] = timeline.dwell[i];
+            return (
+              <div key={stop.id} className="story-lane" style={{ top: (a + cardAnchor) * vh }}>
+                <StoryCard
+                  ref={(el) => {
+                    cards.current[i] = el;
+                  }}
+                  stop={stop}
+                  index={i}
+                  top={cardAnchor * vh}
+                  onExplore={() => switchMode("explore")}
+                  onRide={() => switchMode("ride")}
+                  onPaddle={() => switchMode("paddle")}
+                />
+                <div style={{ height: (b - a) * vh }} />
+              </div>
+            );
+          })}
         </div>
       </div>
 

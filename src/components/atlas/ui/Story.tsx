@@ -62,6 +62,7 @@ function ScrollHint() {
 interface CardProps {
   stop: Stop;
   index: number;
+  /** where the card's middle holds while its stop is on screen, px from the top */
   top: number;
   onExplore: () => void;
   onRide: () => void;

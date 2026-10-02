@@ -868,3 +868,22 @@ what blocks):
   each (about 250 ms for all 38, measured with the shader cache bypassed); the rest of the wait
   here is the software renderer drawing its first frames, which a real GPU does in milliseconds.
 
+### 2.18 Cards that hold with their stop (2026-10-02)
+
+Reported: the tour's cards scrolled away too soon, before the map had moved on. Each card was
+pinned to a point in the scrolling page, so it moved at full scroll speed the whole time, while
+the camera holds still on each stop for 1.1 to 1.5 screens of scrolling: by the end of a hold
+the card was half off the screen and fading.
+
+- **Each card now holds still for as long as the camera holds on its stop.** It sits in a lane
+  that spans its stop's hold: it scrolls in with the page as the camera arrives, sticks (CSS
+  sticky, so it's as smooth as the scroll itself) for the whole hold, then scrolls on and fades
+  as the camera flies to the next stop. Fully opaque throughout the hold; it fades in over the
+  last 0.4 screens of the flight in, and out over the first 0.3 of the flight away.
+- **Where it holds is measured**: its middle at the usual anchor (the middle of the screen; two
+  thirds down on phones), but never under the header or past the bottom edge.
+- **Short laptop screens** (under 860 px tall) list a stop's companies one line each, what they
+  build cut short after the name (the map's labels carry it in full), so the longest cards (seven
+  or eight companies) fit while they hold: 481 px instead of 661 at 1440×740.
+- The tour is as long as before (the lanes past either end are clipped).
+

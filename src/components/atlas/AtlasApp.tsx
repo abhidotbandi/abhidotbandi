@@ -4,10 +4,8 @@ import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import dynamic from "next/dynamic";
 import { SITE_BY_ID } from "@/data/atlas/companies";
 import { PLACE_BY_ID } from "@/data/atlas/places";
-import { PORTRAIT_POSTER_MEDIA, POSTERS } from "@/data/atlas/poster";
 import { STOPS } from "@/data/atlas/tour";
 import { fetchCentralFiles, fetchRegionalFiles } from "@/lib/atlas/assets";
-import { posterCss, posterPlacement } from "@/lib/atlas/framing";
 import { clamp, project } from "@/lib/atlas/geo";
 import { makePaddleRoute } from "@/lib/atlas/paddle";
 import { runtime, seekPaddle, seekRide, useAtlas, type AtlasMode } from "@/lib/atlas/store";
@@ -19,6 +17,8 @@ import type { PreparedScene } from "./scene/prepare";
 import { StoryCard } from "./ui/Story";
 import Header from "./ui/Header";
 import ChapterRail from "./ui/ChapterRail";
+import ChapterNav from "./ui/ChapterNav";
+import Hero from "./ui/Hero";
 import CompanyPanel from "./ui/CompanyPanel";
 import PlacePanel from "./ui/PlacePanel";
 import ExplorePanel from "./ui/ExplorePanel";
@@ -30,7 +30,7 @@ import About from "./ui/About";
 import Loader from "./ui/Loader";
 
 // The map and its labels (three.js and all) load apart from the page's first script, which only
-// has to put up the poster and the story; the load effect asks for them straight away.
+// has to put up the loader; the load effect asks for them straight away.
 const loadCanvas = () => import("./scene/AtlasCanvas");
 const loadLabels = () => import("./ui/labels");
 const AtlasCanvas = dynamic(loadCanvas, { ssr: false });
@@ -86,9 +86,13 @@ export default function AtlasApp() {
   const [scene, setScene] = useState<PreparedScene | null>(null);
   /** central Austin's detail couldn't load: the regional map carries on without it */
   const [centralFailed, setCentralFailed] = useState(false);
-  /** the opening shot's poster image, until the live map has faded in over it */
-  const [poster, setPoster] = useState(true);
-  const posterImg = useRef<HTMLElement>(null);
+  /** the opening: 0 loading, 1 the loader wiping away, 2 the title card up */
+  const [opening, setOpening] = useState(0);
+  /** the story is at its start, where the title card and "scroll to descend" go */
+  const [atTop, setAtTop] = useState(true);
+  const atTopRef = useRef(true);
+  const [heroClosed, setHeroClosed] = useState(false);
+  const railLine = useRef<HTMLDivElement>(null);
   const [vh, setVh] = useState(900);
   const [narrow, setNarrow] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -166,38 +170,17 @@ export default function AtlasApp() {
     };
   }, []);
 
-  // The poster: lined up exactly with where the live map will be, and gone once the map has
-  // faded in over it. Deep links (they open elsewhere) and rendering the poster itself
-  // (?poster=landscape|portrait, see scripts/atlas/render_poster.py) hide it.
-  useLayoutEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("poster");
-    const capture = q === "landscape" || q === "portrait" ? POSTERS[q] : null;
-    if (capture) {
-      runtime.poster = { fov: capture.fov, ppx: capture.ppx, ppy: capture.ppy };
-      document.documentElement.classList.add("atlas-capture");
-      return;
-    }
-    const place = () => {
-      const img = posterImg.current;
-      const box = document.getElementById("atlas-canvas");
-      if (!img || !box) return;
-      const p = window.matchMedia(PORTRAIT_POSTER_MEDIA).matches ? POSTERS.portrait : POSTERS.landscape;
-      const r = posterPlacement(p, box.clientWidth, box.clientHeight);
-      img.style.left = `${r.left}px`;
-      img.style.top = `${r.top}px`;
-      img.style.width = `${r.width}px`;
-      img.style.height = `${r.height}px`;
-    };
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, []);
-
+  // Once the map is up: the bar fills, the loader wipes away upward, and the title card rises
+  // into view as the wipe passes the middle of the screen.
   useEffect(() => {
-    if (!ready || !poster) return;
-    const t = setTimeout(() => setPoster(false), 1400);
-    return () => clearTimeout(t);
-  }, [ready, poster]);
+    if (!ready) return;
+    const a = setTimeout(() => setOpening(1), 400);
+    const b = setTimeout(() => setOpening(2), 750);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+  }, [ready]);
 
   // Viewport height drives the scroll timeline (1 "screen" = 1 viewport height).
   useLayoutEffect(() => {
@@ -217,6 +200,13 @@ export default function AtlasApp() {
     if (!el) return;
     const H = el.clientHeight || 1;
     runtime.scroll = el.scrollTop / H;
+    // The title card stays up until the camera is about to leave the first stop.
+    const top = runtime.scroll < timeline.dwell[0][1] - 0.2;
+    if (top !== atTopRef.current) {
+      atTopRef.current = top;
+      setAtTop(top);
+    }
+    railLine.current?.style.setProperty("--p", clamp(runtime.scroll / timeline.total, 0, 1).toFixed(4));
     cards.current.forEach((c, i) => {
       if (!c) return;
       // Fully shown while the camera holds on the card's stop; fading as the camera flies in, and
@@ -260,6 +250,7 @@ export default function AtlasApp() {
     (i: number) => {
       const el = scroller.current;
       if (!el) return;
+      if (i === 0) setHeroClosed(false);
       el.scrollTo({ top: timeline.stopCenter(i) * el.clientHeight, behavior: runtime.reducedMotion ? "auto" : "smooth" });
     },
     [timeline],
@@ -340,15 +331,10 @@ export default function AtlasApp() {
   }, [ready, selectSite, selectPlace, switchMode]);
 
   const trackHeight = (timeline.total + 1) * vh;
+  const hint = opening >= 2 && atTop && mode === "tour";
 
   return (
     <div className="atlas" data-mode={mode} data-ready={ready ? "1" : "0"} data-selected={selected || selectedPlace ? "1" : "0"}>
-      {poster && (
-        <div className="atlas-poster" aria-hidden="true">
-          <style>{posterCss()}</style>
-          <i ref={posterImg} />
-        </div>
-      )}
       <div id="atlas-canvas" className="atlas-canvas" aria-hidden="true">
         {scene && !webglFailed && (
           <SceneBoundary>
@@ -356,6 +342,7 @@ export default function AtlasApp() {
           </SceneBoundary>
         )}
       </div>
+      <div className="atlas-vignette" aria-hidden="true" />
       {scene && !webglFailed && <LabelLayer assets={scene.assets} ground={scene.ground} />}
 
       <div id="atlas-scroller" ref={scroller} className="atlas-scroller" onScroll={onScroll} tabIndex={-1}>
@@ -363,7 +350,8 @@ export default function AtlasApp() {
           {STOPS.map((stop, i) => {
             // Each card's lane: the card scrolls in with the page, holds still at its anchor for
             // as long as the camera holds on its stop (the lane's spacer), then scrolls on as the
-            // camera flies to the next.
+            // camera flies to the next. The first stop has the title card instead.
+            if (i === 0) return null;
             const [a, b] = timeline.dwell[i];
             return (
               <div key={stop.id} className="story-lane" style={{ top: (a + cardAnchor) * vh }}>
@@ -385,8 +373,14 @@ export default function AtlasApp() {
         </div>
       </div>
 
+      <Hero on={opening >= 2 && atTop && !heroClosed && mode === "tour" && !selected && !selectedPlace} onClose={() => setHeroClosed(true)} />
+      <div className="atlas-hint" data-on={hint ? "1" : "0"} data-obstacle={hint ? "" : undefined} aria-hidden="true">
+        <span>Scroll to descend</span>
+        <b>▾</b>
+      </div>
       <Header onMode={switchMode} />
-      {mode === "tour" && <ChapterRail onJump={scrollToStop} />}
+      <ChapterNav onJump={scrollToStop} />
+      <ChapterRail ref={railLine} onJump={scrollToStop} />
       {mode === "explore" && <ExplorePanel />}
       {mode === "ride" && scene && <RideHud stations={scene.assets.vectors.redLine.stations} />}
       {mode === "paddle" && paddleRoute && <PaddleHud route={paddleRoute} />}
@@ -416,7 +410,7 @@ export default function AtlasApp() {
         flyToSite(id);
       }} />
       <About />
-      <Loader />
+      <Loader done={opening >= 1} />
     </div>
   );
 }

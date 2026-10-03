@@ -38,7 +38,7 @@ export const STOPS: Stop[] = [
     title: "The Silicon Hills",
     body: "Downtown Austin from above Lady Bird Lake, the Capitol at the head of Congress Avenue and the UT Tower beyond. From here out to the hills, companies are building warships, rockets, humanoids, reactors and the chips inside all of them.",
     sites: [],
-    view: { lon: -97.7428, lat: 30.2752, dist: 4.4, tilt: 60, bearing: 4, fixed: true },
+    view: { lon: -97.744, lat: 30.2712, dist: 4.4, tilt: 60, bearing: 4, fixed: true },
     tod: 0.26,
     dwell: 1.3,
   },

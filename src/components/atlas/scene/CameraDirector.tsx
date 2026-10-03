@@ -35,7 +35,7 @@ export default function CameraDirector({ height }: { height: HeightField }) {
   /** the MapControls instance that has been handed the current view */
   const handedOff = useRef<MapControlsImpl | null>(null);
   const offset = useRef({ x: 0, y: 0 });
-  /** the first frame starts exactly on the view (no fly-in), so it matches the poster */
+  /** the first frame starts exactly on the view (no fly-in): the loader wipes away to it */
   const started = useRef(false);
   const timeline = getTimeline();
 
@@ -150,23 +150,22 @@ export default function CameraDirector({ height }: { height: HeightField }) {
       runtime.tod += (want - runtime.tod) * (runtime.reducedMotion ? 1 : 1 - Math.exp(-1.5 * dt));
     }
 
-    const poster = runtime.poster;
-    camera.fov = poster ? poster.fov : viewFov(size.width, size.height);
+    camera.fov = viewFov(size.width, size.height);
     // Clip planes that follow the zoom level keep depth precision where it's needed.
     camera.near = Math.max(0.004, cur.dist * 0.006);
     camera.far = cur.dist * 9 + 90;
 
     // Shift the focal point to make room for story cards (desktop: right; phone: up, into the
-    // open map above the card) and, while riding, for the HUD along the bottom.
+    // open map above the card) and, while riding, for the HUD along the bottom. At the start of
+    // the tour the title card is up in the middle of the screen, with the city below it, until
+    // the tour sets off for the first card.
     const wide = size.width >= 900;
-    const tourShift = tourOffset(size.width, size.height);
-    let wantX = st.mode === "tour" ? tourShift.x : st.selectedSite && wide ? -170 : 0;
-    let wantY = st.mode === "tour" ? tourShift.y : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
-    if (poster) {
-      wantX = poster.ppx - size.width / 2;
-      wantY = size.height / 2 - poster.ppy;
-    }
-    const k = first || poster ? 1 : 1 - Math.exp(-4 * dt);
+    const off = timeline.dwell[0][1] - 0.2;
+    const title = 1 - smoothstep(clamp((runtime.scroll - off) / (timeline.stopCenter(1) - off), 0, 1));
+    const tourShift = tourOffset(size.width, size.height, title);
+    const wantX = st.mode === "tour" ? tourShift.x : st.selectedSite && wide ? -170 : 0;
+    const wantY = st.mode === "tour" ? tourShift.y : st.mode === "ride" || st.mode === "paddle" ? Math.min(130, size.height * 0.15) : 0;
+    const k = first ? 1 : 1 - Math.exp(-4 * dt);
     offset.current.x += (wantX - offset.current.x) * k;
     offset.current.y += (wantY - offset.current.y) * k;
     runtime.viewOffset.x = offset.current.x;

@@ -16,8 +16,8 @@ import { mirrored } from "./Water";
 // and buildings below. The field wraps around what the camera looks at, so there are always
 // clouds about (they shrink away before they wrap, and thin out in the widest views). They keep
 // to the edges of the picture: any drifting over the middle, around what the camera looks at, or
-// too close to the camera, shrink away. A few are placed to frame the opening view; they're in
-// the poster too, and start drifting when the live map appears.
+// too close to the camera, shrink away. A few are placed to frame the opening view, and start
+// drifting when the live map appears.
 
 /** The field repeats every `tile` km around the view: about six clouds per 100 km². */
 const FIELD = { tile: 56, count: 190, detail: 1 };
@@ -256,8 +256,8 @@ export default function Clouds({ ground, lowPower }: { ground: HeightField; lowP
     const { meshes, clouds, tile } = g.userData as { meshes: THREE.InstancedMesh[]; clouds: Cloud[]; tile: number };
     const dt = Math.min(rawDt, 0.1);
     const cam = runtime.cam;
-    // Still, and fully in place, until the live map appears (and for the poster); drifting after.
-    const still = !ready || !!runtime.poster;
+    // Still, and fully in place, until the live map appears; drifting after.
+    const still = !ready;
     if (!still && g.userData.t0 === undefined) g.userData.t0 = sky.uTime.value;
     const t = still || runtime.reducedMotion ? 0 : sky.uTime.value - g.userData.t0;
     const ease = still ? 1 : 1 - Math.exp(-(runtime.reducedMotion ? 30 : 1.4) * dt);

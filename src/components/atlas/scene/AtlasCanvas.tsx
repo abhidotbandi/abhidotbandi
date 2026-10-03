@@ -126,24 +126,6 @@ function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }
   );
 }
 
-/**
- * Rendering the poster (scripts/atlas/render_poster.py): the page gets a way to draw one frame
- * and hand back its pixels, which is far quicker than a browser screenshot of a big canvas.
- */
-function CaptureHook() {
-  const gl = useThree((s) => s.gl);
-  const scene = useThree((s) => s.scene);
-  const camera = useThree((s) => s.camera);
-  useEffect(() => {
-    if (!runtime.poster) return;
-    (window as unknown as { __atlasCapture: () => string }).__atlasCapture = () => {
-      gl.render(scene, camera);
-      return gl.domElement.toDataURL("image/png");
-    };
-  }, [gl, scene, camera]);
-  return null;
-}
-
 /** `?debug` exposes the renderer, scene and runtime state on window.__atlas, for measuring draw costs. */
 function DebugHandle() {
   const gl = useThree((s) => s.gl);
@@ -158,10 +140,10 @@ function DebugHandle() {
 }
 
 /**
- * Reveals the live map once the scene has actually drawn, not just mounted: the city the atlas
- * opens on, so not before central Austin's detail is in (or has failed to load) and its shaders
- * have compiled, and its detail tiles in view (for at most 0.6 s more), so it matches the
- * opening poster.
+ * Reveals the live map (the loader wipes away) once the scene has actually drawn, not just
+ * mounted: the city the atlas opens on, so not before central Austin's detail is in (or has
+ * failed to load) and its shaders have compiled, and its detail tiles in view (for at most 0.6 s
+ * more).
  */
 function ReadySignal({ settled }: { settled: boolean }) {
   const frames = useRef(0);
@@ -190,14 +172,14 @@ function ReadySignal({ settled }: { settled: boolean }) {
  * frame (the median of the last 40, so a hitch as a tile or a piece arrives doesn't count) stays
  * slower than ~42 fps for most of a second, quality steps down, one step at a time
  * (runtime.quality): no contact shadows, then no lake reflections, then a pixel ratio of 1.25,
- * then 1. It never steps back up. Automated renders (the posters, QA screenshots) keep full
- * quality however slowly they draw.
+ * then 1. It never steps back up. Automated renders (QA screenshots) keep full quality however
+ * slowly they draw.
  */
 function Governor() {
   const ready = useAtlas((s) => s.ready);
   const st = useRef({ times: new Float32Array(40), n: 0, total: 0, slow: 0, since: 0 });
   useFrame((state, dt) => {
-    if (!ready || runtime.poster || runtime.quality >= 4 || navigator.webdriver || document.hidden) return;
+    if (!ready || runtime.quality >= 4 || navigator.webdriver || document.hidden) return;
     const s = st.current;
     const now = performance.now();
     s.since ||= now;
@@ -280,7 +262,7 @@ function Precompile({ token }: { token: unknown }) {
 
 /**
  * Draws each frame, unless the scene's shaders are still compiling (Precompile): only ever while
- * the live map is still hidden behind the poster.
+ * the live map is still hidden behind the loader.
  */
 function Render() {
   useFrame((state) => {
@@ -321,7 +303,7 @@ function Compiled({ children }: { children: ReactNode }) {
 /**
  * What the opening view doesn't need (traffic, life on the lake and in the parks and streets, the
  * bats, the airport, the town lights, the launch plume): built only once the live map is up and
- * has faded in, a piece at a time, each shown once compiled, so none of it is in the way of the
+ * the loader has wiped away, a piece at a time, each shown once compiled, so none of it is in the way of the
  * first reveal or stutters the map after it.
  */
 function Later({ children }: { children: ReactNode }) {
@@ -330,7 +312,7 @@ function Later({ children }: { children: ReactNode }) {
   const [n, setN] = useState(0);
   useEffect(() => {
     if (!ready || n >= items.length) return;
-    // After the live map has faded in over the poster (1.4 s), then a piece at a time, each when
+    // After the loader has wiped away to the live map (1.3 s), then a piece at a time, each when
     // the browser has a moment to spare (or within half a second regardless).
     let idle = 0;
     const next = () => setN((k) => k + 1);
@@ -423,7 +405,6 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       <DebugHandle />
       <ReadySignal settled={settled} />
       <Governor />
-      <CaptureHook />
     </Canvas>
   );
 }

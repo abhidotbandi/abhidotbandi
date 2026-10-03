@@ -887,3 +887,38 @@ the card was half off the screen and fading.
   or eight companies) fit while they hold: 481 px instead of 661 at 1440×740.
 - The tour is as long as before (the lanes past either end are clipped).
 
+### 2.19 The opening, as the Levels.fyi atlases open (2026-10-03)
+
+Reported: the atlas skipped the opening screens the Levels.fyi atlases have. It opened straight
+on the poster (2.15) and the first card. It now opens the way theirs do, in Austin's own terms:
+
+- **A loader drawn for Austin.** A paper panel with an inset rule. The Capitol rises against a
+  dusk sun, downtown's towers grow either side (the Austonian, the Independent, Frost Bank Tower,
+  Sixth and Guadalupe), the Congress Avenue Bridge's arches draw in over Lady Bird Lake, and bats
+  stream out from under it. Below: "AUSTIN" rising letter by letter, a progress bar with a Red
+  Line train riding it, and a line saying what's being built ("Filling Lady Bird Lake",
+  "Building downtown"...). The bar creeps on while a step reports nothing (the shader compile at
+  the end), so the train never stands still. Bar and train move by transforms, which the
+  compositor keeps smooth while the page is busy. When the map is up, the bar fills and the whole
+  panel wipes away upward (0.9 s). With reduced motion the scene is drawn in full and the wipe is
+  a fade. Every visit gets it, deep links included; a browser that can't run the map still gets
+  the table.
+- **The title card.** Centred over the opening view: "An atlas of who builds what", THE SILICON
+  HILLS (Nunito Black, the name in burnt orange), and an italic line: "Austin, rendered: the
+  companies building warships, rockets, humanoids, reactors and the chips inside all of them."
+  Its parts rise into place as the wipe passes. It goes as the tour sets off and comes back at
+  the top. × puts it away until the chapter list's first entry. It steps aside for a company's
+  panel. It replaces the first story card. Under it the camera puts the city lower on the
+  screen: Downtown, the Capitol and the lake below the card, north Austin and the clouds above.
+- **"Scroll to descend"** with a bobbing ▾ at the bottom, while the title card is up.
+- **The chapter list** down the left on screens 1100 px and wider. It shows each stop with its
+  number, the current one underlined, and jumps to any of them. The tour's cards move right to
+  clear it (max(280 px, 16vw)), and the camera's focal point moves right with them.
+- **The rail is a Red Line**: a stop for each chapter at its place along the scroll, and a train
+  that rides down to where the story is. The line fills red behind it, and each stop turns red as
+  the train reaches it. Names show on hover. On phones it sits higher, out of the cards' way.
+  The list and the rail slide away outside the tour.
+- **A soft vignette** darkens the map's corners, under the labels and panels.
+- **The poster is gone**: its images, the blurred copies inlined in the page, its preload and
+  the script that rendered them. The loader covers the screen until the map is up, and the
+  map's own files load sooner without the poster competing for the connection.

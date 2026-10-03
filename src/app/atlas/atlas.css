@@ -11,6 +11,7 @@
   --rule-2: rgba(28, 25, 20, 0.22);
   --accent: #bf5700; /* burnt orange: UI accent only, never a data colour */
   --accent-ink: #9a4600;
+  --red-line: #c8102e; /* Capital Metro's Red Line */
   --focus: #1d4ed8;
   --shadow: 0 1px 2px rgba(40, 30, 10, 0.08), 0 14px 38px -18px rgba(40, 30, 10, 0.45);
 
@@ -64,43 +65,13 @@
 
 /* ---------- layers ---------- */
 
-/* The opening shot as an image, under the map until the map fades in over it (placed by
-   posterCss() and AtlasApp to line up with it exactly). Deep links open elsewhere: no poster. */
-.atlas-poster {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  background: #cdc7b5;
-  pointer-events: none;
-}
-
-.atlas-poster i {
-  position: absolute;
-  display: block;
-  background: center / 100% 100% no-repeat;
-}
-
-html.atlas-capture .atlas-poster {
-  display: none;
-}
-
-/* The story scrolls from the start; the map's labels fade in with the live map. */
+/* The map's labels come up with the live map, as the loader wipes away. */
 .atlas-labels {
   transition: opacity 0.9s ease;
 }
 
 .atlas[data-ready="0"] .atlas-labels {
   opacity: 0;
-}
-
-/* Rendering the poster (scripts/atlas/render_poster.py): the map alone. */
-html.atlas-capture .atlas-labels,
-html.atlas-capture .atlas-scroller,
-html.atlas-capture .atlas-header,
-html.atlas-capture .chapter-rail,
-html.atlas-capture .loader {
-  display: none !important;
 }
 
 .atlas-canvas {
@@ -111,12 +82,15 @@ html.atlas-capture .loader {
 
 .atlas-canvas canvas {
   display: block;
-  opacity: 0;
-  transition: opacity 0.9s ease;
 }
 
-.atlas[data-ready="1"] .atlas-canvas canvas {
-  opacity: 1;
+/* The map's corners a little darker, as on a printed plate (under the labels and panels). */
+.atlas-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(115% 90% at 50% 42%, transparent 58%, rgba(28, 25, 20, 0.14) 100%);
 }
 
 .atlas-scroller {
@@ -177,6 +151,13 @@ html.atlas-capture .loader {
   transition: opacity 0.2s linear;
 }
 
+/* Past the chapter list, where there's room for it down the left (lib/atlas/framing.ts). */
+@media (min-width: 1100px) {
+  .story-card {
+    margin-left: max(280px, 16vw);
+  }
+}
+
 .story-card .kicker {
   margin: 0;
   font: 600 11px/1.3 var(--font-num);
@@ -185,7 +166,6 @@ html.atlas-capture .loader {
   color: var(--accent-ink);
 }
 
-.story-card h1,
 .story-card h2 {
   margin: 8px 0 10px;
   font-family: var(--font-display);
@@ -200,78 +180,12 @@ html.atlas-capture .loader {
   line-height: 1.08;
 }
 
-.story-card.is-intro h1 {
-  font-size: clamp(46px, 6.4vw, 72px);
-  line-height: 0.95;
-  letter-spacing: -0.025em;
-  margin-top: 10px;
-}
-
 .story-card .story-body {
   margin: 0;
   font-size: 15px;
   line-height: 1.55;
   color: var(--ink-2);
   text-wrap: pretty;
-}
-
-.intro-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin: 18px 0 4px;
-  padding-top: 14px;
-  border-top: 1px solid var(--rule);
-}
-
-.intro-stats dt {
-  font-size: 11px;
-  line-height: 1.25;
-  color: var(--ink-3);
-}
-
-.intro-stats dd {
-  margin: 4px 0 0;
-  font: 500 26px/1 var(--font-display);
-  color: var(--ink);
-}
-
-.scroll-hint {
-  margin: 16px 0 0;
-  font: 500 12px/1 var(--font-num);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.scroll-hint span {
-  display: inline-block;
-  margin-left: 6px;
-  animation: atlas-bob 1.6s ease-in-out infinite;
-}
-
-.scroll-hint .hint-bar {
-  display: inline-block;
-  vertical-align: middle;
-  width: 72px;
-  height: 3px;
-  margin-left: 10px;
-  border-radius: 2px;
-  background: var(--rule);
-  overflow: hidden;
-  animation: none;
-}
-
-.scroll-hint .hint-bar i {
-  display: block;
-  height: 100%;
-  background: var(--accent, #b4541f);
-  transform-origin: left;
-  transition: transform 0.3s ease;
-}
-
-@keyframes atlas-bob {
-  50% { transform: translateY(3px); }
 }
 
 .site-list {
@@ -578,74 +492,398 @@ html.atlas-capture .loader {
   background: #1f7fa6 !important;
 }
 
-/* ---------- chapter rail ---------- */
+/* ---------- the opening: title card and scroll cue ---------- */
 
-.chapter-rail {
+/* The atlas's title over the middle of the opening view (as the Levels.fyi atlases open): its
+   parts rise into place one after another as it comes up. The wheel and touches go through it
+   to the story, except on ×. */
+.atlas-hero {
   position: fixed;
-  right: clamp(14px, 2vw, 26px);
-  top: 50%;
-  transform: translateY(-50%);
+  left: 50%;
+  top: 40%;
   z-index: 5;
-  text-align: right;
-}
-
-.rail-count {
-  margin: 0 6px 10px 0;
-  font: 500 12px/1 var(--font-num);
-  color: var(--ink-2);
-}
-
-.rail-count span {
-  color: var(--ink-3);
-}
-
-.chapter-rail ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.chapter-rail button {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  width: 100%;
-  padding: 4px 4px 4px 12px;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.rail-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink);
+  width: max-content;
+  max-width: min(920px, calc(100vw - 32px));
+  padding: 30px 44px 26px;
+  border-radius: 18px;
+  background: rgba(249, 245, 236, 0.94);
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  box-shadow: 0 6px 20px rgba(28, 25, 20, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
   opacity: 0;
-  transform: translateX(4px);
-  transition: opacity 0.2s, transform 0.2s;
-  text-shadow: 0 0 6px rgba(248, 243, 233, 0.95), 0 0 2px rgba(248, 243, 233, 0.95);
+  visibility: hidden;
+  transition: opacity 0.45s, visibility 0.45s;
 }
 
-.chapter-rail:hover .rail-label,
-.chapter-rail button[aria-current] .rail-label,
-.chapter-rail button:focus-visible .rail-label {
+.atlas-hero[data-on="1"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.atlas-hero > * {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.55s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.atlas-hero[data-on="1"] > * {
   opacity: 1;
   transform: none;
 }
 
-.rail-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(28, 25, 20, 0.28);
-  box-shadow: 0 0 0 2px rgba(248, 243, 233, 0.7);
-  transition: transform 0.2s, background 0.2s;
+.atlas-hero[data-on="1"] > :nth-child(2) {
+  transition-delay: 0.07s;
 }
 
-.chapter-rail button[aria-current] .rail-dot {
+.atlas-hero[data-on="1"] > :nth-child(3) {
+  transition-delay: 0.14s;
+}
+
+.atlas-hero[data-on="1"] > :nth-child(4) {
+  transition-delay: 0.2s;
+}
+
+.hero-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0 0 2px;
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.hero-close:hover {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.hero-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 0 14px;
+  font: 500 clamp(9px, 1vw, 11.5px) / 1.2 var(--font-num);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--accent-ink);
+}
+
+.hero-kicker::before,
+.hero-kicker::after {
+  content: "";
+  flex: none;
+  width: 42px;
+  height: 1.5px;
   background: var(--accent);
-  transform: scale(1.5);
+}
+
+.atlas-hero h1 {
+  margin: 0;
+  font: 900 clamp(38px, 5.4vw, 68px) / 1 var(--font-rounded), var(--font-ui);
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.atlas-hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.hero-sub {
+  max-width: 34em;
+  margin: 14px auto 0;
+  font: italic 400 clamp(15px, 1.7vw, 19.5px) / 1.45 var(--font-display);
+  color: var(--ink-2);
+  text-wrap: balance;
+}
+
+.hero-sub b {
+  font: 500 0.62em / 1 var(--font-num);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  vertical-align: 0.18em;
+  color: var(--ink-2);
+}
+
+.atlas-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font: 500 10px / 1.2 var(--font-num);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  text-shadow: 0 0 2px var(--paper), 0 0 5px var(--paper), 0 0 10px var(--paper);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.atlas-hint[data-on="1"] {
+  opacity: 1;
+}
+
+.atlas-hint b {
+  font-size: 14px;
+  animation: atlas-bob 1.6s ease-in-out infinite;
+}
+
+@keyframes atlas-bob {
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* ---------- chapters: the list down the left, the Red Line down the right ---------- */
+
+.chapter-nav {
+  position: fixed;
+  left: 24px;
+  top: 50%;
+  z-index: 5;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(249, 245, 236, 0.94);
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  box-shadow: 0 2px 8px rgba(28, 25, 20, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateY(-50%);
+  transition: opacity 0.35s, transform 0.35s, visibility 0.35s;
+}
+
+.chapter-nav ol {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-nav button {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  padding: 2px 15px 2px 0;
+  border: 0;
+  background: none;
+  font: 500 10.5px / 1.3 var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.chapter-nav i {
+  flex: none;
+  width: 18px;
+  font-style: normal;
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.chapter-nav em {
+  position: relative;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.chapter-nav em::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 0;
+  height: 1.5px;
+  background: var(--accent);
+  transition: width 0.22s;
+}
+
+/* "›": go there */
+.chapter-nav button::after {
+  content: "\203A";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent-ink);
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+.chapter-nav button:hover,
+.chapter-nav button[aria-current] {
+  color: var(--ink);
+}
+
+.chapter-nav button[aria-current] i {
+  color: var(--accent);
+}
+
+.chapter-nav button[aria-current] em::after {
+  width: 100%;
+}
+
+.chapter-nav button:hover::after {
+  opacity: 0.9;
+}
+
+.atlas:not([data-mode="tour"]) .chapter-nav {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-14px);
+}
+
+@media (max-height: 700px) {
+  .chapter-nav ol {
+    gap: 1px;
+  }
+}
+
+@media (max-width: 1099px), (max-height: 539px) {
+  .chapter-nav {
+    display: none;
+  }
+}
+
+/* A stop for each chapter at its place along the scroll, and a train riding down to where the
+   story is (--p, 0..1, from AtlasApp): the line red behind it, each stop red once it's reached. */
+.tour-rail {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  z-index: 5;
+  transform: translateY(-50%);
+  transition: opacity 0.35s, visibility 0.35s;
+}
+
+.tr-line {
+  --p: 0;
+  position: relative;
+  width: 3px;
+  height: min(46vh, 420px);
+  background: rgba(28, 25, 20, 0.16);
+}
+
+.tr-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--red-line);
+  transform: scaleY(var(--p));
+  transform-origin: top;
+}
+
+.tr-stop {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--at) * 100%);
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.tr-stop::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--red-line);
+  opacity: clamp(0, (var(--p) - var(--at)) * 400 + 1, 1);
+}
+
+.tr-stop:hover,
+.tr-stop:focus-visible {
+  transform: translate(-50%, -50%) scale(1.45);
+}
+
+.tr-tip {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  padding: 3px 7px;
+  border: 1px solid var(--ink);
+  background: rgba(249, 245, 236, 0.94);
+  font: 500 9.5px / 1.2 var(--font-num);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.tr-stop:hover .tr-tip,
+.tr-stop:focus-visible .tr-tip {
+  opacity: 1;
+}
+
+.tr-train {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--p) * 100%);
+  width: 11px;
+  height: 17px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px 3px 1px 1px;
+  background: var(--red-line);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.tr-train::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px 2px auto;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--paper);
+}
+
+.atlas:not([data-mode="tour"]) .tour-rail {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ---------- map labels ---------- */
@@ -1624,87 +1862,394 @@ button.ct-name:hover {
   right: 16px;
 }
 
-/* loader */
+/* ---------- loader ---------- */
 
+/* The atlas opens on Austin drawing itself in while the map is built: the Capitol against a dusk
+   sun, downtown rising either side, the Congress Avenue Bridge, its bats; the name, and a Red
+   Line train riding the progress bar. Then the whole panel wipes away upward to the live map (as
+   the Levels.fyi atlases open). */
 .loader {
+  --sun: #f2a65e;
+  --water: #3d86b0;
   position: fixed;
   inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(120% 80% at 50% 20%, #f7f1e4 0%, #ece3d0 100%);
-  transition: opacity 0.8s ease 0.1s, visibility 0s linear 0.9s;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.9s cubic-bezier(0.7, 0, 0.2, 1), visibility 0s linear 0.9s;
 }
 
 .loader[data-done="1"] {
-  opacity: 0;
+  clip-path: inset(0 0 100% 0);
   visibility: hidden;
+  pointer-events: none;
 }
 
-/* The opening shot has its poster; only deep links (the page's early script shows it for them)
-   and failures get the full loader. */
-.loader:not(.is-failed) {
-  display: none;
+.loader::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1.5px solid rgba(28, 25, 20, 0.16);
+  pointer-events: none;
 }
 
-.loader-inner {
+.ld-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  color: var(--accent);
+  gap: 18px;
+  padding: 0 20px;
 }
 
-.loader-title {
-  margin: 4px 0 0;
-  font: 400 40px/1 var(--font-display);
-  letter-spacing: -0.02em;
+.ld-scene {
+  width: min(240px, 64vw);
+  margin-bottom: -2px;
+}
+
+.ld-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ld-art .la-sun {
+  fill: var(--sun);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: la-pop 0.7s 0.05s cubic-bezier(0.2, 1.3, 0.3, 1) forwards;
+}
+
+.ld-art .la-grow {
+  fill: var(--ink);
+  transform: scaleY(0.02);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: la-grow 0.55s cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
+}
+
+.la-towers .la-grow:nth-child(1) { animation-delay: 0.3s; }
+.la-towers .la-grow:nth-child(2) { animation-delay: 0.18s; }
+.la-towers .la-grow:nth-child(3) { animation-delay: 0.38s; }
+.la-towers .la-grow:nth-child(4) { animation-delay: 0.24s; }
+.la-towers .la-grow:nth-child(5) { animation-delay: 0.44s; }
+.la-towers .la-grow:nth-child(6) { animation-delay: 0.2s; }
+.la-towers .la-grow:nth-child(7) { animation-delay: 0.12s; }
+.la-towers .la-grow:nth-child(8) { animation-delay: 0.34s; }
+.la-towers .la-grow:nth-child(9) { animation-delay: 0.42s; }
+.la-towers .la-grow:nth-child(10) { animation-delay: 0.28s; }
+.la-capitol .la-grow:nth-child(1) { animation-delay: 0.1s; }
+.la-capitol .la-grow:nth-child(2) { animation-delay: 0.22s; }
+.la-capitol .la-grow:nth-child(3) { animation-delay: 0.38s; }
+
+.ld-art .la-dome {
+  fill: var(--ink);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: la-pop 0.5s 0.52s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+
+.ld-art .la-lantern {
+  fill: var(--ink);
+  opacity: 0;
+  animation: la-fade 0.3s 0.78s forwards;
+}
+
+.ld-art .la-draw {
+  fill: none;
+  stroke: var(--ink);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: la-draw 0.4s forwards;
+}
+
+.ld-art .la-statue {
+  stroke-width: 1.1;
+  animation-delay: 0.86s;
+}
+
+.ld-art .la-mast {
+  stroke-width: 1;
+  animation-delay: 0.8s;
+}
+
+.ld-art .la-deck {
+  stroke-width: 2.2;
+  animation: la-draw 0.9s 0.15s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+.ld-art .la-arches {
+  stroke-width: 1.4;
+  animation: la-draw 1.1s 0.45s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+.ld-art .la-star {
+  fill: var(--accent);
+  opacity: 0;
+  animation: la-fade 0.3s 1.1s forwards;
+}
+
+.ld-art .la-piers {
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  opacity: 0;
+  animation: la-fade 0.4s 0.7s forwards;
+}
+
+.ld-art .la-windows rect {
+  fill: #ffd99a;
+  opacity: 0;
+  animation: la-fade 0.3s 1s forwards, la-twinkle 2s 1.3s ease-in-out infinite;
+}
+
+.ld-art .la-windows rect:nth-child(2n) { animation-delay: 1.1s, 1.8s; }
+.ld-art .la-windows rect:nth-child(3n) { animation-delay: 1.2s, 2.3s; }
+
+.ld-art .la-water {
+  fill: none;
+  stroke: var(--water);
+  stroke-width: 1.5;
+  opacity: 0.55;
+  animation: la-drift 3s linear infinite;
+}
+
+.ld-art .la-water + .la-water {
+  opacity: 0.3;
+  animation-duration: 4.4s;
+}
+
+.ld-art .la-bats g {
+  opacity: 0;
+  animation: la-bat 2.6s linear infinite;
+}
+
+.ld-art .la-bats path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.95;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: 50% 60%;
+  animation: la-flap 0.16s ease-in-out infinite alternate;
+}
+
+.la-bats g:nth-child(1) { --dx: -18px; animation-delay: 1.2s; }
+.la-bats g:nth-child(2) { --dx: 8px; animation-delay: 1.55s; }
+.la-bats g:nth-child(3) { --dx: -6px; animation-delay: 1.9s; }
+.la-bats g:nth-child(4) { --dx: 20px; animation-delay: 2.25s; }
+.la-bats g:nth-child(5) { --dx: -12px; animation-delay: 2.6s; }
+.la-bats g:nth-child(6) { --dx: 14px; animation-delay: 2.95s; }
+.la-bats g:nth-child(7) { --dx: -24px; animation-delay: 3.3s; }
+
+@keyframes la-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes la-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-16px); }
+}
+
+@keyframes la-fade {
+  to { opacity: 1; }
+}
+
+@keyframes la-grow {
+  to { transform: scaleY(1); }
+}
+
+@keyframes la-pop {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes la-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes la-bat {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  12% { opacity: 0.95; }
+  80% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(var(--dx), -44px) scale(1.1); }
+}
+
+@keyframes la-flap {
+  to { transform: scaleY(0.25); }
+}
+
+.ld-title {
+  display: flex;
+  margin: 0;
+  font: 900 clamp(28px, 6vw, 54px) / 1 var(--font-rounded), var(--font-ui);
+  letter-spacing: 0.04em;
   color: var(--ink);
 }
 
-.loader-sub {
-  margin: 0;
-  font: 500 11px/1 var(--font-num);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+.ld-ch {
+  animation: ld-rise 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+  animation-delay: calc(var(--i, 0) * 0.04s);
 }
 
-.loader-bar {
-  width: 180px;
-  height: 2px;
-  margin-top: 8px;
-  overflow: hidden;
-  border-radius: 1px;
-  background: rgba(28, 25, 20, 0.12);
+@keyframes ld-rise {
+  from { opacity: 0; transform: translateY(0.55em); }
+  to { opacity: 1; transform: none; }
 }
 
-.loader-bar span {
-  display: block;
-  height: 100%;
+.ld-bar {
+  position: relative;
+  width: min(340px, 70vw);
+  height: 3px;
+  margin-top: 6px;
+  background: rgba(28, 25, 20, 0.16);
+}
+
+/* Moved by transforms, which the compositor keeps smooth while the page is busy building. */
+.ld-fill {
+  position: absolute;
+  inset: 0;
   background: var(--accent);
+  transform: scaleX(var(--p));
   transform-origin: left;
-  transition: transform 0.3s ease;
+  transition: transform 0.35s ease-out;
 }
 
-.loader.is-failed {
+.ld-car {
+  position: absolute;
+  inset: 0;
+  transform: translateX(calc(var(--p) * 100%));
+  transition: transform 0.35s ease-out;
+}
+
+.ld-train {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 15px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  background: var(--red-line);
+  transform: translate(-50%, -50%);
+}
+
+.ld-train::after {
+  content: "";
+  position: absolute;
+  inset: 2px 2px auto;
+  height: 2.5px;
+  border-radius: 1px;
+  background: var(--paper);
+  opacity: 0.85;
+}
+
+.ld-line {
+  min-height: 1.5em;
+  margin: 0;
+  font: 500 10.5px / 1.5 var(--font-num);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.ld-foot {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  width: max-content;
+  max-width: calc(100% - 64px);
+  margin: 0;
+  font: 500 9.5px / 1.5 var(--font-num);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink-3);
+  transform: translateX(-50%);
+}
+
+/* No motion: the scene drawn in full, the wipe a quick fade. */
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    transition: opacity 0.3s, visibility 0s linear 0.3s;
+  }
+
+  .loader[data-done="1"] {
+    clip-path: inset(0 0 0 0);
+    opacity: 0;
+  }
+
+  .ld-art *,
+  .ld-ch {
+    animation: none !important;
+  }
+
+  .ld-art * {
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+
+  .ld-art .la-sun,
+  .ld-art .la-dome,
+  .ld-art .la-lantern,
+  .ld-art .la-star,
+  .ld-art .la-piers,
+  .ld-art .la-windows rect {
+    opacity: 1;
+  }
+
+  .ld-art .la-bats {
+    display: none;
+  }
+
+  .ld-fill,
+  .ld-car {
+    transition: none;
+  }
+
+  .atlas-hero > * {
+    transition-duration: 0.01s;
+  }
+
+  .atlas-hint b {
+    animation: none;
+  }
+}
+
+/* If the map can't start: the atlas as a table. */
+.atlas-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
   place-items: start center;
   overflow-y: auto;
   padding: 48px 16px;
+  background: radial-gradient(120% 80% at 50% 20%, #f7f1e4 0%, #ece3d0 100%);
 }
 
-.loader.is-failed .loader-inner {
+.fallback-inner {
+  display: flex;
+  flex-direction: column;
   align-items: flex-start;
+  gap: 10px;
   max-width: 1000px;
   color: var(--ink);
 }
 
-.loader.is-failed h1 {
+.atlas-fallback h1 {
   margin: 0;
   font: 400 44px/1 var(--font-display);
 }
 
-.loader.is-failed p {
+.atlas-fallback p {
   max-width: 60ch;
   color: var(--ink-2);
 }
@@ -1716,7 +2261,7 @@ button.ct-name:hover {
     padding: 10px 12px;
   }
 
-  /* The intro card carries the name on phones; the header keeps just the mark. */
+  /* The title card carries the name on phones; the header keeps just the mark. */
   .wm-text,
   .hide-sm {
     display: none;
@@ -1783,8 +2328,39 @@ button.ct-name:hover {
     display: none;
   }
 
-  .chapter-rail {
-    display: none;
+  /* Up out of the way of the cards, which sit low on phones, and beside the title card. */
+  .tour-rail {
+    right: 10px;
+    top: 33%;
+  }
+
+  .tr-line {
+    height: min(24vh, 220px);
+  }
+
+  .atlas-hero {
+    top: 42%;
+    max-width: calc(100vw - 52px);
+    padding: 22px 22px 18px;
+  }
+
+  .ld-foot {
+    letter-spacing: 0.2em;
+  }
+
+  .atlas-hero h1 {
+    font-size: clamp(30px, 9vw, 38px);
+    white-space: normal;
+  }
+
+  .hero-kicker {
+    gap: 10px;
+    letter-spacing: 0.24em;
+  }
+
+  .hero-kicker::before,
+  .hero-kicker::after {
+    width: 18px;
   }
 
   .company-panel {
@@ -1849,10 +2425,6 @@ button.ct-name:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scroll-hint span {
-    animation: none;
-  }
-
   .company-panel,
   .modal-scrim {
     animation: none;

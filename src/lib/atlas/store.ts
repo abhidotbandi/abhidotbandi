@@ -134,11 +134,6 @@ export const runtime = {
   paddlePos: { x: 0, z: 0, heading: 0 },
   /** paddle journey position, 0..1 (source of truth; the store mirrors it for the HUD) */
   paddleS: 0,
-  /**
-   * Rendering the opening shot's poster image (scripts/atlas/render_poster.py): the camera takes
-   * the poster's field of view and focal point instead of the viewport's.
-   */
-  poster: null as { fov: number; ppx: number; ppy: number } | null,
   /** the detail tiles in view have all arrived (or failed), so the first view is complete */
   tilesSettled: false,
   /**

@@ -230,7 +230,8 @@ const areaFragment = /* glsl */ `
   // them taken. Up close the cars and the stalls' lines; further out each stall the colour it
   // averages to, so the rows of cars still show; from afar the grey it all averages to.
   vec3 parking(vec2 xz, float heading) {
-    vec3 asphalt = lin(vec3(0.56, 0.56, 0.57));
+    // (Lighter than the streets: from the air, car parks read paler than the grass around them.)
+    vec3 asphalt = lin(vec3(0.62, 0.62, 0.63));
     vec3 average = mix(asphalt, vec3(0.333), 0.26);
     vec2 d = vec2(cos(heading), -sin(heading));
     vec2 q = vec2(dot(xz, d), dot(xz, vec2(-d.y, d.x))) * 1000.0;

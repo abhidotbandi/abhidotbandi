@@ -29,11 +29,22 @@ import Landmarks from "./Landmarks";
 import DetailTiles from "./DetailTiles";
 import Airport from "./Airport";
 import Clouds from "./Clouds";
-import WaterReflection, { mirrored, water } from "./Water";
-import Occlusion, { occlusion } from "./Occlusion";
+import WaterReflection, { MIRROR_LAYER, mirrored, water } from "./Water";
+import Occlusion, { AO_LAYER, heightMaterial, occlusion } from "./Occlusion";
 import Construction from "./Construction";
 import { LabelDriver } from "../ui/labels";
 import type { PreparedScene } from "./prepare";
+
+/**
+ * The lights are on the reflection's and the height map's layers too, so every pass draws under
+ * the same lights. (Three keeps one light setup per scene, and the shadow map draws before the
+ * frame sets its own up: a pass that saw no lights would have the next shadow map drawn as if
+ * there were none, which takes programs of its own, compiled there and then.)
+ */
+const seenByPasses = (o: THREE.Object3D) => {
+  mirrored(o);
+  o.layers.enable(AO_LAYER);
+};
 
 /** Light for three's own materials (landmarks, trees, the train, bats and plume). */
 const GROUND_DAY = new THREE.Color("#8a7a66");
@@ -120,8 +131,8 @@ function Lights({ ground, lowPower }: { ground: HeightField; lowPower: boolean }
   });
   return (
     <>
-      <hemisphereLight ref={hemi} args={["#ffffff", "#8a7a66", 1.4]} onUpdate={mirrored} />
-      <directionalLight ref={sun} position={[20, 40, 10]} intensity={2} castShadow onUpdate={mirrored} />
+      <hemisphereLight ref={hemi} args={["#ffffff", "#8a7a66", 1.4]} onUpdate={seenByPasses} />
+      <directionalLight ref={sun} position={[20, 40, 10]} intensity={2} castShadow onUpdate={seenByPasses} />
     </>
   );
 }
@@ -205,64 +216,166 @@ function Governor() {
   return null;
 }
 
-/**
- * Compile an object's materials (three's compileAsync, in the background where the browser has
- * KHR_parallel_shader_compile) and resolve once they're ready to draw. Unlike compileAsync, a
- * material that goes away meanwhile (a tile dropped, a piece rebuilt) doesn't leave it waiting
- * forever, and it stops waiting after a few seconds whatever happens.
- */
-function compiled(gl: THREE.WebGLRenderer, object: THREE.Object3D, camera: THREE.Camera, scene: THREE.Scene | null = null): Promise<void> {
-  let materials: Set<THREE.Material>;
-  try {
-    materials = gl.compile(object, camera, scene);
-  } catch {
-    return Promise.resolve();
-  }
+/** A compiled shader program, as three keeps it (`program` goes once it's let go). */
+type Program = { program: unknown; isReady?: () => boolean };
+
+/** Resolve once the programs have finished compiling (in the background, where the browser has
+ * KHR_parallel_shader_compile), or after a few seconds whatever happens. One let go meanwhile (its
+ * material gone: a tile dropped, a piece rebuilt) is done with. */
+function whenReady(programs: Program[]): Promise<void> {
   const started = performance.now();
   return new Promise((resolve) => {
     const check = () => {
-      for (const m of materials) {
-        const program = (gl.properties.get(m) as { currentProgram?: { isReady(): boolean } }).currentProgram;
+      programs = programs.filter((p) => {
         try {
-          if (!program || program.isReady()) materials.delete(m);
+          return p.program !== undefined && p.isReady?.() === false;
         } catch {
-          materials.delete(m);
+          return false;
         }
-      }
-      if (materials.size === 0 || performance.now() - started > 6000) resolve();
+      });
+      if (programs.length === 0 || performance.now() - started > 6000) resolve();
       else setTimeout(check, 10);
     };
     setTimeout(check, 0);
   });
 }
 
+/** Which of the map's own passes draw (Occlusion's height map, WaterReflection's mirror). */
+interface Passes {
+  ao: boolean;
+  mirror: boolean;
+}
+
+/** Drawing into a render target takes programs of its own (its colour space isn't the screen's):
+ * a stand-in target to compile them for. */
+let passTarget: THREE.WebGLRenderTarget | null = null;
+/** Shapes for the stand-ins, with and without normals (which three's programs note too). */
+const standInShapes = [false, true].map((normals) => {
+  const g = new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+  if (normals) g.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(9), 3));
+  return g;
+});
+/** Sees only the height map's layer, as Occlusion's camera does (and so, like it, the lights). */
+const aoView = new THREE.OrthographicCamera();
+aoView.layers.set(AO_LAYER);
+
+/** A mesh, an instanced mesh and an instanced mesh with colours, with normals or without, drawn
+ * with `material`: each kind of object the map has takes a program of its own. */
+function kinds(material: THREE.Material): THREE.Object3D[] {
+  return standInShapes.flatMap((shape) => {
+    const tinted = new THREE.InstancedMesh(shape, material, 1);
+    tinted.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+    return [new THREE.Mesh(shape, material), new THREE.InstancedMesh(shape, material, 1), tinted];
+  });
+}
+
+/** A stand-in for an object, drawn as it is. */
+function standIn(o: THREE.Object3D): THREE.Object3D | null {
+  if (o instanceof THREE.InstancedMesh) {
+    const p = new THREE.InstancedMesh(o.geometry, o.material, 1);
+    p.instanceColor = o.instanceColor;
+    return p;
+  }
+  if (o instanceof THREE.Mesh) return new THREE.Mesh(o.geometry, o.material);
+  if (o instanceof THREE.Points) return new THREE.Points(o.geometry, o.material);
+  if (o instanceof THREE.LineSegments) return new THREE.LineSegments(o.geometry, o.material);
+  if (o instanceof THREE.Line) return new THREE.Line(o.geometry, o.material);
+  return null;
+}
+
 /**
- * Compile every material in the scene, visible or not, whenever its contents change, in the
- * background, and draw nothing new until it's done (Render): drawing with a shader still
- * compiling would stop the page dead until it was. Without this each layer would also compile
- * the first time it came into view (zooming into downtown, the first night).
+ * Compile what the map's other passes draw, as they draw it: otherwise each program compiles the
+ * moment it's first needed and stops the page until it has (the shadows as each kind of thing
+ * first comes into the sun's box, the contact shadows at the first close view, the lake's
+ * reflection). The sun's shadow map draws every caster with three's depth material, on the far
+ * side of its faces (and without the scene's fog); the height map draws everything with its one
+ * material; the reflection draws the mirror layer with its own materials.
  */
-function Precompile({ token }: { token: unknown }) {
+function compilePasses(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, passes: Passes) {
+  passTarget ??= new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const prev = gl.getRenderTarget();
+  gl.setRenderTarget(passTarget);
+  try {
+    const shadow = new THREE.Group();
+    for (const side of [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide]) shadow.add(...kinds(new THREE.MeshDepthMaterial({ side })));
+    // (The shadow map draws without the scene, so without its fog, which three's programs note.)
+    const fog = scene.fog;
+    scene.fog = null;
+    try {
+      gl.compile(shadow, camera, scene);
+    } finally {
+      scene.fog = fog;
+    }
+    if (passes.ao) {
+      const ao = new THREE.Group();
+      ao.add(...kinds(heightMaterial));
+      gl.compile(ao, aoView, scene);
+    }
+    if (passes.mirror) {
+      const mirror = new THREE.Group();
+      scene.traverse((o) => {
+        const p = o.layers.isEnabled(MIRROR_LAYER) ? standIn(o) : null;
+        if (p) mirror.add(p);
+      });
+      gl.compile(mirror, camera, scene);
+    }
+  } finally {
+    gl.setRenderTarget(prev);
+  }
+}
+
+/**
+ * Compile an object's materials (and with `passes`, what the map's other passes draw) in the
+ * background where the browser can, and resolve once the new programs are ready to draw.
+ */
+function compiled(
+  gl: THREE.WebGLRenderer,
+  object: THREE.Object3D,
+  camera: THREE.Camera,
+  scene: THREE.Scene | null = null,
+  passes: Passes | null = null,
+): Promise<void> {
+  const before = new Set<unknown>(gl.info.programs ?? []);
+  try {
+    gl.compile(object, camera, scene);
+    if (passes) compilePasses(gl, scene ?? (object as THREE.Scene), camera, passes);
+  } catch {
+    return Promise.resolve();
+  }
+  return whenReady((gl.info.programs ?? []).filter((p) => !before.has(p)) as unknown as Program[]);
+}
+
+/**
+ * Compile every material in the scene, visible or not, whenever its contents change, and what
+ * the other passes draw, in the background, and draw nothing new until it's done (Render):
+ * drawing with a shader still compiling would stop the page dead until it was. Without this each
+ * layer would also compile the first time it came into view (zooming into downtown, the first
+ * night).
+ */
+function Precompile({ token, passes }: { token: unknown; passes: Passes }) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
+  const { ao, mirror } = passes;
   useEffect(() => {
     let live = true;
     runtime.compiling = true;
-    compiled(gl, scene, camera).then(() => {
+    compiled(gl, scene, camera, null, { ao, mirror }).then(() => {
       if (live) runtime.compiling = false;
     });
     return () => {
       live = false;
-      runtime.compiling = false;
+      // (Until the next has, the map waits again.)
+      runtime.compiling = true;
     };
-  }, [gl, scene, camera, token]);
+  }, [gl, scene, camera, token, ao, mirror]);
   return null;
 }
 
 /**
  * Draws each frame, unless the scene's shaders are still compiling (Precompile): only ever while
- * the live map is still hidden behind the loader.
+ * the live map is still hidden behind the loader. (Drawing before they'd begin would compile
+ * everything in view there and then, a shader at a time, the loader stuck meanwhile.)
  */
 function Render() {
   useFrame((state) => {
@@ -400,7 +513,7 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
       <Construction ground={ground} />
       <SiteModels models={scene.models} />
       <LabelDriver />
-      <Precompile token={central} />
+      <Precompile token={central} passes={{ ao: !scene.lowPower, mirror: !!central && !scene.lowPower }} />
       <Render />
       <DebugHandle />
       <ReadySignal settled={settled} />

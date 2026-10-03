@@ -3,7 +3,7 @@ import type { Central } from "@/lib/atlas/central";
 import type { LaneArrays } from "@/lib/atlas/detail/build";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { CARS } from "@/lib/atlas/tiles";
-import { box, instanced, merge } from "./figures";
+import { box, instanced, merge, uploadInstances } from "./figures";
 import { DECK_WIDTH, deckProfile } from "./Structures";
 
 // Traffic around the camera: cars on the streets and arterials of the detail tiles (and, inside
@@ -350,10 +350,14 @@ export class CarSim {
       }
     }
     this.body.count = shown;
-    this.body.instanceMatrix.needsUpdate = true;
-    if (colorsChanged && this.body.instanceColor) this.body.instanceColor.needsUpdate = true;
-    lp.needsUpdate = true;
-    lc.needsUpdate = true;
+    // Only the cars in use go to the GPU, not the whole pool.
+    uploadInstances(this.body, shown, colorsChanged);
+    if (shown > 0) {
+      for (const a of [lp, lc]) {
+        a.addUpdateRange(0, shown * 6);
+        a.needsUpdate = true;
+      }
+    }
     this.lights.geometry.setDrawRange(0, shown * 2);
     const lm = this.lights.material as THREE.PointsMaterial;
     lm.opacity = dark;

@@ -7,6 +7,7 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Trees as TreeData } from "@/lib/atlas/central";
 import { CX_MIN, CZ_MIN, C_HEIGHT_KM, C_WIDTH_KM, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
+import { uploadInstances } from "./figures";
 
 // Central Austin's trees as low-poly instances: live oaks, cedar elms and pecans as rounded
 // crowns, bald cypress along the river and Ashe juniper in the western hills as cones. Only
@@ -205,10 +206,7 @@ export default function Trees({ trees, ground, lowPower }: { trees: TreeData; gr
     cone.count = nc;
     roundFar.count = fr;
     coneFar.count = fc;
-    for (const m of [round, cone, roundFar, coneFar]) {
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    }
+    for (const m of [round, cone, roundFar, coneFar]) uploadInstances(m);
   });
 
   return <primitive ref={ref} object={root} />;

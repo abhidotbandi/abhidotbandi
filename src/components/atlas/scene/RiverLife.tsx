@@ -7,7 +7,7 @@ import { sampleWaterKm, type Central, type Dock } from "@/lib/atlas/central";
 import { groundY, type HeightField } from "@/lib/atlas/geo";
 import { Path, nearestIndex, rowingLoop } from "@/lib/atlas/paths";
 import { runtime } from "@/lib/atlas/store";
-import { SHIRTS, SKIN, bodyGeo, box, headGeo, inWindow, merge, pick, standGeo } from "./figures";
+import { SHIRTS, SKIN, bodyGeo, box, headGeo, inWindow, merge, pick, standGeo, uploadInstances } from "./figures";
 
 // Life on Lady Bird Lake: rowing crews on their loops (busiest at dawn), paddleboards, kayaks
 // and canoes wandering out from the rental docks, the Lone Star Riverboat by day and bat-watching
@@ -701,10 +701,7 @@ export default function RiverLife({
     wakes.count = nw;
     canopies.count = nc;
     rings.count = MAX_RINGS;
-    for (const m of [hulls, bodies, standing, heads, oars, wakes, canopies, rings]) {
-      m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    }
+    for (const m of [hulls, bodies, standing, heads, oars, wakes, canopies, rings]) uploadInstances(m);
     wakeFade.needsUpdate = true;
     ringFade.needsUpdate = true;
   });

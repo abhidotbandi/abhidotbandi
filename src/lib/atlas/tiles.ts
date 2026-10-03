@@ -103,3 +103,8 @@ export const AREA_APRON = 2;
 export const AREA_HELIPAD = 3;
 export const AREA_POOL = 10;
 export const AREA_POND = 11;
+/** As drawn (detail/build.ts): an apron of asphalt rather than concrete... */
+export const AREA_APRON_ASPHALT = 4;
+/** ...and a car park as this plus the heading of its rows (degrees counterclockwise from east,
+ * 0 to 180), so its stalls are laid out along them. */
+export const AREA_PARKING_ROWS = 100;

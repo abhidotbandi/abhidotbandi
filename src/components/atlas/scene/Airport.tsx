@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { GATES, RUNWAYS, RUNWAY_HALF, TOWER } from "@/lib/atlas/airport";
+import { GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER } from "@/lib/atlas/airport";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -11,14 +11,17 @@ import { box, instanced, merge } from "./figures";
 import { LIT, paintMaterial, sharedUniforms, updatePaint, type SharedPaint } from "./paint";
 import { SHADOW_VERTEX_PARS, shadowVertex } from "./shadows";
 
-// Austin-Bergstrom International, readable from across the city as well as up close: its two
-// runways painted as they are (threshold bars, designators, touchdown zone and aiming point
-// markings, centreline and edges; edge and threshold lights after dark), drawn from any
-// distance; airliners at the Barbara Jordan Terminal's gates with their jet bridges, larger the
-// further out you are; the control tower; airliners on final over East Austin, touching down on
-// the west runway and turning off for the terminal, departures rolling and climbing out to the
-// south from the east runway. Landing lights, beacons and wingtip lights after dark. (The
-// taxiways and aprons come with the detail tiles; the grass between them is in the map.)
+// Austin-Bergstrom International, readable from across the city as well as up close, in its own
+// colours (matched to USGS imagery): its two concrete runways painted as they are (threshold bars,
+// designators, touchdown zone and aiming point markings, centreline and edges; tyre rubber down
+// the touchdown zones; the west runway's wide shoulders, hatched; dark blast pads with chevrons
+// beyond the thresholds; edge and threshold lights after dark), drawn from any distance;
+// airliners in their liveries at the Barbara Jordan Terminal's gates, with their jet bridges and
+// lead-in lines, larger the further out you are; the control tower; the solar canopies and the
+// garages' solar roofs; airliners on final over East Austin, touching down on the west runway and
+// turning off for the terminal, departures rolling and climbing out to the south from the east
+// runway. Landing lights, beacons and wingtip lights after dark. (The taxiways, aprons and car
+// parks come with the detail tiles; the turf between them with the terrain.)
 
 const M = 0.001;
 const SCALE = 1.5; // airliners read at airport scale
@@ -34,12 +37,35 @@ const _up = new THREE.Vector3(0, 1, 0);
 const _quat = new THREE.Quaternion();
 const _e = new THREE.Euler();
 
-const AIRLINE = ["#304cb2", "#c8102e", "#1a3668", "#b0173c", "#01426a", "#2e8540", "#f2b705", "#5b6770", "#e4572e"].map(
-  (c) => new THREE.Color(c),
-);
+/**
+ * Who flies from Austin and how each looks from above: the fuselage and the tail, by about how
+ * many of the gates each has (Southwest, the biggest, in its blue Heart livery; American in
+ * silver; the rest white with their tails).
+ */
+const LIVERIES = [
+  { share: 8, body: "#304cb2", fin: "#d4202f" }, // Southwest
+  { share: 4, body: "#bfc4ca", fin: "#24407a" }, // American
+  { share: 3, body: "#f3f2ee", fin: "#0b2a5b" }, // Delta
+  { share: 3, body: "#f3f2ee", fin: "#1b3f8b" }, // United
+  { share: 1, body: "#f3f2ee", fin: "#01426a" }, // Alaska
+  { share: 1, body: "#f3f2ee", fin: "#2a62c9" }, // JetBlue
+  { share: 1, body: "#f3f2ee", fin: "#2e8540" }, // Frontier
+  { share: 1, body: "#f3f2ee", fin: "#f2a900" }, // Allegiant
+].map((l) => ({ share: l.share, body: new THREE.Color(l.body), fin: new THREE.Color(l.fin) }));
+type Livery = (typeof LIVERIES)[number];
+const WING = new THREE.Color("#cdd1d6");
 
-/** An airliner in metres, nose toward -z: the body, and the tail fin (painted per airline). */
-function planeGeometry(): { body: THREE.BufferGeometry; fin: THREE.BufferGeometry } {
+/** A livery picked by share. */
+function anyLivery(r: number): Livery {
+  const total = LIVERIES.reduce((t, l) => t + l.share, 0);
+  let x = r * total;
+  for (const l of LIVERIES) if ((x -= l.share) < 0) return l;
+  return LIVERIES[0];
+}
+
+/** An airliner in metres, nose toward -z, in the three parts its livery paints differently: the
+ * fuselage, the wings, tailplane and engines, and the tail fin. */
+function planeGeometry(): { body: THREE.BufferGeometry; wings: THREE.BufferGeometry; fin: THREE.BufferGeometry } {
   const fuselage = new THREE.CylinderGeometry(2, 2, 29, 10, 1);
   fuselage.rotateX(Math.PI / 2);
   const nose = new THREE.ConeGeometry(2, 5, 10, 1);
@@ -66,14 +92,16 @@ function planeGeometry(): { body: THREE.BufferGeometry; fin: THREE.BufferGeometr
     e.translate(s * 6.2, -1.7, -1.8);
     return e;
   };
-  const body = merge([fuselage, nose, tail, wing(1), wing(-1), stab(1), stab(-1), engine(1), engine(-1)]);
   const fin = box(0.45, 6.5, 4.6, 0, 0, 0);
   fin.rotateX(-0.45);
   fin.translate(0, 4.8, 16.4);
-  body.scale(M * SCALE, M * SCALE, M * SCALE);
-  const finG = merge([fin]);
-  finG.scale(M * SCALE, M * SCALE, M * SCALE);
-  return { body, fin: finG };
+  const parts = {
+    body: merge([fuselage, nose, tail]),
+    wings: merge([wing(1), wing(-1), stab(1), stab(-1), engine(1), engine(-1)]),
+    fin: merge([fin]),
+  };
+  for (const g of Object.values(parts)) g.scale(M * SCALE, M * SCALE, M * SCALE);
+  return parts;
 }
 
 /** A scripted movement: points along the ground with altitude and speed, timed by integration. */
@@ -222,11 +250,10 @@ const f = (n: number) => n.toFixed(1);
 const ends = RUNWAYS.map((r) => [r.north, r.south]);
 
 const runwayVertex = /* glsl */ `
-  attribute vec3 aAcross;
+  attribute vec4 aAcross;
   attribute vec3 aRwy;
   uniform float uPxK;
   uniform float uLift;
-  uniform float uHalf;
   varying vec3 vWorld;
   varying vec2 vUV;
   varying vec2 vInfo;
@@ -237,13 +264,13 @@ const runwayVertex = /* glsl */ `
   void main() {
     vec4 c = viewMatrix * vec4(position, 1.0);
     // Never much thinner than a pixel and a half, so a runway still shows from across the region.
-    float hw = max(uHalf, 0.7 * uPxK * max(-c.z, 1e-3));
+    float hw = max(aAcross.w, 0.7 * uPxK * max(-c.z, 1e-3));
     vec3 p = position + vec3(aAcross.x, 0.0, aAcross.y) * (aAcross.z * hw);
     p.y += uLift;
     vWorld = p;
     vSide = aAcross.z;
     // metres from the north threshold; metres across, + to the west
-    vUV = vec2(aRwy.x, aAcross.z * uHalf * 1000.0);
+    vUV = vec2(aRwy.x, aAcross.z * aAcross.w * 1000.0);
     vInfo = aRwy.yz;
     vec4 mvPosition = viewMatrix * vec4(p, 1.0);
     vDepth = -mvPosition.z;
@@ -275,6 +302,12 @@ const runwayFragment = /* glsl */ `
     float ia = floor(a / P) * D + min(mod(a, P), D);
     float ib = floor(b / P) * D + min(mod(b, P), D);
     return (ib - ia) / w;
+  }
+  float hash1(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
+  float noise1(float x) {
+    float i = floor(x);
+    float f = fract(x);
+    return mix(hash1(i), hash1(i + 1.0), f * f * (3.0 - 2.0 * f));
   }
   // A designator glyph: 3 cells of 2 m across, 5 of 3.66 m (18.3 m) along, painted where its
   // bit is set; from afar, the grey its paint averages to.
@@ -313,27 +346,48 @@ const runwayFragment = /* glsl */ `
     // (x across, y along: the pixel's footprint in metres)
     vec2 w = vec2(max(fwidth(v), 1e-3), max(fwidth(u), 1e-3));
     float half_ = uHalfM;
+    float west = step(vInfo.y, 0.5);
+    float shoulder = mix(${f(RUNWAYS[1].shoulder)}, ${f(RUNWAYS[0].shoulder)}, west);
     bool north = u < 0.5 * L;
+    // Metres in from the nearer threshold (less than 0 on its blast pad).
     float a = north ? u : L - u;
     // Landing south, an aircraft's right is the runway's west (+v); landing north, its east.
     float gx = north ? v : -v;
-    float west = step(vInfo.y, 0.5);
     float letter = north
       ? mix(${f(GLYPHS[ends[1][0][1]])}, ${f(GLYPHS[ends[0][0][1]])}, west)
       : mix(${f(GLYPHS[ends[1][1][1]])}, ${f(GLYPHS[ends[0][1][1]])}, west);
     float d0 = north ? ${f(GLYPHS[ends[0][0][0][0]])} : ${f(GLYPHS[ends[0][1][0][0]])};
     float d1 = north ? ${f(GLYPHS[ends[0][0][0][1]])} : ${f(GLYPHS[ends[0][1][0][1]])};
     float s = abs(v);
-    float m = endMarks(a, s, gx, w, letter, d0, d1);
-    // Centreline: 120 ft dashes, 80 ft apart, between the designators; edge lines.
-    m += span(u, 120.0, L - 120.0, w.y) * span(v, -0.45, 0.45, w.x) * stripes(u - 120.0, 61.0, 36.6, w.y);
-    m += span(s, half_ - 1.4, half_ - 0.5, w.x);
-    m = clamp(m, 0.0, 1.0);
+    float runway = span(s, -half_, half_, w.x); // of the pixel on the 150 ft itself, not its shoulders
+    float pad = span(a, -1e4, 0.0, w.y); // ...and beyond the threshold
+    float near = 1.0 - smoothstep(1.0, 4.0, max(w.x, w.y));
 
-    // Grooved concrete, dark with tyre rubber down the middle of the touchdown zones.
-    vec3 col = lin(vec3(0.46, 0.47, 0.49));
-    col *= 1.0 - 0.3 * span(a, 140.0, 760.0, w.y) * (1.0 - smoothstep(4.0, 12.0, s));
-    col = mix(col, lin(vec3(0.97, 0.97, 0.95)), m * 0.92);
+    // Light concrete, the shoulders a shade darker, in 7.5 m slabs whose joints show up close;
+    // past the thresholds the blast pads, dark asphalt between the shoulders.
+    vec3 col = mix(lin(vec3(0.7, 0.69, 0.64)), lin(vec3(0.8, 0.79, 0.74)), runway);
+    vec2 slab = vec2(v, u) / 7.5;
+    vec2 j = 0.5 - abs(fract(slab) - 0.5);
+    col *= 1.0 - 0.06 * (1.0 - smoothstep(0.0, 0.08, min(j.x, j.y))) * (1.0 - smoothstep(0.5, 1.5, max(w.x, w.y)));
+    col = mix(col, lin(vec3(0.43, 0.45, 0.48)), runway * pad);
+    // Tyre rubber: dark down the middle of each touchdown zone and on along the rollout, in
+    // streaks (which even out from afar).
+    float streak = mix(0.7, noise1(v * 0.8 + 7.0) * 0.6 + noise1(u * 0.02 + v * 0.5) * 0.4, near);
+    float rubber = (1.0 - smoothstep(2.0, 11.0, s)) * span(a, 80.0, 1500.0, w.y) * (0.45 + 0.55 * span(a, 140.0, 900.0, w.y));
+    col *= 1.0 - 0.55 * rubber * streak;
+
+    // White paint: the markings at each end, the centreline (120 ft dashes, 80 ft apart, between
+    // the designators) and the edge lines.
+    float on = span(u, 0.0, L, w.y);
+    float m = endMarks(a, s, gx, w, letter, d0, d1);
+    m += span(u, 120.0, L - 120.0, w.y) * span(v, -0.45, 0.45, w.x) * stripes(u - 120.0, 61.0, 36.6, w.y);
+    m += span(s, half_ - 1.4, half_ - 0.5, w.x) * on;
+    // Yellow: hatching at 45 degrees across the wide shoulders, and chevrons on the blast pads
+    // pointing to the threshold.
+    float y = step(10.0, shoulder) * span(s, half_ + 1.5, half_ + shoulder - 1.5, w.x) * stripes(a + s, 30.0, 1.5, w.x + w.y) * on;
+    y += pad * span(s, -1.0, half_ - 2.5, w.x) * stripes(-a - s, 30.0, 1.8, w.x + w.y);
+    col = mix(col, lin(vec3(0.97, 0.97, 0.95)), clamp(m, 0.0, 1.0) * 0.92);
+    col = mix(col, lin(vec3(0.95, 0.76, 0.24)), clamp(y, 0.0, 1.0) * 0.85);
     vec3 lit = groundLit(col, vWorld);
 
     // After dark: white edge lights every 60 m, green across the thresholds.
@@ -341,9 +395,9 @@ const runwayFragment = /* glsl */ `
     float mpp = max(w.x, w.y);
     float rad = max(1.3, 1.1 * mpp);
     float de = length(vec2((fract(u / 60.0) - 0.5) * 60.0, s - (half_ - 0.6)));
-    lit += lin(vec3(1.0, 0.92, 0.78)) * exp(-de * de / (rad * rad)) * 2.2 * mix(0.25, 1.0, smoothstep(2.0, 7.0, 60.0 / mpp)) * dark;
+    lit += lin(vec3(1.0, 0.92, 0.78)) * exp(-de * de / (rad * rad)) * 2.2 * mix(0.25, 1.0, smoothstep(2.0, 7.0, 60.0 / mpp)) * dark * on;
     float dt = length(vec2(a - 1.0, (fract(v / 3.0) - 0.5) * 3.0));
-    lit += lin(vec3(0.3, 1.0, 0.45)) * exp(-dt * dt / (rad * rad)) * 1.8 * dark;
+    lit += lin(vec3(0.3, 1.0, 0.45)) * exp(-dt * dt / (rad * rad)) * 1.8 * dark * step(s, half_);
 
     float aa = max(fwidth(vSide), 1e-4) * 1.5;
     gl_FragColor = vec4(lit, uFade * (1.0 - smoothstep(1.0 - aa, 1.0, abs(vSide))) * (1.0 - 0.5 * smoothstep(30.0, 80.0, vDepth)));
@@ -352,8 +406,8 @@ const runwayFragment = /* glsl */ `
   }
 `;
 
-/** Each runway as a strip along its centreline, threshold to threshold, every 25 m so it lies on
- * the ground. */
+/** Each runway as a strip along its centreline, from the end of one blast pad to the other, every
+ * 25 m so it lies on the ground, as wide as its paved shoulders. */
 function runwayMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
   const pos: number[] = [];
   const across: number[] = [];
@@ -365,17 +419,20 @@ function runwayMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
     const len = Math.hypot(sx - nx, sz - nz);
     const dx = (sx - nx) / len;
     const dz = (sz - nz) / len;
-    const n = Math.ceil(len / 0.025);
+    const from = -r.padN / 1000;
+    const to = len + r.padS / 1000;
+    const n = Math.ceil((to - from) / 0.025);
+    const half = RUNWAY_HALF + r.shoulder / 1000;
     const base = pos.length / 3;
     for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      const x = nx + (sx - nx) * t;
-      const z = nz + (sz - nz) * t;
+      const d = from + ((to - from) * i) / n;
+      const x = nx + dx * d;
+      const z = nz + dz * d;
       const y = groundY(ground, x, z);
       for (const side of [-1, 1]) {
         pos.push(x, y, z);
-        across.push(-dz, dx, side);
-        info.push(t * len * 1000, len * 1000, k);
+        across.push(-dz, dx, side, half);
+        info.push(d * 1000, len * 1000, k);
       }
       if (i) {
         const q = base + (i - 1) * 2;
@@ -385,17 +442,141 @@ function runwayMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
   });
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute("aAcross", new THREE.Float32BufferAttribute(across, 3));
+  geo.setAttribute("aAcross", new THREE.Float32BufferAttribute(across, 4));
   geo.setAttribute("aRwy", new THREE.Float32BufferAttribute(info, 3));
   geo.setIndex(index);
   geo.computeBoundingSphere();
   const mat = paintMaterial(shared, { value: 1 }, runwayVertex, runwayFragment);
-  mat.uniforms.uHalf = { value: RUNWAY_HALF };
   mat.uniforms.uHalfM = { value: RUNWAY_HALF * 1000 };
   const mesh = new THREE.Mesh(geo, mat);
   // Over the taxiways where they cross (the tiles' paint draws first).
   mesh.renderOrder = 0;
   return mesh;
+}
+
+// --- lead-in lines -----------------------------------------------------------------------------
+
+const lineVertex = /* glsl */ `
+  attribute vec4 aAcross;
+  uniform float uPxK;
+  uniform float uLift;
+  varying vec3 vWorld;
+  varying float vCover;
+  varying float vDepth;
+  #include <fog_pars_vertex>
+  ${SHADOW_VERTEX_PARS}
+  void main() {
+    vec4 c = viewMatrix * vec4(position, 1.0);
+    // Drawn at least half a pixel wide, fainter for it: as much paint as there is.
+    float hw = max(aAcross.w, 0.5 * uPxK * max(-c.z, 1e-3));
+    vCover = aAcross.w / hw;
+    vec3 p = position + vec3(aAcross.x, 0.0, aAcross.y) * (aAcross.z * hw);
+    p.y += uLift;
+    vWorld = p;
+    vec4 mvPosition = viewMatrix * vec4(p, 1.0);
+    vDepth = -mvPosition.z;
+    gl_Position = projectionMatrix * mvPosition;
+    #include <fog_vertex>
+    ${shadowVertex("p")}
+  }
+`;
+
+const lineFragment = /* glsl */ `
+  ${LIT}
+  varying vec3 vWorld;
+  varying float vCover;
+  varying float vDepth;
+  #include <fog_pars_fragment>
+  void main() {
+    vec3 lit = groundLit(lin(vec3(0.95, 0.77, 0.22)), vWorld);
+    gl_FragColor = vec4(lit, uFade * min(1.0, vCover) * 0.9 * (1.0 - smoothstep(5.0, 10.0, vDepth)));
+    #include <fog_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+/** The yellow lead-in line into each stand, along the parked aircraft's axis from the taxilane
+ * behind it, and the stop bar across it where the nose wheel stops. */
+function leadInMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
+  const pos: number[] = [];
+  const across: number[] = [];
+  const index: number[] = [];
+  const line = (ax: number, az: number, bx: number, bz: number, halfM: number) => {
+    const l = Math.hypot(bx - ax, bz - az);
+    const px = -(bz - az) / l;
+    const pz = (bx - ax) / l;
+    const base = pos.length / 3;
+    for (const [x, z] of [
+      [ax, az],
+      [bx, bz],
+    ]) {
+      for (const side of [-1, 1]) {
+        pos.push(x, groundY(ground, x, z), z);
+        across.push(px, pz, side, halfM / 1000);
+      }
+    }
+    index.push(base, base + 1, base + 3, base, base + 3, base + 2);
+  };
+  for (const st of STANDS) {
+    // From the stop bar back past the tail, onto the taxilane.
+    line(st.x, st.z, st.x - st.fx * 0.075, st.z - st.fz * 0.075, 0.1);
+    line(st.x - st.fz * 0.0015, st.z + st.fx * 0.0015, st.x + st.fz * 0.0015, st.z - st.fx * 0.0015, 0.15);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("aAcross", new THREE.Float32BufferAttribute(across, 4));
+  geo.setIndex(index);
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, paintMaterial(shared, { value: 1 }, lineVertex, lineFragment));
+  mesh.renderOrder = 1;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+// --- solar -------------------------------------------------------------------------------------
+
+/** The solar arrays: a thin slab per row of panels, on its canopy's posts or its garage's roof. */
+function solarMesh(ground: HeightField): THREE.Group {
+  const out = new THREE.Group();
+  for (const canopy of [true, false]) {
+    const rows: THREE.Matrix4[] = [];
+    for (const arr of SOLAR.filter((a) => a.canopy === canopy)) {
+      const at = (u: number, v: number): [number, number] => [
+        arr.origin[0] + (arr.along[0] * u + arr.left[0] * v) * M,
+        arr.origin[1] + (arr.along[1] * u + arr.left[1] * v) * M,
+      ];
+      // A roof is level, at its height above the lowest ground under the building.
+      let floor = Infinity;
+      for (const [u0, v0, u1, v1] of arr.blocks) {
+        for (const [u, v] of [
+          [u0, v0],
+          [u1, v0],
+          [u0, v1],
+          [u1, v1],
+        ]) {
+          floor = Math.min(floor, groundY(ground, ...at(u, v)));
+        }
+      }
+      const yaw = Math.atan2(-arr.along[1], arr.along[0]);
+      _quat.setFromAxisAngle(_up, yaw);
+      for (const [u0, v0, u1, v1] of arr.blocks) {
+        const width = arr.pitch - arr.gap;
+        for (let r = Math.min(v0, v1); r + width <= Math.max(v0, v1) + 0.5; r += arr.pitch) {
+          const [x, z] = at((u0 + u1) / 2, r + width / 2);
+          const y = (canopy ? groundY(ground, x, z) : floor) + (arr.height + 0.4) * M * V;
+          _m.compose(_p.set(x, y, z), _quat, _s.set(Math.abs(u1 - u0) * M, 0.3 * M * V, width * M));
+          rows.push(_m.clone());
+        }
+      }
+    }
+    const mesh = new THREE.InstancedMesh(box(1, 1, 1, 0, 0, 0), new THREE.MeshLambertMaterial({ color: "#36547f" }), rows.length);
+    rows.forEach((m, i) => mesh.setMatrixAt(i, m));
+    mesh.castShadow = canopy;
+    mesh.receiveShadow = true;
+    mesh.computeBoundingSphere();
+    out.add(mesh);
+  }
+  return out;
 }
 
 // --- the control tower -----------------------------------------------------------------------
@@ -539,11 +720,12 @@ interface Mover {
   script: Script;
   /** seconds into its script */
   t: number;
-  color: THREE.Color;
+  livery: Livery;
 }
 
 interface Sim {
   body: THREE.InstancedMesh;
+  wings: THREE.InstancedMesh;
   fin: THREE.InstancedMesh;
   lights: THREE.Points;
   movers: Mover[];
@@ -596,41 +778,53 @@ function placeParked(sim: Sim, boost: number) {
     const z = st.z - st.fz * back;
     _quat.setFromAxisAngle(_up, -st.heading);
     _m.compose(_p.set(x, groundY(sim.ground, x, z) + 0.0024 * SCALE * k, z), _quat, _s.setScalar(k));
-    sim.body.setMatrixAt(i, _m);
-    sim.fin.setMatrixAt(i, _m);
+    for (const part of [sim.body, sim.wings, sim.fin]) part.setMatrixAt(i, _m);
   });
-  sim.body.instanceMatrix.needsUpdate = true;
-  sim.fin.instanceMatrix.needsUpdate = true;
+  for (const part of [sim.body, sim.wings, sim.fin]) part.instanceMatrix.needsUpdate = true;
 }
 
 /** How much larger aircraft are drawn: true size up close, up to half as large again from afar. */
 const zoomBoost = (dist: number) => 1 + 0.5 * THREE.MathUtils.clamp((dist - 2.2) / 5, 0, 1);
 
 function makeSim(ground: HeightField): { root: THREE.Group; parked: Stand[] } {
-  const { body: bodyG, fin: finG } = planeGeometry();
-  const white = new THREE.MeshLambertMaterial({ color: "#ffffff" });
-  const paint = new THREE.MeshLambertMaterial({ color: "#ffffff" });
+  const geo = planeGeometry();
+  const white = () => new THREE.MeshLambertMaterial({ color: "#ffffff" });
   // Most gates busy.
   const rnd = mulberry(7);
   const parked = STANDS.filter(() => rnd() < 0.85);
   const n = parked.length + MOVERS;
-  const body = instanced(bodyG, white, n);
-  const fin = instanced(finG, paint, n);
-  body.castShadow = fin.castShadow = true;
-  parked.forEach((_, i) => {
-    body.setColorAt(i, new THREE.Color("#f3f2ee"));
-    fin.setColorAt(i, AIRLINE[Math.floor(rnd() * AIRLINE.length)]);
+  const body = instanced(geo.body, white(), n);
+  const wings = instanced(geo.wings, white(), n);
+  const fin = instanced(geo.fin, white(), n);
+  body.castShadow = wings.castShadow = fin.castShadow = true;
+  // Each airline at a run of neighbouring gates, as at a real terminal, west to east.
+  const order = parked.map((_, i) => i).sort((p, q) => parked[p].x - parked[q].x);
+  const total = LIVERIES.reduce((t, l) => t + l.share, 0);
+  const runs = [...LIVERIES].reverse();
+  let li = 0;
+  let used = 0;
+  order.forEach((i, k) => {
+    while (li < runs.length - 1 && (k / order.length) * total >= used + runs[li].share) used += runs[li++].share;
+    body.setColorAt(i, runs[li].body);
+    wings.setColorAt(i, WING);
+    fin.setColorAt(i, runs[li].fin);
   });
-  body.count = fin.count = n;
+  body.count = wings.count = fin.count = n;
 
   const arr = arrival(ground);
   const dep = departure(ground);
   const movers: Mover[] = [];
   // Staggered so there is usually one on final, one rolling and one climbing out.
   for (let k = 0; k < MOVERS / 2; k++) {
-    movers.push({ script: arr, t: (arr.duration * k) / (MOVERS / 2), color: AIRLINE[(k * 3 + 1) % AIRLINE.length] });
-    movers.push({ script: dep, t: (dep.duration * (k + 0.5)) / (MOVERS / 2), color: AIRLINE[(k * 3 + 2) % AIRLINE.length] });
+    movers.push({ script: arr, t: (arr.duration * k) / (MOVERS / 2), livery: anyLivery(rnd()) });
+    movers.push({ script: dep, t: (dep.duration * (k + 0.5)) / (MOVERS / 2), livery: anyLivery(rnd()) });
   }
+  movers.forEach((m, k) => {
+    const i = parked.length + k;
+    body.setColorAt(i, m.livery.body);
+    wings.setColorAt(i, WING);
+    fin.setColorAt(i, m.livery.fin);
+  });
 
   const lightGeo = new THREE.BufferGeometry();
   lightGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array((MOVERS * 4 + 1) * 3), 3));
@@ -652,8 +846,8 @@ function makeSim(ground: HeightField): { root: THREE.Group; parked: Stand[] } {
   lights.renderOrder = 16;
 
   const root = new THREE.Group();
-  root.add(body, fin, lights);
-  const sim: Sim = { body, fin, lights, movers, parked, parkedBoost: 0, ground };
+  root.add(body, wings, fin, lights);
+  const sim: Sim = { body, wings, fin, lights, movers, parked, parkedBoost: 0, ground };
   root.userData.sim = sim;
   placeParked(sim, 1);
   return { root, parked };
@@ -689,7 +883,7 @@ export default function Airport({ ground, normal }: { ground: HeightField; norma
     const { root: sim, parked } = makeSim(ground);
     const tower = towerMeshes(ground);
     const group = new THREE.Group();
-    group.add(runwayMesh(ground, shared), tower.solid, tower.cab, bridgeMesh(ground, parked), sim);
+    group.add(runwayMesh(ground, shared), leadInMesh(ground, shared), tower.solid, tower.cab, bridgeMesh(ground, parked), solarMesh(ground), sim);
     group.userData.built = { sim, shared, cab: tower.cab, beacon: tower.beacon } satisfies Built;
     return group;
   }, [ground, normal]);
@@ -728,10 +922,7 @@ export default function Airport({ ground, normal }: { ground: HeightField; norma
       const airborne = THREE.MathUtils.smoothstep(_p.y - groundY(sim.ground, _p.x, _p.z), 0.01, 0.08);
       const boost = zoom * (1 + airborne * THREE.MathUtils.clamp((cam.dist - 2.5) / 5, 0, 1.2) * 0.8);
       _m.compose(_p, _quat, _s.setScalar(Math.max(1e-4, size * boost)));
-      sim.body.setMatrixAt(i, _m);
-      sim.fin.setMatrixAt(i, _m);
-      sim.body.setColorAt(i, WHITE);
-      sim.fin.setColorAt(i, m.color);
+      for (const part of [sim.body, sim.wings, sim.fin]) part.setMatrixAt(i, _m);
       // Lights: landing light ahead of the nose, the beacon, and the wingtips.
       const fx = Math.sin(heading);
       const fz = -Math.cos(heading);
@@ -749,10 +940,7 @@ export default function Airport({ ground, normal }: { ground: HeightField; norma
     const tb = built.beacon;
     lp.setXYZ(MOVERS * 4, tb.x, tb.y, tb.z);
     lc.setXYZ(MOVERS * 4, RED.r * (0.4 + 0.6 * blink), RED.g * (0.4 + 0.6 * blink), RED.b * (0.4 + 0.6 * blink));
-    sim.body.instanceMatrix.needsUpdate = true;
-    sim.fin.instanceMatrix.needsUpdate = true;
-    if (sim.body.instanceColor) sim.body.instanceColor.needsUpdate = true;
-    if (sim.fin.instanceColor) sim.fin.instanceColor.needsUpdate = true;
+    for (const part of [sim.body, sim.wings, sim.fin]) part.instanceMatrix.needsUpdate = true;
     lp.needsUpdate = true;
     lc.needsUpdate = true;
     const lm = sim.lights.material as THREE.PointsMaterial;

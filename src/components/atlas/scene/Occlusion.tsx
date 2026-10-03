@@ -85,8 +85,9 @@ export const OCCLUSION_PARS = /* glsl */ `
   }
 `;
 
-/** Writes each surface's height (world y, above uAoBase). */
-const heightMaterial = new THREE.ShaderMaterial({
+/** Writes each surface's height (world y, above uAoBase): everything in the height map is drawn
+ * with it. */
+export const heightMaterial = new THREE.ShaderMaterial({
   vertexShader: /* glsl */ `
     uniform float uAoBase;
     varying float vH;

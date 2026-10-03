@@ -18,6 +18,7 @@ import { LIT, paintMaterial, sharedUniforms, updatePaint, type SharedPaint } fro
 import type { PreparedScene } from "./prepare";
 import { CONE, ROUND, TREE_EXAG, crownGeometry, treesCastShadows } from "./Trees";
 import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
+import { uploadInstances } from "./figures";
 
 // Street-scale detail beyond central Austin, streamed in 2 km tiles around the camera once it
 // comes in close: every building, the local streets at their real width (streetlights after
@@ -115,8 +116,10 @@ const ribbonFragment = /* glsl */ `
     float close = 1.0 - smoothstep(0.35, 1.4, fwidth(across));
     bool unpaved = abs(cls - 7.0) < 0.5 || abs(cls - 9.0) < 0.5;
     vec3 col;
-    // Runways darker than the taxiways, and both darker than the concrete aprons around them.
-    if (cls > 29.5) col = cls < 30.5 ? lin(vec3(0.47, 0.48, 0.5)) : lin(vec3(0.6, 0.6, 0.62));
+    // Runways (other airfields': Austin-Bergstrom's are its own) asphalt; taxiways concrete, their
+    // shoulders a shade darker, a little darker than the aprons around them.
+    if (cls > 29.5) col = cls < 30.5 ? lin(vec3(0.47, 0.48, 0.5)) : lin(vec3(0.73, 0.72, 0.67));
+    if (cls > 30.5) col *= 1.0 - 0.12 * mix(smoothstep(wM - 4.0, wM - 3.0, across), 0.3, smoothstep(0.8, 2.5, fwidth(across)));
     else if (unpaved) col = lin(vec3(0.84, 0.74, 0.58));
     else col = lin(vec3(0.56, 0.56, 0.58)); // asphalt
     // A kerb: the edge a shade darker, up close.
@@ -203,25 +206,81 @@ const areaFragment = /* glsl */ `
   varying float vKind;
   varying float vDepth;
   #include <fog_pars_fragment>
+
+  float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  // The colours cars come in: most of them white, black, grey and silver.
+  vec3 carPaint(float h) {
+    if (h < 0.25) return vec3(0.9, 0.9, 0.88);
+    if (h < 0.45) return vec3(0.1, 0.1, 0.11);
+    if (h < 0.62) return vec3(0.45, 0.46, 0.48);
+    if (h < 0.78) return vec3(0.7, 0.71, 0.72);
+    if (h < 0.87) return vec3(0.17, 0.27, 0.5);
+    if (h < 0.95) return vec3(0.6, 0.1, 0.09);
+    return vec3(0.75, 0.6, 0.35);
+  }
+  // One stall's worth of a car park: its car's colour over half of it where one is parked (four
+  // stalls in five), asphalt in the aisles. q: metres along the rows and across them.
+  vec3 stallAt(vec2 q, vec3 asphalt) {
+    float my = mod(q.y, 18.0);
+    if (my >= 5.5 && my <= 12.5) return asphalt;
+    float h = hash2(vec2(floor(q.x / 2.6), floor(q.y / 18.0) * 2.0 + step(12.5, my)));
+    return h < 0.8 ? mix(asphalt, lin(carPaint(fract(h * 13.7))), 0.54) : asphalt;
+  }
+  // A car park: rows of 2.6 by 5.5 m stalls along its heading, either side of 7 m aisles, most of
+  // them taken. Up close the cars and the stalls' lines; further out each stall the colour it
+  // averages to, so the rows of cars still show; from afar the grey it all averages to.
+  vec3 parking(vec2 xz, float heading) {
+    vec3 asphalt = lin(vec3(0.56, 0.56, 0.57));
+    vec3 average = mix(asphalt, vec3(0.333), 0.26);
+    vec2 d = vec2(cos(heading), -sin(heading));
+    vec2 q = vec2(dot(xz, d), dot(xz, vec2(-d.y, d.x))) * 1000.0;
+    float fp = max(fwidth(q.x), fwidth(q.y)); // metres a pixel
+    if (fp > 3.0) return average;
+    vec2 o = vec2(0.25, -0.25) * fp;
+    vec3 col = 0.25 * (stallAt(q + o.xx, asphalt) + stallAt(q + o.xy, asphalt) + stallAt(q + o.yx, asphalt) + stallAt(q + o.yy, asphalt));
+    if (fp < 1.4) {
+      float my = mod(q.y, 18.0);
+      vec3 near = asphalt;
+      if (my < 5.5 || my > 12.5) {
+        float side = step(12.5, my);
+        float sy = my - side * 12.5; // into the stall
+        float sx = mod(q.x, 2.6);
+        float h = hash2(vec2(floor(q.x / 2.6), floor(q.y / 18.0) * 2.0 + side));
+        if (h < 0.8) {
+          vec2 c = abs(vec2(sx - 1.3, sy - 2.75)) - vec2(0.88, 2.2);
+          float car = 1.0 - smoothstep(-0.05, 0.05 + fp, max(c.x, c.y));
+          // The glass across the middle a little darker.
+          near = mix(near, lin(carPaint(fract(h * 13.7))) * (1.0 - 0.35 * step(abs(sy - 2.75), 0.9)), car);
+        }
+        float line = 1.0 - smoothstep(0.06, 0.06 + fp, min(sx, 2.6 - sx));
+        near = mix(near, lin(vec3(0.93, 0.93, 0.9)), line * 0.85 * step(sy, 5.3));
+      }
+      col = mix(near, col, smoothstep(0.5, 1.4, fp));
+    }
+    return mix(col, average, smoothstep(1.8, 3.0, fp));
+  }
+
   void main() {
     float k = vKind;
     vec3 col;
-    if (k < 1.5) col = lin(vec3(0.66, 0.66, 0.67)); // parking
+    bool apron = abs(k - 2.0) < 0.5 || abs(k - 4.0) < 0.5;
+    if (k > 99.5) col = parking(vWorld.xz, radians(k - 100.0));
     else if (k < 2.5) {
-      // Apron: concrete in 7.5 m slabs, their joints showing up close.
-      col = lin(vec3(0.8, 0.8, 0.79));
+      // Apron: light concrete in 7.5 m slabs, their joints showing up close.
+      col = lin(vec3(0.83, 0.82, 0.78));
       vec2 w = vWorld.xz * 1000.0 / 7.5;
       vec2 f = 0.5 - abs(fract(w) - 0.5);
       float fw = max(fwidth(w.x), fwidth(w.y));
       col *= 1.0 - 0.07 * (1.0 - smoothstep(0.0, 1.2 * fw, min(f.x, f.y))) * (1.0 - smoothstep(0.08, 0.25, fw));
     }
     else if (k < 3.5) col = lin(vec3(0.66, 0.66, 0.66)); // helipad
+    else if (k < 4.5) col = lin(vec3(0.42, 0.43, 0.45)); // asphalt apron
     else if (k < 10.5) col = lin(vec3(0.3, 0.78, 0.9)); // swimming pool
     else col = lin(vec3(0.3, 0.47, 0.58)); // ponds and basins: the map's water, not a pool's
     vec3 lit = groundLit(col, vWorld);
     // Floodlit aprons and lit car parks after dark.
     float dark = smoothstep(0.35, 1.0, uNight);
-    if (k < 2.5) lit += lin(vec3(1.0, 0.86, 0.62)) * (k < 1.5 ? 0.05 : 0.11) * dark;
+    if (apron || k > 99.5) lit += lin(vec3(1.0, 0.86, 0.62)) * (apron ? 0.11 : 0.05) * dark;
     if (k > 9.5 && k < 10.5) {
       // Pools glint by day and glow by their own lights at night.
       vec2 w = vWorld.xz * 1000.0;
@@ -252,7 +311,7 @@ interface Tile {
 class TreePool {
   readonly round: THREE.InstancedMesh;
   readonly cone: THREE.InstancedMesh;
-  last = { x: 1e9, z: 1e9, r: 0, version: -1 };
+  last = { x: 1e9, z: 1e9, r: 0, version: -1, at: 0 };
 
   constructor(readonly capacity: number) {
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -286,7 +345,20 @@ interface State {
   ground: HeightField;
   deck: DeckFinder | null;
   lowPower: boolean;
+  /** tiles back from the worker, waiting their turn to join the scene */
+  arrived: { tile: Tile; meshes: TileMeshes }[];
 }
+
+/** Bytes of tile meshes to bring into the scene in a sixtieth of a second (at least one tile a
+ * frame): several landing in one frame would send megabytes of buffers to the GPU at once, and
+ * stall it. (A slow frame takes more, up to eight times as much, so tiles still come at a pace.) */
+const ARRIVE_BYTES = 3e6;
+
+const meshBytes = (m: TileMeshes) =>
+  [m.buildings?.position, m.buildings?.info, m.buildings?.index, m.streets?.position, m.streets?.shape, m.areas?.position].reduce(
+    (t, a) => t + (a?.byteLength ?? 0),
+    0,
+  );
 
 const m4 = new THREE.Matrix4();
 const pos = new THREE.Vector3();
@@ -333,6 +405,7 @@ function makeRoot(scene: PreparedScene): THREE.Group {
     ground: scene.ground,
     deck: scene.central ? makeDeckFinder(scene.central.data, scene.ground) : null,
     lowPower: scene.lowPower,
+    arrived: [],
   };
   root.userData.state = state;
   return root;
@@ -405,17 +478,15 @@ function fillTrees(st: State, cam: typeof runtime.cam, visible: Tile[]) {
   const { pool } = st;
   const radius = Math.min(4.2, Math.max(0.9, cam.dist * 1.7));
   const last = pool.last;
-  if (
-    last.version === st.version &&
-    Math.hypot(cam.x - last.x, cam.z - last.z) < radius * 0.12 &&
-    Math.abs(radius - last.r) < last.r * 0.15
-  ) {
-    return;
-  }
+  const now = performance.now();
+  const still = Math.hypot(cam.x - last.x, cam.z - last.z) < radius * 0.12 && Math.abs(radius - last.r) < last.r * 0.15;
+  // New trees as tiles come in, but at most every 0.3 s: tiles land a frame or two apart.
+  if (still && (last.version === st.version || now - last.at < 300)) return;
   last.x = cam.x;
   last.z = cam.z;
   last.r = radius;
   last.version = st.version;
+  last.at = now;
   const r0 = radius * 0.4;
   let nr = 0;
   let nc = 0;
@@ -455,10 +526,8 @@ function fillTrees(st: State, cam: typeof runtime.cam, visible: Tile[]) {
   }
   pool.round.count = nr;
   pool.cone.count = nc;
-  for (const m of [pool.round, pool.cone]) {
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }
+  uploadInstances(pool.round);
+  uploadInstances(pool.cone);
 }
 
 export default function DetailTiles({ scene }: { scene: PreparedScene }) {
@@ -485,13 +554,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
         tile.failedAt = performance.now();
         return;
       }
-      tile.group = tileGroup(e.data.meshes, st, tile.appear);
-      tile.trees = e.data.meshes.trees;
-      if (e.data.meshes.lanes) st.cars.addTile(tile.key, e.data.meshes.lanes, st.ground, st.deck);
-      tile.status = 2;
-      tile.appear.value = runtime.reducedMotion ? 1 : 0;
-      g.add(tile.group);
-      st.version++;
+      st.arrived.push({ tile, meshes: e.data.meshes });
     };
     fetch("/atlas/tiles/index.json")
       .then((r) => (r.ok ? (r.json() as Promise<TileIndex>) : Promise.reject(new Error(String(r.status)))))
@@ -524,6 +587,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
       st.worker = null;
       for (const t of st.tiles.values()) if (t.group) disposeGroup(t.group);
       st.tiles.clear();
+      st.arrived.length = 0;
       for (const m of [st.pool.round, st.pool.cone]) {
         m.geometry.dispose();
         (m.material as THREE.Material).dispose();
@@ -542,6 +606,20 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
     const now = performance.now();
     const sh = st.shared;
     updatePaint(sh, persp, cam.dist, state.size.height, state.gl.getPixelRatio());
+    // Tiles back from the worker join the scene a few at a time.
+    const budget = ARRIVE_BYTES * Math.min(8, Math.max(1, dt * 60));
+    for (let bytes = 0; st.arrived.length && bytes < budget; ) {
+      const { tile, meshes } = st.arrived.shift()!;
+      if (st.tiles.get(tile.key) !== tile) continue; // let go meanwhile
+      bytes += meshBytes(meshes);
+      tile.group = tileGroup(meshes, st, tile.appear);
+      tile.trees = meshes.trees;
+      if (meshes.lanes) st.cars.addTile(tile.key, meshes.lanes, st.ground, st.deck);
+      tile.status = 2;
+      tile.appear.value = runtime.reducedMotion ? 1 : 0;
+      g.add(tile.group);
+      st.version++;
+    }
     const lim = st.lowPower ? LIMITS.phone : LIMITS.desktop;
     const on = cam.dist < lim.siteView;
     g.visible = on;

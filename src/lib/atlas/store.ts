@@ -142,8 +142,9 @@ export const runtime = {
    * most 1.25, 4 a pixel ratio of 1.
    */
   quality: 0,
-  /** shaders are compiling in the background: nothing new is drawn until they're done */
-  compiling: false,
+  /** shaders are compiling in the background: nothing new is drawn until they're done (and
+   * nothing at all until the map's first have: AtlasCanvas's Precompile) */
+  compiling: true,
 };
 
 export function seekRide(s: number) {

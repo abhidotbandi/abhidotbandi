@@ -3,11 +3,11 @@
 // them. No three.js here, so the detail worker can run it.
 
 import earcut from "earcut";
-import { TOWER, inAirfield } from "../airport";
+import { TOWER, asphaltApron, inAirfield, insideField } from "../airport";
 import type { BuildingsData } from "../buildingsCodec";
 import { extrudeBuildings } from "../extrude";
 import { CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, elevToY, type HeightField } from "../geo";
-import { CARS, LANES_ONLY, STREETS, type TileData } from "../tiles";
+import { AREA_APRON, AREA_APRON_ASPHALT, AREA_PARKING, AREA_PARKING_ROWS, CARS, LANES_ONLY, STREETS, type TileData } from "../tiles";
 
 export interface BuildingParts {
   position: Float32Array;
@@ -339,6 +339,32 @@ function gridCut(tri: number[], cell: number, emit: (poly: number[]) => void) {
 const AREA_CELL_KM = 0.04;
 
 /** Parking lots, aprons, pools and ponds as flat polygons on the ground. */
+/**
+ * An area's kind as drawn: a car park carries the heading of its rows (its longest side's, as
+ * lots are laid out along their length), Austin-Bergstrom's general aviation aprons are asphalt.
+ * `flat` is its rings (x, z km), the outer one first, `n` points long.
+ */
+function areaKind(code: number, flat: number[], n: number): number {
+  if (code === AREA_PARKING) {
+    let best = 0;
+    let heading = 0;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const dx = flat[j * 2] - flat[i * 2];
+      const dz = flat[j * 2 + 1] - flat[i * 2 + 1];
+      const l = dx * dx + dz * dz;
+      if (l > best) {
+        best = l;
+        heading = Math.atan2(-dz, dx);
+      }
+    }
+    const deg = ((heading * 180) / Math.PI + 360) % 180;
+    return AREA_PARKING_ROWS + Math.round(deg * 10) / 10;
+  }
+  if (code === AREA_APRON && asphaltApron(flat[0], flat[1])) return AREA_APRON_ASPHALT;
+  return code;
+}
+
 function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
   if (!a.count) return null;
   const pos = new F32(a.x.length * 3);
@@ -368,28 +394,29 @@ function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
     }
     const tris = earcut(flat, holes.length ? holes : undefined, 2);
     if (!tris.length) continue;
+    const k = areaKind(a.height[b], flat, holes.length ? holes[0] : flat.length / 2);
     if (Math.max(maxX - minX, maxZ - minZ) <= AREA_CELL_KM) {
       const base = pos.n / 3;
       for (let j = 0; j < flat.length; j += 2) {
         pos.push(flat[j], elevToY(ground.sample(flat[j], flat[j + 1])), flat[j + 1]);
-        kind.push(a.height[b]);
+        kind.push(k);
       }
       for (const t of tris) idx.push(base + t);
       continue;
     }
     for (let t = 0; t < tris.length; t += 3) {
-      for (let k = 0; k < 3; k++) {
-        tri[k * 2] = flat[tris[t + k] * 2];
-        tri[k * 2 + 1] = flat[tris[t + k] * 2 + 1];
+      for (let v = 0; v < 3; v++) {
+        tri[v * 2] = flat[tris[t + v] * 2];
+        tri[v * 2 + 1] = flat[tris[t + v] * 2 + 1];
       }
       gridCut(tri, AREA_CELL_KM, (poly) => {
         const base = pos.n / 3;
         const n = poly.length / 2;
-        for (let k = 0; k < n; k++) {
-          pos.push(poly[k * 2], elevToY(ground.sample(poly[k * 2], poly[k * 2 + 1])), poly[k * 2 + 1]);
-          kind.push(a.height[b]);
+        for (let j = 0; j < n; j++) {
+          pos.push(poly[j * 2], elevToY(ground.sample(poly[j * 2], poly[j * 2 + 1])), poly[j * 2 + 1]);
+          kind.push(k);
         }
-        for (let k = 1; k < n - 1; k++) idx.push(base, base + k, base + k + 1);
+        for (let j = 1; j < n - 1; j++) idx.push(base, base + j, base + j + 1);
       });
     }
   }
@@ -557,8 +584,10 @@ function scatterTrees(t: TileData, world: World, o: TileOptions, key: number, se
       const forest = smoothstep(0.7, 0.95, canopy);
       const shrub = smoothstep(0.3, 0.5, canopy) * (1 - forest);
       const built = smoothstep(0.05, 0.45, dens);
-      const woods = forest * (0.5 - 0.34 * built) + shrub * 0.09;
-      const yards = 0.1 * smoothstep(0.02, 0.2, dens) * (1 - smoothstep(0.55, 0.9, dens)) * (1 - 0.8 * park);
+      // Austin-Bergstrom's airfield is mown: only the woods along its edge stand in it.
+      const field = insideField(x, z);
+      const woods = field > 0.3 ? 0 : forest * (0.5 - 0.34 * built) + (field > 0 ? 0 : shrub * 0.09);
+      const yards = field > 0 ? 0 : 0.1 * smoothstep(0.02, 0.2, dens) * (1 - smoothstep(0.55, 0.9, dens)) * (1 - 0.8 * park);
       const p = Math.min(1, woods + yards);
       if (pick >= p || mask.blocked(x, z)) continue;
       const inWoods = woods > yards;

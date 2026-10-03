@@ -49,6 +49,21 @@ export function instanced(g: THREE.BufferGeometry, m: THREE.Material, n: number)
   return mesh;
 }
 
+/**
+ * Send the first `n` instances of a pool to the GPU, rather than the whole pool (mostly unused,
+ * and megabytes for the trees): three uploads only the ranges marked. (A range of none would
+ * upload everything, so an empty pool sends nothing.)
+ */
+export function uploadInstances(m: THREE.InstancedMesh, n = m.count, colors = true) {
+  if (n <= 0) return;
+  m.instanceMatrix.addUpdateRange(0, n * 16);
+  m.instanceMatrix.needsUpdate = true;
+  if (colors && m.instanceColor) {
+    m.instanceColor.addUpdateRange(0, n * 3);
+    m.instanceColor.needsUpdate = true;
+  }
+}
+
 /** Exaggeration for people: near true size up close, growing with distance so a crowd still reads. */
 export function figureScale(dist: number): number {
   return Math.min(9, Math.max(1.5, dist / 0.13));

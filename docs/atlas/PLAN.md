@@ -965,3 +965,76 @@ airport looked undetailed, especially from further out.
   in the tile data) take the map's water colour instead of a pool's cyan.
 - The ground paint's lighting moved to scene/paint.ts, shared by the tiles and the airport.
 
+
+### 2.21 Smooth all the way through, and Austin-Bergstrom in its own colours (2026-10-03)
+
+Asked: find anywhere the atlas wouldn't load or run smoothly, and fix it. Also, the airport was
+better but still drab: show its real colours and finer detail.
+
+**Smoothness.** The audit scrolled the whole tour at a reader's pace, then went through explore,
+night, the Red Line ride and the paddle, in headless Chromium. It recorded a CPU profile, every
+long task, and every WebGL call that compiles a shader or uploads a buffer, with its stack.
+Nearly every long frame was a shader compiling at the moment it was first drawn, not
+JavaScript. Three kinds escaped the background precompile (Precompile):
+
+- **The other passes' programs.** Drawing into a render target takes programs of its own,
+  because its colour space isn't the screen's. So these compiled the first time they drew:
+  - the sun's shadow map (three's depth material, a program per kind of caster and side), as
+    each new kind of thing first came into the sun's box mid-tour;
+  - the contact shadows' height map, at the first close view;
+  - the lake reflection.
+
+  Precompile now compiles these as well, with stand-ins that match how each pass draws
+  (AtlasCanvas `compilePasses`). The shadow map draws without the scene, so without its fog,
+  which three's program keys record.
+- **The lights.** Three keeps one light setup per scene, and the shadow map draws before each
+  frame sets up its own. The height map's camera saw no lights, so the shadow map drawn after it
+  needed "no lights" programs, compiled there and then. The lights are now on every pass's
+  layer.
+- **The first frames.** The map drew a few frames before the precompile had begun. Everything
+  in view compiled there and then, a shader at a time, while the loader stood still. Nothing is
+  drawn now until the first precompile is done (`runtime.compiling` starts true).
+- `compiled()` now waits for exactly the programs a compile created (the renderer's program
+  list before and after). It used to check one program per material.
+
+Where the browser has KHR_parallel_shader_compile (Chrome and Edge do), all of this now compiles
+in the background. In one without it, compiles block wherever they happen, but they all happen
+behind the loader, or as each deferred piece mounts.
+
+Uploads:
+
+- Detail tiles join the scene a few at a time, about 3 MB of buffers a frame. Before, every tile
+  that landed between two frames was added at once.
+- The tile trees refill at most every 0.3 s while tiles stream in.
+- Instance pools upload only the instances in use (`uploadInstances`). Before, these sent their
+  whole pools:
+  - the central trees sent all 26,000 slots of four pools, about 8 MB, at every refill;
+  - the tile trees sent 16,000 slots of two;
+  - the car sim and the river's boats sent theirs every frame.
+
+**Austin-Bergstrom**, in colours matched to USGS orthoimagery (public domain):
+
+- **Turf.** The airfield is olive turf, mown in north-south stripes, with drier, yellower
+  patches. It covers everything inside the aerodrome boundary (Overture's, simplified to 20 m)
+  in the terrain shader, beneath the paving, woods and water. No more trees are scattered over
+  the mown infield; only the woods along its edge stand in it.
+- **Runways.** Light, warm concrete in 7.5 m slabs. Tyre rubber streaks dark down the middle,
+  from the touchdown zones along the rollout. The west runway keeps the 300 ft width Bergstrom
+  Air Force Base built for its B-52s: it's marked at 150 ft, and the rest is paved shoulder,
+  hatched in yellow. Past each threshold, Overture's stopways are dark asphalt blast pads with
+  yellow chevrons pointing in.
+- **Taxiways and aprons.** Taxiways are concrete with darker shoulders, and aprons are pale
+  concrete. The general aviation and cargo aprons on the east side are asphalt.
+- **Car parks**, in every tile, are full of cars:
+  - stalls 2.6 by 5.5 m, either side of 7 m aisles, laid along each lot's longest side (the
+    heading travels in the area's kind);
+  - four in five taken, in the colours cars come in, with the stalls' lines;
+  - further out, each stall in the colour it averages to (2x2 supersampled), so the rows still
+    show; from afar, the grey it all averages to.
+- **Airliners in their liveries.** Southwest's blue Heart livery (about a third of the gates),
+  American in silver, and the rest white with their tails: Delta, United, Alaska, JetBlue,
+  Frontier, Allegiant. Each airline holds a run of neighbouring gates, and the wings are grey.
+  Every stand has a yellow lead-in line and stop bar.
+- **Solar.** The canopies over the car park by Highway 71 are traced from the imagery: eight
+  blocks over a 317 by 243 m lot, casting shadows on the cars. Panels also cover the top decks
+  of the Blue Garage (rows east-west) and the Red Garage (north-south).

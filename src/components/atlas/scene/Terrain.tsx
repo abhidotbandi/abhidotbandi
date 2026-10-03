@@ -6,6 +6,7 @@ import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex 
 import type { AtlasTextures } from "./textures";
 import { waterUniforms } from "./Water";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { FIELD } from "@/lib/atlas/airport";
 import {
   BASE_ELEV_M,
   CX_MAX,
@@ -96,6 +97,11 @@ const fragment = /* glsl */ `
     uniform float uOuterSdfLevels;
     uniform float uOuterPxM;
   #endif
+  #ifdef FIELD_N
+    // Austin-Bergstrom's airfield: its boundary (scene km), and the box round it.
+    uniform vec2 uField[FIELD_N];
+    uniform vec4 uFieldBox;
+  #endif
   #ifdef PATCH
     uniform sampler2D uBaseHeight;
     uniform sampler2D uBaseNormal;
@@ -143,6 +149,25 @@ const fragment = /* glsl */ `
     vec2 chop = vec2(vnoise(q), vnoise(q + 17.3)) - 0.5;
     return g + chop * 0.22 * (1.0 - smoothstep(0.8, 2.5, fp));
   }
+
+  #ifdef FIELD_N
+    // Signed distance (km) to the airfield's boundary, less than 0 inside.
+    float fieldDist(vec2 p) {
+      float d = 1e9;
+      bool inside = false;
+      vec2 a = uField[FIELD_N - 1];
+      for (int i = 0; i < FIELD_N; i++) {
+        vec2 b = uField[i];
+        vec2 e = b - a;
+        vec2 w = p - a;
+        vec2 q = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+        d = min(d, dot(q, q));
+        if ((a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) * e.x / e.y) inside = !inside;
+        a = b;
+      }
+      return (inside ? -1.0 : 1.0) * sqrt(d);
+    }
+  #endif
 
   #ifdef PATCH
     // Signed water distance (metres, + on water) from the patch's surface texture.
@@ -230,6 +255,20 @@ const fragment = /* glsl */ `
       land = mix(land, mix(lin(vec3(0.66, 0.81, 0.45)), lin(vec3(0.58, 0.79, 0.37)), ew), park * 0.7);
     #else
       land = mix(land, lin(vec3(0.66, 0.81, 0.45)), park * 0.65);
+    #endif
+    #ifdef FIELD_N
+      // The airfield, mown between the runways and taxiways: olive turf (as it is from the air),
+      // in stripes where the mowers ran north-south, with drier, yellower patches.
+      if (vWorld.x > uFieldBox.x && vWorld.x < uFieldBox.z && vWorld.z > uFieldBox.y && vWorld.z < uFieldBox.w) {
+        float field = 1.0 - smoothstep(-0.04, 0.005, fieldDist(vWorld.xz));
+        if (field > 0.0) {
+          float dry = vnoise(wp * 0.0045) * 0.65 + vnoise(wp * 0.021) * 0.35;
+          vec3 turf = mix(lin(vec3(0.55, 0.65, 0.36)), lin(vec3(0.7, 0.7, 0.46)), smoothstep(0.42, 0.85, dry));
+          float mown = abs(fract(wp.x / 26.0) - 0.5) * 4.0 - 1.0;
+          turf *= 1.0 + 0.06 * smoothstep(-0.3, 0.3, mown) * (1.0 - smoothstep(3.0, 9.0, fp));
+          land = mix(land, turf, field);
+        }
+      }
     #endif
     // Tree canopy (live oak, cedar elm, Ashe juniper), mottled like crowns seen from above;
     // the mottling fades out before it can shimmer at a distance.
@@ -366,6 +405,16 @@ const fragment = /* glsl */ `
   }
 `;
 
+/** The airfield's boundary for the turf, and its bounding box (x0, z0, x1, z1). */
+function fieldUniforms(): Record<string, THREE.IUniform> {
+  const xs = FIELD.map((p) => p[0]);
+  const zs = FIELD.map((p) => p[1]);
+  return {
+    uField: { value: FIELD.map(([x, z]) => new THREE.Vector2(x, z)) },
+    uFieldBox: { value: new THREE.Vector4(Math.min(...xs) - 0.01, Math.min(...zs) - 0.01, Math.max(...xs) + 0.01, Math.max(...zs) + 0.01) },
+  };
+}
+
 function terrainMaterial(
   tex: AtlasTextures,
   patch: boolean,
@@ -398,7 +447,7 @@ function terrainMaterial(
   return new THREE.ShaderMaterial({
     vertexShader: vertex,
     fragmentShader: fragment,
-    defines: patch ? { PATCH: "" } : outer ? { OUTER: "" } : {},
+    defines: patch ? { PATCH: "" } : { ...(outer ? { OUTER: "" } : {}), FIELD_N: FIELD.length },
     fog: true,
     // Pushed back so roads and paths drawn just above the ground always win.
     polygonOffset: true,
@@ -441,6 +490,7 @@ function terrainMaterial(
       uGround: sky.uGround,
       ...baseUniforms,
       ...outerUniforms,
+      ...(patch ? {} : fieldUniforms()),
     },
   });
 }

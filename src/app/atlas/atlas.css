@@ -666,6 +666,8 @@
   left: 24px;
   top: 50%;
   z-index: 5;
+  /* Always clear of the cards beside it (they start at max(280px, 16vw)), whatever the font. */
+  max-width: calc(max(280px, 16vw) - 36px);
   padding: 12px 14px;
   border-radius: 10px;
   background: rgba(249, 245, 236, 0.94);
@@ -692,7 +694,7 @@
   align-items: baseline;
   gap: 9px;
   width: 100%;
-  padding: 2px 15px 2px 0;
+  padding: 2px 15px 0 0;
   border: 0;
   background: none;
   font: 500 10.5px / 1.3 var(--font-num);
@@ -714,6 +716,10 @@
 
 .chapter-nav em {
   position: relative;
+  min-width: 0;
+  padding-bottom: 2.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-style: normal;
   white-space: nowrap;
 }
@@ -722,7 +728,7 @@
   content: "";
   position: absolute;
   left: 0;
-  bottom: -2px;
+  bottom: 0;
   width: 0;
   height: 1.5px;
   background: var(--accent);

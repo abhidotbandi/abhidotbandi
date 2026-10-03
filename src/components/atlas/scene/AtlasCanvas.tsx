@@ -391,7 +391,7 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
         {central && <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
         <TownLights assets={assets} lowPower={scene.lowPower} />
         {central && <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />}
-        <Airport ground={ground} />
+        <Airport ground={ground} normal={tex.normal} />
         <Plume height={ground} origin={scene.models.engine} />
       </Later>
       <Clouds ground={ground} lowPower={scene.lowPower} />

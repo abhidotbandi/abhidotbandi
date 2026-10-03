@@ -922,3 +922,46 @@ on the poster (2.15) and the first card. It now opens the way theirs do, in Aust
 - **The poster is gone**: its images, the blurred copies inlined in the page, its preload and
   the script that rendered them. The loader covers the screen until the map is up, and the
   map's own files load sooner without the poster competing for the connection.
+
+### 2.20 Musk country in two stops, and an airport that reads as one (2026-10-03)
+
+Reported: the Highway 71 stop looked odd. It framed 21 km of empty country from 23 km up, with
+Giga Texas small at one edge and the Bastrop sites specks under the header. Separately, the
+airport looked undetailed, especially from further out.
+
+- **The stop is two now.** "05 · Giga Texas" (Musk country) frames the gigafactory from 4 km:
+  the solar roof and its T, SH-130 alongside, the Colorado River curving behind. Its card carries
+  the facts the company data already had (2,500 acres, 10M+ sq ft, Model Y, Cybertruck, 4680
+  cells, Cortex). "06 · Bastrop" ("Dishes and tunnel machines") frames SpaceX's Starlink
+  factory and The Boring Company side by side from 2 km. The later chapters are renumbered
+  (07 Zilker through 16 Rainey Street).
+- **Austin-Bergstrom** (Airport.tsx, with its facts in lib/atlas/airport.ts):
+  - Both runways are drawn by the airport itself, from any distance. They are never thinner than
+    about a pixel and a half, and are painted the FAA way: twelve threshold bars, the designators
+    (17R/35L, 17L/35R, letter nearest the threshold), touchdown zone bars, aiming points, the
+    dashed centreline, edge lines, and tyre rubber in the touchdown zones. Every marking is
+    box-filtered, so from afar it averages to grey instead of shimmering. After dark they get
+    edge lights and green threshold bars. The detail tiles no longer draw ABIA's runways.
+  - Aircraft park at the 27 real gate stands (Overture's gate points on the Barbara Jordan
+    Terminal's edge, thinned where two share a spot). They face the concourse, with jet bridges
+    out to their doors. They're drawn at 1.2x, so neighbours' wings clear, and up to half as
+    large again from further out (growing from the nose, which stays at its stand). Before, they
+    vanished beyond 7.5 km. Taxiing and landing aircraft grow the same way.
+  - The control tower is modelled: a concrete shaft on the octagon Overture maps at the south
+    corner of its footprint, a flared deck, a slanted glass cab that glows at night with a red
+    beacon, the roof and antenna, and the base building and annex beside it. Overture gives the
+    whole complex one 69.5 m footprint, which the tiles drew as a glass office block; they now
+    leave it out.
+  - The infield is grass: the mown grass inside airfields (Overture land use "grass" within
+    their bounds, 607 ha at ABIA) is painted into the surface raster's park channel at 220/255
+    (build_surface.py; only those pixels changed, in both rasters).
+  - Paving reads as three materials: runways darkest, asphalt taxiways (yellow centrelines kept
+    about a pixel wide out to ~6 m/px), and concrete aprons in 7.5 m slabs.
+- **A bug that hid every parking lot, apron, pool and pond outside central Austin.** The tiles'
+  polygons come out of the triangulator facing down, and the paint material only drew front
+  faces, so they were all culled. Paint is now double-sided. Polygons wider than 40 m are also
+  cut along a 40 m grid (gridCut, crack-free between neighbouring triangles) so they lie on the
+  ground instead of having the terrain rise through them. Ponds and stormwater basins (one class
+  in the tile data) take the map's water colour instead of a pool's cyan.
+- The ground paint's lighting moved to scene/paint.ts, shared by the tiles and the airport.
+

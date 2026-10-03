@@ -1,7 +1,7 @@
 """Paint the map's "surface" raster: public/atlas/surface.webp (lossless)
 
   R: signed distance to water (128 = shoreline, >128 = on water), 4 levels / px
-  G: parks, preserves and golf courses
+  G: parks, preserves and golf courses, and the mown grass of airfields
   B: tree and shrub cover (Hill Country woodland), 16 levels
 
 Built-up density lives in the terrain texture's B channel (lower resolution is
@@ -26,6 +26,10 @@ SDF_LEVELS_PER_PX = 4
 BIG_RIVERS = {"Colorado River", "San Gabriel River", "Pedernales River"}
 PARK_CLASSES = {"park", "dog_park", "nature_reserve", "golf_course", "fairway", "green", "rough",
                 "tee", "recreation_ground", "cemetery", "grave_yard", "garden", "meadow"}
+# Airfield bounds (Overture infrastructure, subtype "airport"), and how green their mown grass is
+# painted (of a park's 255).
+AIRFIELD_CLASSES = {"airport", "international_airport", "municipal_airport", "regional_airport", "military_airport"}
+AIRFIELD_GRASS = 220
 
 
 def size():
@@ -102,12 +106,34 @@ def density(w, h):
     return (np.round(v * 15) * 17).astype(np.uint8)  # 16 levels is plenty for a glow
 
 
+def airfield_grass(t):
+    """The mown grass inside the airfields (Overture land use "grass" within their bounds): the
+    infields between runways and taxiways, so an airport reads as one from afar. (The runways,
+    taxiways and aprons are drawn over it: Airport.tsx and the detail tiles.)"""
+    infra = pq.read_table(CACHE / "infrastructure.parquet", columns=["geometry", "subtype", "class"]).to_pylist()
+    fields = [shapely.from_wkb(r["geometry"]) for r in infra
+              if r["subtype"] == "airport" and r["class"] in AIRFIELD_CLASSES]
+    fields = shapely.union_all([g for g in fields if g.geom_type in ("Polygon", "MultiPolygon")])
+    grass = shapely.from_wkb([r["geometry"] for r in t if r["class"] == "grass"])
+    grass = grass[shapely.intersects(grass, fields)]
+    out = shapely.intersection(grass, fields)
+    print(f"  airfield grass: {shapely.area(shapely.union_all(out)) * 111e3 * 96e3 / 1e4:,.0f} ha")
+    return out
+
+
 def parks(w, h):
     t = pq.read_table(CACHE / "land_use.parquet", columns=["geometry", "class"]).to_pylist()
     keep = [r for r in t if r["class"] in PARK_CLASSES]
     geoms = to_px(shapely.from_wkb([r["geometry"] for r in keep]), w, h)
     img = Image.new("L", (w, h), 0)
     d = ImageDraw.Draw(img)
+    for g in to_px(airfield_grass(t), w, h):
+        if g.geom_type in ("Polygon", "MultiPolygon"):
+            draw_polys(d, g, AIRFIELD_GRASS)
+        elif g.geom_type == "GeometryCollection":
+            for p in g.geoms:
+                if p.geom_type in ("Polygon", "MultiPolygon"):
+                    draw_polys(d, p, AIRFIELD_GRASS)
     for g in geoms:
         if g.geom_type in ("Polygon", "MultiPolygon"):
             draw_polys(d, g, 255)

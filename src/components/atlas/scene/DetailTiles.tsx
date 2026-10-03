@@ -7,13 +7,14 @@ import { buildingGeometry } from "@/lib/atlas/buildings";
 import { tileKey, type TileMeshes } from "@/lib/atlas/detail/build";
 import type { InitMessage, TileMessage } from "@/lib/atlas/detail/worker";
 import { SITES } from "@/data/atlas/companies";
-import { HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, groundY, type HeightField } from "@/lib/atlas/geo";
+import { WIDTH_KM, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import type { TileIndex } from "@/lib/atlas/tiles";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { makeBuildingMaterial } from "./Buildings";
 import { aoCaster } from "./Occlusion";
-import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
+import { SHADOW_VERTEX_PARS, shadowVertex } from "./shadows";
+import { LIT, paintMaterial, sharedUniforms, updatePaint, type SharedPaint } from "./paint";
 import type { PreparedScene } from "./prepare";
 import { CONE, ROUND, TREE_EXAG, crownGeometry, treesCastShadows } from "./Trees";
 import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
@@ -22,8 +23,6 @@ import { CarSim, makeDeckFinder, type DeckFinder } from "./Cars";
 // comes in close: every building, the local streets at their real width (streetlights after
 // dark), parking lots, backyard pools, runways, and trees over the canopy. Tiles are decoded
 // and meshed in a worker; their buildings rise out of the ground as they arrive.
-
-const DEG = Math.PI / 180;
 
 /**
  * How far detail reaches (km). `view`: load everything in view while the camera is within this
@@ -68,26 +67,6 @@ function polyDistance(poly: number[], x: number, z: number): number {
   }
   return inside ? 0 : best;
 }
-
-const LIT = /* glsl */ `
-  ${SHADOW_FRAGMENT_PARS}
-  uniform vec3 uSunColor;
-  uniform vec3 uSunDir;
-  uniform vec3 uAmbient;
-  uniform float uNight;
-  uniform sampler2D uNormal;
-  uniform vec4 uRegion;
-  uniform float uFade;
-  uniform float uAppear;
-  vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
-  // Lit like the ground beneath, so paint and paving sit in the terrain's light.
-  vec3 groundLit(vec3 col, vec3 world) {
-    vec3 n = normalize(texture2D(uNormal, (world.xz - uRegion.xy) / uRegion.zw).xyz * 2.0 - 1.0);
-    float diff = max(dot(n, uSunDir), 0.0) * sunShadow(n, uSunDir) * cloudShadow(world, uSunDir);
-    float open = skyOpen(world, n);
-    return col * (uAmbient * (0.6 + 0.4 * n.y) * 0.78 * open + uSunColor * diff * 0.52 * mix(1.0, open, 0.35)) * (1.0 - uNight * 0.82);
-  }
-`;
 
 const ribbonVertex = /* glsl */ `
   attribute vec4 aShape;
@@ -136,7 +115,8 @@ const ribbonFragment = /* glsl */ `
     float close = 1.0 - smoothstep(0.35, 1.4, fwidth(across));
     bool unpaved = abs(cls - 7.0) < 0.5 || abs(cls - 9.0) < 0.5;
     vec3 col;
-    if (cls > 29.5) col = cls < 30.5 ? lin(vec3(0.64, 0.64, 0.64)) : lin(vec3(0.7, 0.7, 0.69));
+    // Runways darker than the taxiways, and both darker than the concrete aprons around them.
+    if (cls > 29.5) col = cls < 30.5 ? lin(vec3(0.47, 0.48, 0.5)) : lin(vec3(0.6, 0.6, 0.62));
     else if (unpaved) col = lin(vec3(0.84, 0.74, 0.58));
     else col = lin(vec3(0.56, 0.56, 0.58)); // asphalt
     // A kerb: the edge a shade darker, up close.
@@ -151,7 +131,10 @@ const ribbonFragment = /* glsl */ `
       float edgeS = smoothstep(wM - 2.4, wM - 1.8, across) * (1.0 - smoothstep(wM - 1.2, wM - 0.6, across));
       marks = max(dash, edgeS) * close;
     } else if (cls > 30.5) {
-      marks = (1.0 - smoothstep(0.35, 0.75, across)) * close; // taxiway centreline
+      // Taxiway centreline: yellow, kept about a pixel wide (and fainter) from further off.
+      float fw = fwidth(across);
+      float hwL = max(0.38, 0.6 * fw);
+      marks = min(1.0, (1.0 - smoothstep(hwL - 0.5 * fw, hwL + 0.5 * fw, across)) * 1.4 * 0.76 / (2.0 * hwL)) * (1.0 - smoothstep(3.0, 6.0, fw));
       markCol = lin(vec3(0.95, 0.76, 0.22));
     } else if (cls > 19.5) {
       marks = (1.0 - smoothstep(0.08, 0.28, abs(across - 0.3))) * close * 0.85; // double yellow
@@ -224,10 +207,17 @@ const areaFragment = /* glsl */ `
     float k = vKind;
     vec3 col;
     if (k < 1.5) col = lin(vec3(0.66, 0.66, 0.67)); // parking
-    else if (k < 2.5) col = lin(vec3(0.7, 0.7, 0.7)); // apron
+    else if (k < 2.5) {
+      // Apron: concrete in 7.5 m slabs, their joints showing up close.
+      col = lin(vec3(0.8, 0.8, 0.79));
+      vec2 w = vWorld.xz * 1000.0 / 7.5;
+      vec2 f = 0.5 - abs(fract(w) - 0.5);
+      float fw = max(fwidth(w.x), fwidth(w.y));
+      col *= 1.0 - 0.07 * (1.0 - smoothstep(0.0, 1.2 * fw, min(f.x, f.y))) * (1.0 - smoothstep(0.08, 0.25, fw));
+    }
     else if (k < 3.5) col = lin(vec3(0.66, 0.66, 0.66)); // helipad
     else if (k < 10.5) col = lin(vec3(0.3, 0.78, 0.9)); // swimming pool
-    else col = lin(vec3(0.3, 0.6, 0.74)); // pond
+    else col = lin(vec3(0.3, 0.47, 0.58)); // ponds and basins: the map's water, not a pool's
     vec3 lit = groundLit(col, vWorld);
     // Floodlit aprons and lit car parks after dark.
     float dark = smoothstep(0.35, 1.0, uNight);
@@ -244,36 +234,6 @@ const areaFragment = /* glsl */ `
     #include <colorspace_fragment>
   }
 `;
-
-/** Uniforms every tile shares. */
-function sharedUniforms(normal: THREE.Texture) {
-  return {
-    uSunColor: sky.uSunColor,
-    uSunDir: sky.uSunDir,
-    uAmbient: sky.uAmbient,
-    uNight: sky.uNight,
-    uTime: sky.uTime,
-    uNormal: { value: normal },
-    uRegion: { value: new THREE.Vector4(X_MIN, Z_MIN, WIDTH_KM, HEIGHT_KM) },
-    uFade: { value: 0 },
-    uLift: { value: 0.001 },
-    uPxK: { value: 0.001 },
-  };
-}
-
-type Shared = ReturnType<typeof sharedUniforms>;
-
-function paintMaterial(shared: Shared, appear: { value: number }, vertexShader: string, fragmentShader: string) {
-  return new THREE.ShaderMaterial({
-    vertexShader,
-    fragmentShader,
-    fog: true,
-    transparent: true,
-    depthWrite: false,
-    lights: true,
-    uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...shadowUniforms(), ...shared, uAppear: appear },
-  });
-}
 
 interface Tile {
   key: number;
@@ -320,7 +280,7 @@ interface State {
   picked: number;
   /** bumped whenever the set of trees on offer changes */
   version: number;
-  shared: Shared;
+  shared: SharedPaint;
   pool: TreePool;
   cars: CarSim;
   ground: HeightField;
@@ -581,10 +541,7 @@ export default function DetailTiles({ scene }: { scene: PreparedScene }) {
     const cam = runtime.cam;
     const now = performance.now();
     const sh = st.shared;
-    sh.uFade.value = 1;
-    sh.uLift.value = 0.0008 + 0.00012 * cam.dist;
-    // km per device pixel, per km of depth
-    sh.uPxK.value = (2 * Math.tan((persp.fov * DEG) / 2)) / Math.max(1, state.size.height * state.gl.getPixelRatio());
+    updatePaint(sh, persp, cam.dist, state.size.height, state.gl.getPixelRatio());
     const lim = st.lowPower ? LIMITS.phone : LIMITS.desktop;
     const on = cam.dist < lim.siteView;
     g.visible = on;

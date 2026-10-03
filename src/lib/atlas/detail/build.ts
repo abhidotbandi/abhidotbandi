@@ -3,6 +3,7 @@
 // them. No three.js here, so the detail worker can run it.
 
 import earcut from "earcut";
+import { TOWER, inAirfield } from "../airport";
 import type { BuildingsData } from "../buildingsCodec";
 import { extrudeBuildings } from "../extrude";
 import { CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, elevToY, type HeightField } from "../geo";
@@ -175,6 +176,8 @@ function ribbons(s: BuildingsData, ground: HeightField): RibbonArrays | null {
     const v0 = s.vertStart[r];
     const v1 = s.vertStart[r + 1];
     if (v1 - v0 < 2) continue;
+    // Austin-Bergstrom's runways are drawn with the airport (Airport.tsx).
+    if (s.height[b] === 30 && inAirfield(s.x[v0] / 1000, s.z[v0] / 1000)) continue;
     // Subdivide, so a ribbon never cuts through the terrain between its points.
     px.length = 0;
     pz.length = 0;
@@ -286,6 +289,55 @@ function lanes(s: BuildingsData): LaneArrays | null {
   return { xz: new Float32Array(xz), start: new Uint32Array(start), cls: new Uint8Array(cls) };
 }
 
+/**
+ * Cut a triangle (km) along a grid of `cell`, handing each piece to `emit` as a convex polygon in
+ * the triangle's own winding. A neighbouring triangle is cut at the same points along the edge
+ * they share, so the pieces meet without cracks.
+ */
+function gridCut(tri: number[], cell: number, emit: (poly: number[]) => void) {
+  const xs = [tri[0], tri[2], tri[4]];
+  const zs = [tri[1], tri[3], tri[5]];
+  const i0 = Math.floor(Math.min(...xs) / cell);
+  const i1 = Math.floor(Math.max(...xs) / cell);
+  const j0 = Math.floor(Math.min(...zs) / cell);
+  const j1 = Math.floor(Math.max(...zs) / cell);
+  // Keep the side of an axis-aligned line (axis 0: x, 1: z) where sign * (v - at) >= 0.
+  const clip = (poly: number[], axis: number, at: number, sign: number) => {
+    const out: number[] = [];
+    const n = poly.length / 2;
+    for (let k = 0; k < n; k++) {
+      const px = poly[k * 2];
+      const pz = poly[k * 2 + 1];
+      const q = (k + 1) % n;
+      const qx = poly[q * 2];
+      const qz = poly[q * 2 + 1];
+      const dp = sign * ((axis ? pz : px) - at);
+      const dq = sign * ((axis ? qz : qx) - at);
+      if (dp >= 0) out.push(px, pz);
+      if ((dp >= 0) !== (dq >= 0)) {
+        const t = dp / (dp - dq);
+        out.push(px + (qx - px) * t, pz + (qz - pz) * t);
+      }
+    }
+    return out;
+  };
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      let poly = tri;
+      poly = clip(poly, 0, i * cell, 1);
+      if (poly.length >= 6) poly = clip(poly, 0, (i + 1) * cell, -1);
+      if (poly.length >= 6) poly = clip(poly, 1, j * cell, 1);
+      if (poly.length >= 6) poly = clip(poly, 1, (j + 1) * cell, -1);
+      if (poly.length >= 6) emit(poly);
+    }
+  }
+}
+
+/** Polygons wider than this (km) are cut along a grid this fine so they lie on the ground: drawn
+ * as a few flat triangles, a kilometre-wide apron or car park would have the terrain rise through
+ * it. */
+const AREA_CELL_KM = 0.04;
+
 /** Parking lots, aprons, pools and ponds as flat polygons on the ground. */
 function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
   if (!a.count) return null;
@@ -294,21 +346,52 @@ function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
   const idx = new U32(a.x.length * 3);
   const flat: number[] = [];
   const holes: number[] = [];
+  const tri: number[] = [0, 0, 0, 0, 0, 0];
   for (let b = 0; b < a.count; b++) {
     flat.length = 0;
     holes.length = 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
     for (let r = a.ringStart[b]; r < a.ringStart[b + 1]; r++) {
       if (r > a.ringStart[b]) holes.push(flat.length / 2);
-      for (let j = a.vertStart[r]; j < a.vertStart[r + 1]; j++) flat.push(a.x[j] / 1000, a.z[j] / 1000);
+      for (let j = a.vertStart[r]; j < a.vertStart[r + 1]; j++) {
+        const x = a.x[j] / 1000;
+        const z = a.z[j] / 1000;
+        flat.push(x, z);
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minZ = Math.min(minZ, z);
+        maxZ = Math.max(maxZ, z);
+      }
     }
     const tris = earcut(flat, holes.length ? holes : undefined, 2);
     if (!tris.length) continue;
-    const base = pos.n / 3;
-    for (let j = 0; j < flat.length; j += 2) {
-      pos.push(flat[j], elevToY(ground.sample(flat[j], flat[j + 1])), flat[j + 1]);
-      kind.push(a.height[b]);
+    if (Math.max(maxX - minX, maxZ - minZ) <= AREA_CELL_KM) {
+      const base = pos.n / 3;
+      for (let j = 0; j < flat.length; j += 2) {
+        pos.push(flat[j], elevToY(ground.sample(flat[j], flat[j + 1])), flat[j + 1]);
+        kind.push(a.height[b]);
+      }
+      for (const t of tris) idx.push(base + t);
+      continue;
     }
-    for (const t of tris) idx.push(base + t);
+    for (let t = 0; t < tris.length; t += 3) {
+      for (let k = 0; k < 3; k++) {
+        tri[k * 2] = flat[tris[t + k] * 2];
+        tri[k * 2 + 1] = flat[tris[t + k] * 2 + 1];
+      }
+      gridCut(tri, AREA_CELL_KM, (poly) => {
+        const base = pos.n / 3;
+        const n = poly.length / 2;
+        for (let k = 0; k < n; k++) {
+          pos.push(poly[k * 2], elevToY(ground.sample(poly[k * 2], poly[k * 2 + 1])), poly[k * 2 + 1]);
+          kind.push(a.height[b]);
+        }
+        for (let k = 1; k < n - 1; k++) idx.push(base, base + k, base + k + 1);
+      });
+    }
   }
   if (!idx.n) return null;
   return { position: pos.done(), kind: kind.done(), index: idx.done() };
@@ -493,7 +576,9 @@ function scatterTrees(t: TileData, world: World, o: TileOptions, key: number, se
 export function buildTile(t: TileData, world: World, o: TileOptions, key: number): TileMeshes {
   let buildings: BuildingParts | null = null;
   if (t.buildings.count) {
-    const a = extrudeBuildings(t.buildings, world.ground, [], 0, o.minFootprint);
+    // (The airport's control tower is modelled with the airport, Airport.tsx.)
+    const replaced = (x: number, z: number) => Math.hypot(x - TOWER.site[0], z - TOWER.site[1]) < 0.02;
+    const a = extrudeBuildings(t.buildings, world.ground, [], 0, o.minFootprint, replaced);
     if (a.index.length) buildings = { position: a.position, info: a.info, u: a.u, index: a.index };
   }
   return {

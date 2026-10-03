@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER } from "@/lib/atlas/airport";
+import { CLOSED_RUNWAY, GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER } from "@/lib/atlas/airport";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -359,8 +359,10 @@ const runwayFragment = /* glsl */ `
     float d0 = north ? ${f(GLYPHS[ends[0][0][0][0]])} : ${f(GLYPHS[ends[0][1][0][0]])};
     float d1 = north ? ${f(GLYPHS[ends[0][0][0][1]])} : ${f(GLYPHS[ends[0][1][0][1]])};
     float s = abs(v);
+    // (The closed runway in the infield: plain concrete, its X's, no lights.)
+    float open = 1.0 - step(1.5, vInfo.y);
     float runway = span(s, -half_, half_, w.x); // of the pixel on the 150 ft itself, not its shoulders
-    float pad = span(a, -1e4, 0.0, w.y); // ...and beyond the threshold
+    float pad = span(a, -1e4, 0.0, w.y) * open; // ...and beyond the threshold
     float near = 1.0 - smoothstep(1.0, 4.0, max(w.x, w.y));
 
     // Light concrete, the shoulders a shade darker, in 7.5 m slabs whose joints show up close;
@@ -374,7 +376,7 @@ const runwayFragment = /* glsl */ `
     // streaks (which even out from afar).
     float streak = mix(0.7, noise1(v * 0.8 + 7.0) * 0.6 + noise1(u * 0.02 + v * 0.5) * 0.4, near);
     float rubber = (1.0 - smoothstep(2.0, 11.0, s)) * span(a, 80.0, 1500.0, w.y) * (0.45 + 0.55 * span(a, 140.0, 900.0, w.y));
-    col *= 1.0 - 0.55 * rubber * streak;
+    col *= 1.0 - 0.55 * rubber * streak * open;
 
     // White paint: the markings at each end, the centreline (120 ft dashes, 80 ft apart, between
     // the designators) and the edge lines.
@@ -382,16 +384,19 @@ const runwayFragment = /* glsl */ `
     float m = endMarks(a, s, gx, w, letter, d0, d1);
     m += span(u, 120.0, L - 120.0, w.y) * span(v, -0.45, 0.45, w.x) * stripes(u - 120.0, 61.0, 36.6, w.y);
     m += span(s, half_ - 1.4, half_ - 0.5, w.x) * on;
+    m *= open;
     // Yellow: hatching at 45 degrees across the wide shoulders, and chevrons on the blast pads
-    // pointing to the threshold.
-    float y = step(10.0, shoulder) * span(s, half_ + 1.5, half_ + shoulder - 1.5, w.x) * stripes(a + s, 30.0, 1.5, w.x + w.y) * on;
+    // pointing to the threshold; a closed runway's X every 300 m.
+    float y = step(10.0, shoulder) * span(s, half_ + 1.5, half_ + shoulder - 1.5, w.x) * stripes(a + s, 30.0, 1.5, w.x + w.y) * on * open;
     y += pad * span(s, -1.0, half_ - 2.5, w.x) * stripes(-a - s, 30.0, 1.8, w.x + w.y);
+    float xa = mod(u, 300.0) - 150.0;
+    y += (1.0 - open) * (span(xa - v, -1.3, 1.3, w.x + w.y) + span(xa + v, -1.3, 1.3, w.x + w.y)) * span(xa, -10.0, 10.0, w.y) * span(v, -10.0, 10.0, w.x) * span(u, 100.0, L - 100.0, w.y);
     col = mix(col, lin(vec3(0.97, 0.97, 0.95)), clamp(m, 0.0, 1.0) * 0.92);
     col = mix(col, lin(vec3(0.95, 0.76, 0.24)), clamp(y, 0.0, 1.0) * 0.85);
     vec3 lit = groundLit(col, vWorld);
 
     // After dark: white edge lights every 60 m, green across the thresholds.
-    float dark = smoothstep(0.35, 1.0, uNight);
+    float dark = smoothstep(0.35, 1.0, uNight) * open;
     float mpp = max(w.x, w.y);
     float rad = max(1.3, 1.1 * mpp);
     float de = length(vec2((fract(u / 60.0) - 0.5) * 60.0, s - (half_ - 0.6)));
@@ -407,13 +412,17 @@ const runwayFragment = /* glsl */ `
 `;
 
 /** Each runway as a strip along its centreline, from the end of one blast pad to the other, every
- * 25 m so it lies on the ground, as wide as its paved shoulders. */
+ * 25 m so it lies on the ground, as wide as its paved shoulders; then the closed one. */
 function runwayMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
   const pos: number[] = [];
   const across: number[] = [];
   const info: number[] = [];
   const index: number[] = [];
-  RUNWAYS.forEach((r, k) => {
+  const strips = [
+    ...RUNWAYS.map((r) => ({ n: r.n, s: r.s, padN: r.padN, padS: r.padS, half: RUNWAY_HALF + r.shoulder / 1000 })),
+    { ...CLOSED_RUNWAY, padN: 0, padS: 0 },
+  ];
+  strips.forEach((r, k) => {
     const [nx, nz] = r.n;
     const [sx, sz] = r.s;
     const len = Math.hypot(sx - nx, sz - nz);
@@ -422,7 +431,7 @@ function runwayMesh(ground: HeightField, shared: SharedPaint): THREE.Mesh {
     const from = -r.padN / 1000;
     const to = len + r.padS / 1000;
     const n = Math.ceil((to - from) / 0.025);
-    const half = RUNWAY_HALF + r.shoulder / 1000;
+    const half = r.half;
     const base = pos.length / 3;
     for (let i = 0; i <= n; i++) {
       const d = from + ((to - from) * i) / n;

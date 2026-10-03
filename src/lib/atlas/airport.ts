@@ -47,6 +47,14 @@ export const RUNWAYS: Runway[] = [
 /** Half a runway's width (150 ft), km. */
 export const RUNWAY_HALF = 0.02286;
 
+/** The old parallel runway in the west infield, closed (yellow X's down it): not in the map
+ * data, traced from USGS imagery. Its ends (scene km) and half its width (km). */
+export const CLOSED_RUNWAY = {
+  n: project(-97.67588, 30.2058),
+  s: project(-97.67526, 30.1808),
+  half: 0.0225,
+};
+
 /** The airfield (scene km: x0, z0, x1, z1): the detail tiles draw no runways in it. */
 const [AX0, AZ0] = project(-97.69, 30.222);
 const [AX1, AZ1] = project(-97.645, 30.17);

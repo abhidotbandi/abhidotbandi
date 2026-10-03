@@ -1022,10 +1022,12 @@ Uploads:
   from the touchdown zones along the rollout. The west runway keeps the 300 ft width Bergstrom
   Air Force Base built for its B-52s: it's marked at 150 ft, and the rest is paved shoulder,
   hatched in yellow. Past each threshold, Overture's stopways are dark asphalt blast pads with
-  yellow chevrons pointing in.
+  yellow chevrons pointing in. The old parallel runway in the west infield is there too, closed,
+  with a yellow X every 300 m (not in the map data: traced from the imagery).
 - **Taxiways and aprons.** Taxiways are concrete with darker shoulders, and aprons are pale
   concrete. The general aviation and cargo aprons on the east side are asphalt.
-- **Car parks**, in every tile, are full of cars:
+- **Car parks**, in every tile, are full of cars, on asphalt paler than the streets' (from the
+  air, car parks read lighter than the grass around them):
   - stalls 2.6 by 5.5 m, either side of 7 m aisles, laid along each lot's longest side (the
     heading travels in the area's kind);
   - four in five taken, in the colours cars come in, with the stalls' lines;

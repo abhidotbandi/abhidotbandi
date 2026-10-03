@@ -263,7 +263,7 @@ const fragment = /* glsl */ `
         float field = 1.0 - smoothstep(-0.04, 0.005, fieldDist(vWorld.xz));
         if (field > 0.0) {
           float dry = vnoise(wp * 0.0045) * 0.65 + vnoise(wp * 0.021) * 0.35;
-          vec3 turf = mix(lin(vec3(0.55, 0.65, 0.36)), lin(vec3(0.7, 0.7, 0.46)), smoothstep(0.42, 0.85, dry));
+          vec3 turf = mix(lin(vec3(0.5, 0.6, 0.33)), lin(vec3(0.64, 0.64, 0.43)), smoothstep(0.42, 0.85, dry));
           float mown = abs(fract(wp.x / 26.0) - 0.5) * 4.0 - 1.0;
           turf *= 1.0 + 0.06 * smoothstep(-0.3, 0.3, mown) * (1.0 - smoothstep(3.0, 9.0, fp));
           land = mix(land, turf, field);

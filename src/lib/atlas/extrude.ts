@@ -73,9 +73,10 @@ export function extrudeBuildings(
   minFootprintM2 = 0,
   /**
    * leave out footprints this accepts, by centre (km) and SITES index (or -1): landmarks and
-   * sites modelled separately
+   * sites modelled separately. "roof": left out, but a company's building still sets its site's
+   * roof height (a landmark modelled in its place, so the beacon stands on the model).
    */
-  skip?: (x: number, z: number, site: number) => boolean,
+  skip?: (x: number, z: number, site: number) => boolean | "roof",
   /** a STYLE_* for a footprint (outer ring flat x, z km), by its height and area; 0 for none */
   style?: (ring: number[], hM: number, areaM2: number) => number,
 ): BuildingArrays {
@@ -83,7 +84,17 @@ export function extrudeBuildings(
   const { ringStart, vertStart, x: X, z: Z } = data;
   const records: number[] = [];
   for (let b = 0; b < data.count; b++) {
-    if (!skip || !skip(...outerCentre(data, b), data.site[b] >= 0 ? siteMap[data.site[b]] : -1)) records.push(b);
+    const site = data.site[b] >= 0 ? siteMap[data.site[b]] : -1;
+    const left = skip ? skip(...outerCentre(data, b), site) : false;
+    if (!left) records.push(b);
+    else if (left === "roof" && site >= 0) {
+      let minElev = Infinity;
+      for (let j = vertStart[ringStart[b]]; j < vertStart[ringStart[b] + 1]; j++) {
+        minElev = Math.min(minElev, height.sample(X[j] / 1000, Z[j] / 1000));
+      }
+      const yTop = elevToY(minElev) + (data.height[b] / 10 / 1000) * BUILDING_EXAG;
+      if (!(siteTop[site] >= yTop)) siteTop[site] = yTop;
+    }
   }
 
   // Upper bounds on sizes: walls (with parapets), doubled ring starts, roofs and up to four roof

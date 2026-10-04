@@ -16,6 +16,7 @@ import math
 import numpy as np
 import pyarrow.parquet as pq
 import shapely
+import shapely.affinity
 from shapely.geometry import Point
 
 from building_codec import encode
@@ -32,6 +33,21 @@ PLACEHOLDERS = {
     "saronic": (200, 100, 13),  # HQ & production plant, Eastside Commerce Center
     "aalo": (110, 55, 11),  # factory HQ
     "aeon-industrial": (80, 45, 9),  # HQ & missile factory
+}
+# Company towers whose Overture heights are missing, or are only their parking podiums': (tower
+# height m, share of the footprint the tower covers, podium height m or None to keep Overture's).
+# The footprint is drawn as the podium with the tower rising from its middle, or, at a share of 1,
+# simply at the tower's height. Heights are the developers' storey counts at ~4 m a storey.
+TOWERS = {
+    "amazon-domain-9": (74, 0.5, 14),  # Domain 9: 18 storeys, podium-style (Endeavor)
+    "amazon-domain-10": (62, 0.55, 14),  # Domain 10: 15 storeys, podium-style (Endeavor)
+    "ibm-domain-12": (70, 0.45, 14),  # Domain 12: 17 storeys (Cousins)
+    "expedia-vrbo": (66, 0.75, None),  # Domain 11, Vrbo's tower: 16 storeys
+    "paypal-domain": (98, 0.5, None),  # Domain Tower 2: 24 storeys (Stonelake)
+    "nvidia-uptown": (56, 1.0, None),  # One Uptown: 14 storeys (Brandywine)
+    "indeed-domain": (44, 1.0, None),  # Domain Tower: 11 storeys
+    "salesforce-austin": (120, 0.45, None),  # One American Center: 32 storeys over its garage
+    "dfa-hq": (20, 1.0, None),  # Dimensional Place: a few storeys; Overture has it at 61 m
 }
 CENTRAL_MIN_M2 = 25
 FADE_KM = 1.6  # buildings thin out over this distance beyond the central patch
@@ -116,6 +132,8 @@ def selection(geoms, lon, lat, area, under):
         dist = np.hypot(dx, dz)
         ctx = max(s["radius"] * 1.8, CONTEXT_MIN_KM)
         select |= (dist < ctx) & (area >= 60)
+        if s.get("shares"):
+            continue  # a co-tenant: the building is the other site's
         pt = Point(s["lon"], s["lat"])
         hit = [i for i in tree.query(pt) if geoms[i].contains(pt)]
         if s["radius"] >= 0.15:
@@ -133,9 +151,9 @@ def selection(geoms, lon, lat, area, under):
     return select, central_zone, site_of, sites
 
 
-def record(g, h_m, site):
-    """One footprint (lon/lat geometry) as building_codec records, one per polygon part."""
-    g = shapely.transform(g, lambda c: to_m(c[:, 0], c[:, 1])).simplify(0.6)
+def record(g, h_m, site, metres=False):
+    """One footprint (lon/lat geometry, or scene metres) as building_codec records, one per polygon part."""
+    g = (g if metres else shapely.transform(g, lambda c: to_m(c[:, 0], c[:, 1]))).simplify(0.6)
     out = []
     for p in g.geoms if g.geom_type == "MultiPolygon" else [g]:
         if p.is_empty or p.geom_type != "Polygon" or p.area < 12:
@@ -179,6 +197,20 @@ def placeholder(site, geoms, lon, lat):
     return int(h * 10), [[(int(x), int(z)) for x, z in list(poly.exterior.coords)[:-1]]]
 
 
+def tower(g, share):
+    """A tower's footprint (scene metres) covering `share` of footprint g (lon/lat): g's minimum
+    rotated rectangle shrunk about g's centroid, kept inside g."""
+    gm = shapely.transform(g, lambda c: to_m(c[:, 0], c[:, 1]))
+    if gm.geom_type == "MultiPolygon":
+        gm = max(gm.geoms, key=lambda p: p.area)
+    box = gm.minimum_rotated_rectangle
+    k = math.sqrt(share * gm.area / box.area)
+    c, b = gm.centroid, box.centroid
+    t = shapely.affinity.translate(shapely.affinity.scale(box, k, k, origin=b), c.x - b.x, c.y - b.y)
+    t = t.intersection(gm)
+    return max(t.geoms, key=lambda p: p.area) if t.geom_type != "Polygon" else t
+
+
 def height_m(heights, floors, area, i):
     return min(350.0, max(3.0, est_height(heights[i], floors[i], area[i])))
 
@@ -187,9 +219,30 @@ def build():
     geoms, heights, floors, under, lon, lat, area = load()
     select, central_zone, site_of, sites = selection(geoms, lon, lat, area, under)
 
+    # Each listed tower's footprint: the one under its site's point.
+    tower_at = {}
+    for si, site in enumerate(sites):
+        if site["id"] in TOWERS:
+            pt = Point(site["lon"], site["lat"])
+            hit = [i for i in np.where(site_of == si)[0] if geoms[i].contains(pt)]
+            if hit:
+                tower_at[hit[0]] = TOWERS[site["id"]]
+            else:
+                print(f"  no footprint under tower site {site['id']}")
+
     out, out_c = [], []
     for i in np.where(select)[0]:
-        (out_c if central_zone[i] else out).extend(record(geoms[i], height_m(heights, floors, area, i), site_of[i]))
+        recs = out_c if central_zone[i] else out
+        h = height_m(heights, floors, area, i)
+        if i in tower_at:
+            top, share, podium = tower_at[i]
+            if share >= 0.99:
+                recs.extend(record(geoms[i], top, site_of[i]))
+            else:
+                recs.extend(record(geoms[i], podium or min(h, top * 0.4), site_of[i]))
+                recs.extend(record(tower(geoms[i], share), top, site_of[i], metres=True))
+        else:
+            recs.extend(record(geoms[i], h, site_of[i]))
     n_pts = sum(len(r) for rec in out + out_c for r in rec[2])
     matched = {r[1] for r in out + out_c if r[1] >= 0}
     for si, site in enumerate(sites):

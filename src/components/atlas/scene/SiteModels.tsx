@@ -9,7 +9,7 @@ import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
 import { aoCaster } from "./Occlusion";
-import { siteUniforms } from "./siteState";
+import { MAX_SITES, siteUniforms } from "./siteState";
 
 // The company sites' models (built in siteModels/): lit like the buildings, with trim in the
 // site's domain colour, the whole model taking on that colour when the site is picked or in
@@ -44,7 +44,7 @@ const fragment = /* glsl */ `
   uniform vec3 uZenith;
   uniform float uNight;
   uniform float uTime;
-  uniform vec4 uSite[64];
+  uniform vec4 uSite[${MAX_SITES}];
   uniform float uExag;
   varying vec3 vColor;
   varying vec2 vKind;

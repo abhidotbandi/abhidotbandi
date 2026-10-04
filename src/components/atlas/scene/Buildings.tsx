@@ -8,7 +8,7 @@ import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { SHADOW_FRAGMENT_PARS, SHADOW_VERTEX_PARS, shadowUniforms, shadowVertex } from "./shadows";
 import { aoCaster } from "./Occlusion";
-import { siteUniforms } from "./siteState";
+import { MAX_SITES, siteUniforms } from "./siteState";
 
 const vertex = /* glsl */ `
   attribute vec4 aInfo;
@@ -48,7 +48,7 @@ const fragment = /* glsl */ `
   uniform float uNight;
   uniform float uTime;
   uniform float uDetail;
-  uniform vec4 uSite[64]; // rgb = colour (linear), a = emphasis 0..1 (<0: filtered out)
+  uniform vec4 uSite[${MAX_SITES}]; // rgb = colour (linear), a = emphasis 0..1 (<0: filtered out)
   uniform float uBuildingExag;
   varying vec3 vWorld;
   varying vec4 vInfo;

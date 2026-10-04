@@ -11,6 +11,8 @@ export interface Site {
   lon: number;
   /** km; how far the pipeline looked for this site's own buildings */
   radius: number;
+  /** a co-tenant's site whose building this one is in (the building is painted as that site's) */
+  shares?: string;
 }
 
 export type CompanyStatus =

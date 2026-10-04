@@ -21,7 +21,8 @@ from building_codec import decode  # noqa: E402
 from config import COMPANIES_JSON, HEIGHT_KM, OUT, WIDTH_KM, X_MAX, X_MIN, Z_MAX, Z_MIN, project  # noqa: E402
 
 DOMAIN_COLORS = {"defense-space": "#eda100", "chips-compute": "#4a3aa7",
-                 "energy-mobility": "#008300", "robotics-mfg": "#e87ba4"}
+                 "energy-mobility": "#008300", "robotics-mfg": "#e87ba4",
+                 "big-tech": "#5d8ff0", "finance": "#931848"}
 
 
 def decode_lines(lines):

@@ -5,7 +5,8 @@ import { STOPS } from "@/data/atlas/tour";
 import type { AtlasMode } from "@/lib/atlas/store";
 import type { DomainId } from "@/data/atlas/domains";
 
-export const MAX_SITES = 64;
+/** The site table the building shaders index (uSite[]): room to grow past today's sites. */
+export const MAX_SITES = 128;
 
 /** Shared with the buildings shader: rgb = linear domain colour, a = emphasis (-1 = filtered out). */
 export const siteUniforms = {

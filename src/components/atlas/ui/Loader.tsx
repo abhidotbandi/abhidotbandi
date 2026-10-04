@@ -158,7 +158,7 @@ export default function Loader({ done }: { done: boolean }) {
           <h1>Silicon Hills</h1>
           <p>
             This browser couldn&apos;t start the 3D map, so here is the atlas as a table: the deep tech, hard tech and
-            defense tech companies and labs of Greater Austin.
+            defense tech companies and labs of Greater Austin, and the big tech and finance firms around them.
           </p>
           <CompanyTable />
         </div>

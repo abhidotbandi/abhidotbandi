@@ -104,6 +104,8 @@ be distinguishable. Per the data-viz method, a map form caps out around 3–4 hu
 | Chips & Compute | ▣ chip | `#4a3aa7` | `#9085e9` |
 | Energy & Mobility | ⚡ bolt | `#008300` | `#008300` |
 | Robotics & Manufacturing | ⬢ hex nut | `#e87ba4` | `#d55181` |
+| Big Tech (added 2026-10-04) | ☁ cloud | `#5d8ff0` | `#4859dd` |
+| Finance & Trading (added 2026-10-04) | 🏛 bank | `#931848` | `#904651` |
 
 Light-mode contrast is < 3:1 for two slots and dark-mode CVD sits in the 6–8 warn band, so **relief is
 mandatory and built in**: every marker has a domain glyph (shape), a direct text label, and a white/ink
@@ -129,7 +131,9 @@ domain's color. Text is always ink, never the domain color.
 ### 4.1 Companies (`src/data/atlas/companies.ts`)
 
 Inclusion: builds physical/deep technology (or is a defense/space/semiconductor institution) **and** has a
-real operating site in the Austin region (HQ, factory, fab, lab, test site). ~50–65 entries.
+real operating site in the Austin region (HQ, factory, fab, lab, test site). ~50–65 entries. Since
+2026-10-04, also the big tech and finance firms in Levels.fyi's atlases that have a real Austin office
+(see 2.22).
 
 ```ts
 {
@@ -1040,3 +1044,74 @@ Uploads:
 - **Solar.** The canopies over the car park by Highway 71 are traced from the imagery: eight
   blocks over a 317 by 243 m lot, casting shadows on the cars. Panels also cover the top decks
   of the Blue Garage (rows east-west) and the Red Garage (north-south).
+
+### 2.22 Big tech and finance, as in the Levels.fyi atlases (2026-10-04)
+
+Asked: add the firms the Levels.fyi atlases have that are relevant in Austin, thinking big tech
+and high finance.
+
+**Which firms.** The five Levels.fyi atlases (the Bay Area, Seattle, New York, London and
+Bangalore) carry 166 firms between them, read from the atlases' own scene data. Each big tech,
+chip and finance firm among them was checked for an Austin office: the building, what the
+office does, and a public source. A store, a bank branch or a wealth adviser's branch office
+doesn't count. Dell and Indeed aren't in any of them, being headquartered here, but an Austin
+atlas couldn't leave them out. 29 firms qualify:
+
+- **Big Tech** (new domain, 15): Apple (the Parmer Lane campus and the Americas Operations
+  Center), Google (Sail Tower and 500 W 2nd St), Meta (Third + Shoal, 300 W 6th), Amazon (Domain
+  9 and 10, with Annapurna Labs), Oracle (its lakeside HQ), IBM (Domain 12 and its Burnet Road
+  campus), Dell (Round Rock), Indeed (Indeed Tower and Domain Tower), Cisco, Salesforce
+  (Tableau's office), Atlassian, TikTok, Expedia (Vrbo's tower), Electronic Arts, Microsoft.
+- **Chips & Compute** (4 more): NVIDIA (One Uptown and Lakeline), Intel, Qualcomm, Broadcom
+  (VMware's River Place office).
+- **Finance & Trading** (new domain, 10): Citadel Securities, Hudson River Trading, Optiver,
+  Goldman Sachs, JPMorgan Chase, Charles Schwab, Dimensional Fund Advisors, Wise, PayPal, Visa.
+
+Left out, for want of an Austin office: Jane Street, Two Sigma, D. E. Shaw, Point72, Millennium,
+BlackRock, Bloomberg, Citi, Barclays, HSBC and the rest of London's and New York's banks; HP
+(whose Texas hub is Houston), Adobe and eBay (small sales offices); KLA, Micron, Marvell and Lam
+(small offices, or none we could confirm); Apollo announced an Austin hub in August 2026 but
+hasn't chosen its building.
+
+**Colour.** A map can't hold many hues before two neighbours can't be told apart: the four
+domains were the most that passed every check in both modes (above). The validator was run
+over every pair of candidate hues added to those four, day and night together. Blues, and
+purples close to Chips' violet, were nearly all that passed. Big Tech takes cornflower blue (the
+colour of most big tech logos), and Finance a claret: the one red that clears both modes.
+Worst pairs with all six, all-pairs:
+- day: normal vision ΔE 19.6, colour-blind ΔE 11.2;
+- night: normal vision 15.2, colour-blind 6.9, the 6–8 warn band where Defense and Energy
+  already sat.
+
+So the glyph, ring and label stay mandatory, as before. The glyphs are a cloud and a bank's
+columns.
+
+**Buildings.** Overture's heights are missing or wrong for several of these towers. For some it
+has only the parking podium's height (Domain 9 at 6 m for 18 storeys; One American Center at 24 m
+for 32), and for some nothing at all. `TOWERS` in build_buildings.py fixes these. Each such
+footprint is drawn as its podium, with a tower rising from the middle at its real height (the
+developers' storey counts, at ~4 m a storey), sized to the share of the footprint its floor plate
+covers.
+
+**Co-tenants.** Some firms share a building:
+- Goldman Sachs and HRT share RiverSouth;
+- Wise and PayPal share Domain Tower 2.
+
+The building is painted as one of them (the site that claims it). The other's site `shares` it:
+the pipeline doesn't claim a footprint for it, and its beacon stands on the shared roof. Google's
+Sail Tower is drawn as a landmark model (Block 185), whose extrusion is left out. A company
+building left out for a landmark now still sets its site's roof height (`skip` returning "roof"),
+so the beacon stands on the model.
+
+**The site table** in the building shaders grew from 64 to 128 (84 sites now).
+
+**Tour.** Six new chapters (the tour has 22 now):
+- 03 Downtown's towers: big tech on the skyline;
+- 04 Along the river: the traders;
+- 05 East Riverside: Oracle;
+- 13 Round Rock: Dell;
+- 15 West Parmer Lane: Apple and EA;
+- 16 The Domain: Amazon, IBM, Indeed, Vrbo, PayPal, Wise, Optiver, NVIDIA and Schwab.
+
+The old Domain chapter is now the Pickle Research Campus's. The hills chapter adds Intel and
+Dimensional.

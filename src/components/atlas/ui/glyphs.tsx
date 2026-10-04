@@ -19,6 +19,24 @@ export function DomainGlyph({ domain, size = 14 }: { domain: DomainId; size?: nu
           fill="currentColor"
         />
       )}
+      {domain === "big-tech" && (
+        <g fill="currentColor">
+          <circle cx="5.2" cy="9.4" r="3" />
+          <circle cx="9" cy="7.2" r="3.8" />
+          <circle cx="12" cy="9.8" r="2.6" />
+          <rect x="5.2" y="9.4" width="6.8" height="3" />
+        </g>
+      )}
+      {domain === "finance" && (
+        <g fill="currentColor">
+          <path d="M8 1.4 14.6 5.4H1.4Z" />
+          <rect x="1.8" y="6.1" width="12.4" height="1.3" />
+          <rect x="3.2" y="8.1" width="1.6" height="4.2" />
+          <rect x="7.2" y="8.1" width="1.6" height="4.2" />
+          <rect x="11.2" y="8.1" width="1.6" height="4.2" />
+          <rect x="1.4" y="12.8" width="13.2" height="1.8" />
+        </g>
+      )}
     </svg>
   );
 }

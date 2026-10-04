@@ -40,7 +40,7 @@ export function CompanyTable({ onPick }: { onPick?: (siteId: string) => void }) 
   );
   return (
     <table className="company-table">
-      <caption className="sr-only">Deep tech, hard tech and defense tech companies and labs in the Austin area</caption>
+      <caption className="sr-only">Deep tech, hard tech, defense tech, big tech and finance companies and labs in the Austin area</caption>
       <thead>
         <tr>
           {head("name", "Company")}

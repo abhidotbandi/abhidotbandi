@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DomainId } from "@/data/atlas/domains";
+import { DOMAIN_ORDER, type DomainId } from "@/data/atlas/domains";
 import type { CamState } from "./camera";
 
 export type AtlasMode = "tour" | "explore" | "ride" | "paddle";
@@ -74,7 +74,7 @@ export const useAtlas = create<AtlasState>((set, get) => ({
   selectedPlace: null,
   selectPlace: (selectedPlace) => set(selectedPlace ? { selectedPlace, selectedSite: null } : { selectedPlace }),
 
-  domains: new Set<DomainId>(["defense-space", "chips-compute", "energy-mobility", "robotics-mfg"]),
+  domains: new Set<DomainId>(DOMAIN_ORDER),
   toggleDomain: (d) => {
     const next = new Set(get().domains);
     if (next.has(d)) next.delete(d);

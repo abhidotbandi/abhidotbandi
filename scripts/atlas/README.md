@@ -28,7 +28,8 @@ python scripts/atlas/preview_central.py    # QA renders of the central Austin de
   lives in `config.py` and must match `src/lib/atlas/geo.ts`.
 - Overture is read straight from `s3://overturemaps-us-west-2` with a bbox filter, so only
   Greater Austin row groups are downloaded. Set `OVERTURE_RELEASE` to pin a different release.
-- Rerun `build_buildings.py` after editing company sites; it tags each site's footprints.
+- Rerun `build_buildings.py` and then `build_tiles.py` after editing company sites: the first tags each
+  site's footprints (and draws `TOWERS` at their real heights), and the tiles leave out whatever it carries.
 - The central patch bounds (`C_*` in `config.py`) must match `CENTRAL` in `src/lib/atlas/geo.ts`.
 
 ## Measuring the load

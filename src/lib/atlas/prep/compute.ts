@@ -139,11 +139,12 @@ export function computeCentral(r: Pick<RegionalPrep, "assets" | "terrainSegments
   const ground = new Ground(base, patch);
   mark("central patch");
   // The Capitol, the Tower and the other modelled landmarks drop their plain extrusions (the
-  // Capitol Extension's skylights too), as do the company sites modelled in their place.
+  // Capitol Extension's skylights too), as do the company sites modelled in their place. A
+  // company in a modelled landmark (Google's Sail Tower) keeps its beacon on the landmark's roof.
   const landmarks = MODELLED_LANDMARKS.flatMap((k) => c.central.landmarks[k]?.outline ?? []);
   const sites = new Set(MODELLED_SITES.map(siteIndex));
   const skip = (x: number, z: number, site: number) =>
-    sites.has(site) || landmarks.some((o) => pointInPoly(o, x, z)) || isCapitolSkylight(x, z);
+    sites.has(site) || (landmarks.some((o) => pointInPoly(o, x, z)) ? "roof" : isCapitolSkylight(x, z));
   const siteMap = c.buildings.sites.map(siteIndex);
   const buildings = extrudeBuildings(c.buildings, ground, siteMap, SITES.length, r.lowPower ? 120 : 0, skip, districtStyle);
   // The lakes mirror only what stands tall enough to show in them, so the reflection doesn't draw

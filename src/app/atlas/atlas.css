@@ -20,6 +20,8 @@
   --d-chips-compute: #4a3aa7;
   --d-energy-mobility: #008300;
   --d-robotics-mfg: #e87ba4;
+  --d-big-tech: #5d8ff0;
+  --d-finance: #931848;
 
   --font-ui: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-num: var(--font-geist-mono), ui-monospace, monospace;
@@ -61,6 +63,8 @@
 .glyph[data-domain="chips-compute"] { color: var(--d-chips-compute); }
 .glyph[data-domain="energy-mobility"] { color: var(--d-energy-mobility); }
 .glyph[data-domain="robotics-mfg"] { color: var(--d-robotics-mfg); }
+.glyph[data-domain="big-tech"] { color: var(--d-big-tech); }
+.glyph[data-domain="finance"] { color: var(--d-finance); }
 .glyph { flex: none; }
 
 /* ---------- layers ---------- */

@@ -16,8 +16,8 @@ export default function About() {
         <h2 id="about-title">About this atlas</h2>
         <p>
           Silicon Hills maps the companies and labs building physical and defense technology around Austin:
-          warships, rockets, satellites, humanoid robots, reactors, fabs and the chips inside all of them. It is an
-          independent project inspired by{" "}
+          warships, rockets, satellites, humanoid robots, reactors, fabs and the chips inside all of them, and the
+          big tech companies and trading firms around them. It is an independent project inspired by{" "}
           <a href="https://www.levels.fyi/atlas" target="_blank" rel="noreferrer">
             The Peninsula
           </a>
@@ -26,9 +26,12 @@ export default function About() {
         <h3>How it was made</h3>
         <p>
           Companies were included if they build deep or hard technology (or run a defense, space or semiconductor lab)
-          and have a real site in the Austin region. Every figure links to a public source and carries an as-of date;
+          and have a real site in the Austin region. Big tech and finance firms were included if they appear in
+          Levels.fyi&apos;s atlases and have a real Austin office, not a store or a bank branch; Dell and Indeed, both
+          headquartered here, are included too. Every figure links to a public source and carries an as-of date;
           anything not publicly reported is left out rather than estimated. Locations were geocoded against Overture
-          Maps addresses and places and checked against building footprints. Details are current as of September 2026.
+          Maps addresses and places and checked against building footprints. Details were last checked in September
+          and October 2026.
         </p>
         <p>
           Colour marks a company&apos;s domain, and every marker also carries a shape and a label, so nothing depends on

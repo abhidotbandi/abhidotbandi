@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { BufferGeometry } from "three";
-import { SITES } from "@/data/atlas/companies";
+import { SITES, SITE_BY_ID } from "@/data/atlas/companies";
 import type { AtlasAssets } from "@/lib/atlas/assets";
 import { buildingGeometry, type BuildingMesh } from "@/lib/atlas/buildings";
 import type { BuildingsData } from "@/lib/atlas/buildingsCodec";
@@ -55,6 +55,14 @@ function maxTop(a: Float32Array, b: Float32Array): Float32Array {
   return a.map((v, i) => (Number.isNaN(v) ? b[i] : Number.isNaN(b[i]) ? v : Math.max(v, b[i])));
 }
 
+const SHARED = SITES.filter((s) => s.shares).map((s) => [s.index, SITE_BY_ID.get(s.shares!)?.index ?? -1] as const);
+
+/** A co-tenant's beacon stands on the roof of the building it shares (tagged to the other site). */
+function withCoTenants(top: Float32Array): Float32Array {
+  for (const [i, j] of SHARED) if (j >= 0 && Number.isNaN(top[i])) top[i] = top[j];
+  return top;
+}
+
 /** The regional map's scene. The site models come with central Austin (or withSiteModels). */
 export function prepareScene(r: RegionalPrep): PreparedScene {
   // Class instances don't survive the trip from the worker: rebuild the raster around its data.
@@ -70,7 +78,7 @@ export function prepareScene(r: RegionalPrep): PreparedScene {
     baseSurface,
     buildings,
     models: siteModelSet(emptySiteModels(SITES.length)),
-    siteTop: buildings.siteTop,
+    siteTop: withCoTenants(buildings.siteTop.slice()),
     terrainSegments: r.terrainSegments,
     lowPower: r.lowPower,
   };
@@ -95,7 +103,7 @@ export function upgradeScene(scene: PreparedScene, c: CentralPrep): PreparedScen
     },
     ground: new Ground(scene.baseSurface, patch),
     models,
-    siteTop: maxTop(maxTop(scene.buildings.siteTop, models.siteTop), buildings.siteTop),
+    siteTop: withCoTenants(maxTop(maxTop(scene.buildings.siteTop, models.siteTop), buildings.siteTop)),
   };
 }
 
@@ -111,5 +119,5 @@ function subset(g: BufferGeometry, index: Uint32Array): BufferGeometry {
 /** The sites' models on the regional map alone, when central Austin's detail couldn't load. */
 export function withSiteModels(scene: PreparedScene, m: SiteModelArrays): PreparedScene {
   const models = siteModelSet(m);
-  return { ...scene, models, siteTop: maxTop(scene.buildings.siteTop, models.siteTop) };
+  return { ...scene, models, siteTop: withCoTenants(maxTop(scene.buildings.siteTop, models.siteTop)) };
 }

@@ -1115,3 +1115,56 @@ so the beacon stands on the model.
 
 The old Domain chapter is now the Pickle Research Campus's. The hills chapter adds Intel and
 Dimensional.
+
+### 2.23 The skyline at its real heights, and every company's logo (2026-10-04)
+
+Asked: fix the rest of the skyline's heights, and the companies' logos. The screenshot showed
+downtown's labels, each with only its domain's glyph.
+
+**Heights.** Overture has many of Austin's towers at their parking podiums' height, or with no
+height at all, which the pipeline draws at 10 m. Sixth and Guadalupe, the city's second tallest
+at 267 m, stood 18.7 m tall; the Fairmont stood at 20.6 m; The Travis had no height. Two fixes:
+
+- `skyline.py` lists 26 towers to draw at their real heights. The 15 tallest that Overture has
+  short or missing take their CTBUH heights from Wikipedia's list of the tallest buildings in
+  Austin, matched to Overture's footprints by name and position. The rest are shorter towers,
+  most of them the Domain's, from their storey counts. Each is found by position (the footprint
+  under its point), not by company site as `TOWERS` was, so any building can be listed. A tower
+  on a podium gives its floor plate: the footprint is drawn at the podium's height (Overture's,
+  or the one given) and the tower rises from its middle, covering that many m².
+- A storey rule for the rest of the city: where Overture gives at least 4 floors and a height
+  under 2.2 m a floor, the height is only the podium's, so the building is drawn at 3.5 m a
+  floor.
+
+Together they raise 65 of the central patch's buildings (15 of them by more than 30 m), 5 in the
+regional file and a few in the detail tiles, which were rebuilt. Overture already had the rest of
+the list right, Waterline (the tallest) among them.
+
+**Logos.** The labels now carry each company's logo in place of its domain's glyph, as the
+Levels.fyi atlases do.
+
+- *Sources.* Each company's own app icon or favicon, where it is sharp enough. Otherwise its
+  vector mark:
+  - Simple Icons (CC0): AMD, Apple, Atlassian, Cisco, EA, IBM, Intel, NVIDIA, Qualcomm, The
+    Boring Company and Visa;
+  - the logo on the company's own site, with the mark cut out of the lockup: CesiumAstro's C,
+    Cirrus Logic's swoosh, Fox Robotics' fox, Neurophos's N, TIE's grid, and UT's shield for
+    the Center for Space Research;
+  - Salesforce's cloud from Wikimedia Commons.
+
+  Where each came from is in `LOGOS` in `build_logos.py`, and the files are in
+  `scripts/atlas/logos/`.
+- *The sprite.* `build_logos.py` makes each logo a 64 px tile. An icon with its own background
+  fills the tile; any other mark is trimmed and centred on white, or on black or navy for the
+  light marks (Firefly, Neurophos, CesiumAstro, EA). The 71 tiles pack into one 58 KB WebP,
+  `public/atlas/logos.webp`, and `src/data/atlas/logos.json` gives the grid. The page preloads
+  it.
+- *On the page.* `CompanyLogo` shows a tile as a rounded square ringed in its domain's colour
+  (on the map after dark, the domain's night colour). It is used on the map's labels, the tour's company rows,
+  the company card (40 px, beside the name), search, the table and the ride's nearby list. A
+  company missing from the sprite falls back to its glyph.
+- *Domain shapes.* The legend (which filters by domain), the card's domain line and the table
+  keep the glyphs, so a domain never rests on colour alone. The table's glyph no longer wraps
+  onto a line of its own.
+- *Trademarks.* The About panel says the logos are trademarks of their owners, shown only to
+  say whose site is whose.

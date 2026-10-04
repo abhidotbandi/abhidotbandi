@@ -67,6 +67,23 @@
 .glyph[data-domain="finance"] { color: var(--d-finance); }
 .glyph { flex: none; }
 
+/* A company's logo: a tile of the baked sprite (CompanyLogo), ringed in its domain's colour. */
+.logo {
+  flex: none;
+  display: inline-block;
+  width: var(--logo, 20px);
+  height: var(--logo, 20px);
+  border-radius: 24%;
+  background: #fff url(/atlas/logos.webp) no-repeat;
+  box-shadow: 0 0 0 1.5px var(--ring, var(--rule-2));
+}
+.logo[data-domain="defense-space"] { --ring: var(--d-defense-space); }
+.logo[data-domain="chips-compute"] { --ring: var(--d-chips-compute); }
+.logo[data-domain="energy-mobility"] { --ring: var(--d-energy-mobility); }
+.logo[data-domain="robotics-mfg"] { --ring: var(--d-robotics-mfg); }
+.logo[data-domain="big-tech"] { --ring: var(--d-big-tech); }
+.logo[data-domain="finance"] { --ring: var(--d-finance); }
+
 /* ---------- layers ---------- */
 
 /* The map's labels come up with the live map, as the loader wipes away. */
@@ -201,7 +218,7 @@
 
 .site-row {
   display: grid;
-  grid-template-columns: 16px 1fr auto;
+  grid-template-columns: 22px 1fr auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -224,6 +241,10 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.site-row .logo {
+  --logo: 22px;
 }
 
 .site-row-name {
@@ -916,6 +937,12 @@
 }
 
 .atlas-labels[data-night="1"] {
+  /* the domains' night colours (domains.ts), for the logos' rings */
+  --d-defense-space: #c98500;
+  --d-chips-compute: #9085e9;
+  --d-robotics-mfg: #d55181;
+  --d-big-tech: #4859dd;
+  --d-finance: #904651;
   --halo: rgba(9, 13, 26, 0.92);
   --label-ink: #ece6da;
   --label-ink-2: #b9b1a3;
@@ -1130,6 +1157,14 @@
   height: 14px;
 }
 
+.al-site .logo {
+  --logo: 20px;
+}
+
+.al-site[data-focus="0"] .logo {
+  --logo: 17px;
+}
+
 /* ---------- panels ---------- */
 
 .panel-surface,
@@ -1199,6 +1234,22 @@
   margin-left: auto;
   min-width: 32px;
   height: 32px;
+}
+
+.cp-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 6px;
+}
+
+.cp-title .logo {
+  --logo: 40px;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.cp-title .cp-name {
+  margin: 0;
 }
 
 .cp-name {
@@ -1683,7 +1734,7 @@
 
 .sp-results button {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1.1fr) minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1.1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -1696,6 +1747,7 @@
 }
 
 .sp-results button > svg {
+  justify-self: center;
   width: 16px;
   height: 16px;
   color: var(--ink-2);
@@ -1801,6 +1853,12 @@
   white-space: nowrap;
 }
 
+.company-table tbody th .logo {
+  --logo: 18px;
+  margin-right: 9px;
+  vertical-align: middle;
+}
+
 .ct-name {
   padding: 0;
   border: 0;
@@ -1828,6 +1886,7 @@ button.ct-name:hover {
 }
 
 .ct-domain .glyph {
+  display: inline-block;
   margin-right: 6px;
   vertical-align: -1px;
 }
@@ -2326,7 +2385,7 @@ button.ct-name:hover {
   }
 
   .site-row {
-    grid-template-columns: 14px auto;
+    grid-template-columns: 18px auto;
     padding: 6px 10px 6px 8px;
     border: 1px solid var(--rule);
     border-radius: 999px;
@@ -2336,6 +2395,10 @@ button.ct-name:hover {
   .site-row-builds,
   .site-row-status {
     display: none;
+  }
+
+  .site-row .logo {
+    --logo: 18px;
   }
 
   /* Up out of the way of the cards, which sit low on phones, and beside the title card. */
@@ -2422,7 +2485,7 @@ button.ct-name:hover {
   }
 
   .sp-results button {
-    grid-template-columns: 16px minmax(0, 1fr) auto;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
   }
 
   .sp-builds {
@@ -2506,4 +2569,8 @@ button.ct-name:hover {
   flex: none;
   width: 14px;
   height: 14px;
+}
+
+.rh-near .logo {
+  --logo: 18px;
 }

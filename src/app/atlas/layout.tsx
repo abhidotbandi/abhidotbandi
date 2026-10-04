@@ -1,4 +1,5 @@
 import { Newsreader, Nunito } from "next/font/google";
+import { preload } from "react-dom";
 import { firstViewFiles } from "@/lib/atlas/files";
 import "./atlas.css";
 
@@ -30,6 +31,8 @@ for(var i=0;i<f.length;i++){var l=document.createElement("link");l.rel="preload"
 }catch(e){}})();`;
 
 export default function AtlasLayout({ children }: { children: React.ReactNode }) {
+  // The company logos' sprite, so the labels have their logos when the map first shows.
+  preload("/atlas/logos.webp", { as: "image", fetchPriority: "low" });
   return (
     <div className={`${serif.variable} ${rounded.variable}`}>
       <script dangerouslySetInnerHTML={{ __html: early }} />

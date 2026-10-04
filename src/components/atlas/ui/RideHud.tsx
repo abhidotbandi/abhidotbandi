@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { SITES } from "@/data/atlas/companies";
 import type { Station } from "@/lib/atlas/assets";
 import { runtime, seekRide, useAtlas } from "@/lib/atlas/store";
-import { DomainGlyph } from "./glyphs";
+import { CompanyLogo } from "./CompanyLogo";
 import { IconNext, IconPause, IconPlay, IconPrev, IconRestart } from "./icons";
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
@@ -12,7 +12,7 @@ const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 interface Near {
   id: string;
   name: string;
-  domain: (typeof SITES)[number]["company"]["domain"];
+  company: (typeof SITES)[number]["company"];
   km: number;
   dir: string;
 }
@@ -24,7 +24,7 @@ function nearby(): Near[] {
     const dz = s.z - z;
     const km = Math.hypot(dx, dz);
     const brg = ((Math.atan2(dx, -dz) * 180) / Math.PI + 360) % 360;
-    return { id: s.id, name: s.company.name, domain: s.company.domain, km, dir: COMPASS[Math.round(brg / 45) % 8] };
+    return { id: s.id, name: s.company.name, company: s.company, km, dir: COMPASS[Math.round(brg / 45) % 8] };
   })
     .filter((n) => n.km < 6)
     .sort((a, b) => a.km - b.km)
@@ -137,7 +137,7 @@ export default function RideHud({ stations }: { stations: Station[] }) {
             {near.map((n) => (
               <li key={n.id}>
                 <button type="button" onClick={() => selectSite(n.id)}>
-                  <DomainGlyph domain={n.domain} />
+                  <CompanyLogo company={n.company} />
                   <span className="rh-near-name">{n.name}</span>
                   <span className="rh-near-dist">
                     {n.km.toFixed(1)} km {n.dir}

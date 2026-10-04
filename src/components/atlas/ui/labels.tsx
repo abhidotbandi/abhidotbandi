@@ -13,7 +13,7 @@ import { runtime, useAtlas } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { siteAnchors } from "../scene/Beacons";
 import { siteEmphasis } from "../scene/siteState";
-import { DomainGlyph } from "./glyphs";
+import { CompanyLogo } from "./CompanyLogo";
 
 type Kind = "site" | "town" | "hood" | "water" | "landmark" | "shield" | "station" | "place";
 
@@ -447,7 +447,7 @@ export function LabelLayer({ assets, ground }: { assets: AtlasAssets; ground: He
             onPointerEnter={() => hoverSite(s.id)}
             onPointerLeave={() => hoverSite(null)}
           >
-            <DomainGlyph domain={d.id} />
+            <CompanyLogo company={s.company} />
             <span className="al-site-text">
               <span className="al-site-name">
                 {s.company.name}

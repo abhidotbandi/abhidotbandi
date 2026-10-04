@@ -4,3 +4,4 @@ pyarrow>=17
 shapely>=2.0
 pillow>=10.4
 networkx>=3.3
+cairosvg>=2.7

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { COMPANIES, statusLine, type Company } from "@/data/atlas/companies";
 import { DOMAINS, DOMAIN_ORDER } from "@/data/atlas/domains";
 import { useAtlas } from "@/lib/atlas/store";
+import { CompanyLogo } from "./CompanyLogo";
 import { DomainGlyph } from "./glyphs";
 import { IconClose } from "./icons";
 
@@ -55,6 +56,7 @@ export function CompanyTable({ onPick }: { onPick?: (siteId: string) => void }) 
         {rows.map((c) => (
           <tr key={c.id}>
             <th scope="row">
+              <CompanyLogo company={c} />
               {onPick ? (
                 <button type="button" className="ct-name" onClick={() => onPick(c.sites[0].id)}>
                   {c.name}

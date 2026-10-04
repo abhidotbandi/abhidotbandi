@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { SITE_BY_ID, formatUsd, type Company } from "@/data/atlas/companies";
 import { DOMAINS } from "@/data/atlas/domains";
 import { useAtlas } from "@/lib/atlas/store";
+import { CompanyLogo } from "./CompanyLogo";
 import { DomainGlyph } from "./glyphs";
 import { IconArrow, IconClose } from "./icons";
 
@@ -74,7 +75,10 @@ export default function CompanyPanel({ onShowOnMap }: { onShowOnMap: (siteId: st
           <IconClose />
         </button>
       </div>
-      <h2 className="cp-name">{c.name}</h2>
+      <div className="cp-title">
+        <CompanyLogo company={c} />
+        <h2 className="cp-name">{c.name}</h2>
+      </div>
       <p className="cp-builds">{c.builds}</p>
       <p className="cp-blurb">{c.blurb}</p>
       <Stats c={c} />

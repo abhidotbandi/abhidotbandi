@@ -5,7 +5,7 @@ import { SITES, type SiteRef } from "@/data/atlas/companies";
 import { DOMAINS } from "@/data/atlas/domains";
 import { PLACES, type PlaceRef } from "@/data/atlas/places";
 import { useAtlas } from "@/lib/atlas/store";
-import { DomainGlyph } from "./glyphs";
+import { CompanyLogo } from "./CompanyLogo";
 import { IconPin, IconSearch } from "./icons";
 
 const index = SITES.map((s) => ({
@@ -111,7 +111,7 @@ function Palette({ onPick, onPickPlace }: Props) {
               <button type="button" onClick={() => pick(r)} onMouseEnter={() => setSel(i)}>
                 {r.kind === "site" ? (
                   <>
-                    <DomainGlyph domain={r.site.company.domain} />
+                    <CompanyLogo company={r.site.company} />
                     <span className="sp-name">
                       {r.site.company.name}
                       {!r.site.primary && <span className="sp-sub"> · {r.site.label}</span>}

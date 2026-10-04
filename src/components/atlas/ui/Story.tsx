@@ -4,7 +4,7 @@ import { forwardRef } from "react";
 import { SITE_BY_ID, statusLine } from "@/data/atlas/companies";
 import { STOPS, type Stop } from "@/data/atlas/tour";
 import { useAtlas } from "@/lib/atlas/store";
-import { DomainGlyph } from "./glyphs";
+import { CompanyLogo } from "./CompanyLogo";
 
 function SiteRow({ id }: { id: string }) {
   const s = SITE_BY_ID.get(id);
@@ -23,7 +23,7 @@ function SiteRow({ id }: { id: string }) {
         onFocus={() => hoverSite(s.id)}
         onBlur={() => hoverSite(null)}
       >
-        <DomainGlyph domain={c.domain} />
+        <CompanyLogo company={c} />
         <span className="site-row-main">
           <span className="site-row-name">
             {c.name}

@@ -34,8 +34,9 @@ export default function About() {
           and October 2026.
         </p>
         <p>
-          Colour marks a company&apos;s domain, and every marker also carries a shape and a label, so nothing depends on
-          colour alone. The <button type="button" className="link" onClick={() => {
+          Each label carries the company&apos;s logo, ringed in its domain&apos;s colour; the legend, the company cards and
+          the table give every domain a shape as well, so nothing depends on colour alone. The logos are trademarks of
+          their owners, shown only to say whose site is whose. The <button type="button" className="link" onClick={() => {
             setOpen(false);
             useAtlas.getState().setListOpen(true);
           }}>table view</button> lists everything on the map.
@@ -45,6 +46,13 @@ export default function About() {
           <li>
             Buildings, roads, rail, water, parks and places: © <a href="https://overturemaps.org" target="_blank" rel="noreferrer">Overture Maps Foundation</a>{" "}
             (CDLA Permissive 2.0), including © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL).
+          </li>
+          <li>
+            Heights of the towers Overture is missing or has too short: CTBUH, via Wikipedia&apos;s{" "}
+            <a href="https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_Austin" target="_blank" rel="noreferrer">
+              list of the tallest buildings in Austin
+            </a>
+            , and storey counts.
           </li>
           <li>
             Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noreferrer">Terrain Tiles on AWS</a> (Mapzen), from USGS 3DEP and SRTM.

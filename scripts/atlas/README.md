@@ -15,6 +15,7 @@ Bakes the static map assets in `public/atlas/` for the `/atlas` page from open d
 | `central_trees.bin`: 60k tree instances, plus the Capitol grounds' own planting | `build_central.py` | canopy raster, Overture `base/land_use` (Capitol Square) |
 | `*_lo.webp`: the four rasters above at half resolution, for phones and other low-power devices | `build_lowres.py` | the full rasters |
 | `outer.webp` (+ `outer_lo.webp` for phones): the country for ~80 km around the map, elevation (R/G, 1 m steps) and a water distance field (B) at ~264 m a pixel; `meta.json` `outer` gives its bounds and the towns around the map for their lights after dark | `build_outer.py` | Terrain Tiles z9, Overture `base/water` and `divisions` (localities) |
+| `logos.webp` + `src/data/atlas/logos.json`: every company's logo as a 64 px tile, in one sprite | `build_logos.py` | `logos/`: each company's favicon or app icon, or its vector mark (Simple Icons, or the company's site), as listed in `LOGOS` |
 | `tiles/*.bin` + `tiles/index.json`: 2 km detail tiles loaded around the camera: every other building, local streets, paths, runways and taxiways, parking lots, pools and small ponds (layout in `build_tiles.py`) | `build_tiles.py` | Overture `buildings`, `transportation/segment` (all classes), `base/infrastructure`, `base/water` |
 
 ```bash
@@ -28,8 +29,11 @@ python scripts/atlas/preview_central.py    # QA renders of the central Austin de
   lives in `config.py` and must match `src/lib/atlas/geo.ts`.
 - Overture is read straight from `s3://overturemaps-us-west-2` with a bbox filter, so only
   Greater Austin row groups are downloaded. Set `OVERTURE_RELEASE` to pin a different release.
-- Rerun `build_buildings.py` and then `build_tiles.py` after editing company sites: the first tags each
-  site's footprints (and draws `TOWERS` at their real heights), and the tiles leave out whatever it carries.
+- Rerun `build_buildings.py` and then `build_tiles.py` after editing company sites or `skyline.py`: the
+  first tags each site's footprints (and draws the towers in `skyline.py` at their real heights), and the
+  tiles leave out whatever it carries.
+- Rerun `build_logos.py` after adding a company: put its logo in `logos/<id>.png` or `.svg` and add it to
+  `LOGOS` (the script stops if a company has none).
 - The central patch bounds (`C_*` in `config.py`) must match `CENTRAL` in `src/lib/atlas/geo.ts`.
 
 ## Measuring the load

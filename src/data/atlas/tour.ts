@@ -191,7 +191,7 @@ export const STOPS: Stop[] = [
     title: "Apple's second home",
     body: "Austin has Apple's largest workforce outside Cupertino. Its seven-building Americas Operations Center sits on Parmer Lane, and to the north a $1 billion campus with room for 15,000 people is filling in around a nature preserve. Next door, EA's Austin studio is home to BioWare Austin and EA's worldwide player support.",
     sites: ["apple-parmer", "apple-aoc", "ea-austin"],
-    view: { lon: -97.748, lat: 30.444, dist: 4.4, tilt: 56, bearing: -15, fixed: true },
+    view: { lon: -97.75, lat: 30.4455, dist: 6.5, tilt: 46, bearing: -12, fixed: true },
     tod: 0.6,
   },
   {

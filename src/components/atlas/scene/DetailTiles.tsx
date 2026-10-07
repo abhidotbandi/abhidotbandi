@@ -9,7 +9,7 @@ import type { InitMessage, TileMessage } from "@/lib/atlas/detail/worker";
 import { SITES } from "@/data/atlas/companies";
 import { WIDTH_KM, groundY, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
-import type { TileIndex } from "@/lib/atlas/tiles";
+import { PHASE_STEP_KIND, PHASE_STEP_M, type TileIndex } from "@/lib/atlas/tiles";
 import { sky } from "@/lib/atlas/timeOfDay";
 import { makeBuildingMaterial } from "./Buildings";
 import { aoCaster } from "./Occlusion";
@@ -218,27 +218,43 @@ const areaFragment = /* glsl */ `
     if (h < 0.95) return vec3(0.6, 0.1, 0.09);
     return vec3(0.75, 0.6, 0.35);
   }
-  // One stall's worth of a car park: its car's colour over half of it where one is parked (four
-  // stalls in five), asphalt in the aisles. q: metres along the rows and across them.
+  // How full a car park is around q (metres along its rows and across them): fuller in some
+  // blocks of it than others, from half to nearly all of its stalls.
+  float occupancy(vec2 q) { return 0.5 + 0.42 * hash2(floor(q / vec2(41.6, 54.0)) + 7.3); }
+  // One stall's worth of a car park: its car's colour over half of it where one is parked,
+  // asphalt in the aisles. q: metres along the rows and across them.
   vec3 stallAt(vec2 q, vec3 asphalt) {
     float my = mod(q.y, 18.0);
     if (my >= 5.5 && my <= 12.5) return asphalt;
     float h = hash2(vec2(floor(q.x / 2.6), floor(q.y / 18.0) * 2.0 + step(12.5, my)));
-    return h < 0.8 ? mix(asphalt, lin(carPaint(fract(h * 13.7))), 0.54) : asphalt;
+    return h < occupancy(q) ? mix(asphalt, lin(carPaint(fract(h * 13.7))), 0.54) : asphalt;
+  }
+  // A row of cars as it reads from further out: each run of eight stalls the colour its cars
+  // average to (how many are parked there, in the usual mix of colours), the aisles bare.
+  vec3 rowAt(vec2 q, vec3 asphalt) {
+    float my = mod(q.y, 18.0);
+    if (my >= 5.5 && my <= 12.5) return asphalt;
+    float run = hash2(vec2(floor(q.x / 20.8), floor(q.y / 18.0) * 2.0 + step(12.5, my)) + 3.1);
+    float full = clamp(occupancy(q) + (run - 0.5) * 0.3, 0.0, 1.0);
+    // (Darker than the cars' paint averages to: from above, their glass and shadows tell.)
+    return mix(asphalt, lin(vec3(0.5, 0.5, 0.52)) * (0.92 + 0.16 * fract(run * 7.7)), 0.6 * full);
   }
   // A car park: rows of 2.6 by 5.5 m stalls along its heading, either side of 7 m aisles, most of
   // them taken. Up close the cars and the stalls' lines; further out each stall the colour it
-  // averages to, so the rows of cars still show; from afar the grey it all averages to.
-  vec3 parking(vec2 xz, float heading) {
+  // averages to; further still the rows of cars and the aisles between them, rather than the
+  // speckle single stalls make a pixel or two wide; from afar the grey it all averages to.
+  vec3 parking(vec2 xz, float heading, float phase) {
     // (Lighter than the streets: from the air, car parks read paler than the grass around them.)
     vec3 asphalt = lin(vec3(0.62, 0.62, 0.63));
-    vec3 average = mix(asphalt, vec3(0.333), 0.26);
+    vec3 average = mix(asphalt, lin(vec3(0.5, 0.5, 0.52)), 0.6 * 0.71 * (11.0 / 18.0));
     vec2 d = vec2(cos(heading), -sin(heading));
-    vec2 q = vec2(dot(xz, d), dot(xz, vec2(-d.y, d.x))) * 1000.0;
+    vec2 q = vec2(dot(xz, d), dot(xz, vec2(-d.y, d.x))) * 1000.0 - vec2(0.0, phase);
     float fp = max(fwidth(q.x), fwidth(q.y)); // metres a pixel
-    if (fp > 3.0) return average;
+    if (fp > 4.5) return average;
     vec2 o = vec2(0.25, -0.25) * fp;
-    vec3 col = 0.25 * (stallAt(q + o.xx, asphalt) + stallAt(q + o.xy, asphalt) + stallAt(q + o.yx, asphalt) + stallAt(q + o.yy, asphalt));
+    vec3 rows = 0.25 * (rowAt(q + o.xx, asphalt) + rowAt(q + o.xy, asphalt) + rowAt(q + o.yx, asphalt) + rowAt(q + o.yy, asphalt));
+    vec3 col = rows;
+    if (fp < 1.1) col = mix(0.25 * (stallAt(q + o.xx, asphalt) + stallAt(q + o.xy, asphalt) + stallAt(q + o.yx, asphalt) + stallAt(q + o.yy, asphalt)), rows, smoothstep(0.6, 1.1, fp));
     if (fp < 1.4) {
       float my = mod(q.y, 18.0);
       vec3 near = asphalt;
@@ -247,7 +263,7 @@ const areaFragment = /* glsl */ `
         float sy = my - side * 12.5; // into the stall
         float sx = mod(q.x, 2.6);
         float h = hash2(vec2(floor(q.x / 2.6), floor(q.y / 18.0) * 2.0 + side));
-        if (h < 0.8) {
+        if (h < occupancy(q)) {
           vec2 c = abs(vec2(sx - 1.3, sy - 2.75)) - vec2(0.88, 2.2);
           float car = 1.0 - smoothstep(-0.05, 0.05 + fp, max(c.x, c.y));
           // The glass across the middle a little darker.
@@ -258,14 +274,24 @@ const areaFragment = /* glsl */ `
       }
       col = mix(near, col, smoothstep(0.5, 1.4, fp));
     }
-    return mix(col, average, smoothstep(1.8, 3.0, fp));
+    return mix(col, average, smoothstep(3.0, 4.5, fp));
+  }
+  float vnoise2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + 1.0), f.x), f.y);
   }
 
   void main() {
     float k = vKind;
     vec3 col;
     bool apron = abs(k - 2.0) < 0.5 || abs(k - 4.0) < 0.5;
-    if (k > 99.5) col = parking(vWorld.xz, radians(k - 100.0));
+    if (k > 99.5) {
+      // (The kind carries the rows' heading, and in steps of 200 how far across they're shifted.)
+      float steps = floor((k - 100.0) / ${PHASE_STEP_KIND.toFixed(1)} + 1e-4);
+      col = parking(vWorld.xz, radians(k - 100.0 - steps * ${PHASE_STEP_KIND.toFixed(1)}), steps * ${PHASE_STEP_M.toFixed(2)});
+    }
     else if (k < 2.5) {
       // Apron: light concrete in 7.5 m slabs, their joints showing up close.
       col = lin(vec3(0.83, 0.82, 0.78));
@@ -276,6 +302,15 @@ const areaFragment = /* glsl */ `
     }
     else if (k < 3.5) col = lin(vec3(0.66, 0.66, 0.66)); // helipad
     else if (k < 4.5) col = lin(vec3(0.42, 0.43, 0.45)); // asphalt apron
+    else if (k < 5.5) {
+      // A building site: graded earth and gravel, rutted by the trucks, fading to its average
+      // before the ruts could shimmer.
+      vec2 w = vWorld.xz * 1000.0;
+      float fw = max(fwidth(w.x), fwidth(w.y));
+      float m = vnoise2(w / 14.0) * 0.6 + vnoise2(w / 4.0) * 0.4;
+      m = mix(0.5, m, 1.0 - smoothstep(1.5, 5.0, fw));
+      col = mix(lin(vec3(0.69, 0.6, 0.48)), lin(vec3(0.8, 0.76, 0.68)), m);
+    }
     else if (k < 10.5) col = lin(vec3(0.3, 0.78, 0.9)); // swimming pool
     else col = lin(vec3(0.3, 0.47, 0.58)); // ponds and basins: the map's water, not a pool's
     vec3 lit = groundLit(col, vWorld);

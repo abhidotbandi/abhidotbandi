@@ -1168,3 +1168,45 @@ Levels.fyi atlases do.
   onto a line of its own.
 - *Trademarks.* The About panel says the logos are trademarks of their owners, shown only to
   say whose site is whose.
+
+### 2.24 Austin-Bergstrom's landside, as it is (2026-10-07)
+
+Asked: fix this part of the airport, with a screenshot of the landside: the loop north of the
+terminal, its garages and car parks. Compared with USGS orthoimagery (public domain), it was
+wrong in six ways.
+
+- **A haze over the lawns.** The terrain pales built-up ground, for the ground between a
+  neighbourhood's buildings. On the airport it lay over the turf around every building, in
+  patches like fog. It is off inside the airfield now; the airport's paving is drawn as it is.
+- **Paving missing.** The old air base's concrete west of the loop isn't in the map data, so it
+  was grass crossed by service roads, and so was the Yellow Garage's site. `airport_areas.py`
+  adds 17 paved areas and 6 small car parks, and the site as bare ground (a new area kind). The
+  paving is traced from the imagery: the light, unsaturated ground Overture has nothing for, in
+  blobs of 600 m^2 and up, each checked by eye and joined across the roads that cross it.
+- **Garages drawn as office blocks.** The Red and Blue Garages and the rental car facility had
+  windows, and the Blue Garage stood 4.7 m tall (Overture's height) instead of its six levels.
+  They are open parking decks now (`STYLE_GARAGE`):
+  - a concrete edge and barrier every 3.2 m, over an open storey in the shade of the deck above;
+  - a column every 9 m, and cars along the barriers up close;
+  - grey bands from further out, and their decks lit white after dark.
+
+  The Blue Garage is 18 m tall: `skyline.py`'s corrections now apply to the detail tiles too.
+- **The Yellow Garage**, going up on the old Economy Lot B since February 2025 (seven levels,
+  about 7,000 spaces, its first phase due late in 2026), is modelled mid-build. One end is at
+  full height, with barriers, yellow-topped stair cores and light poles on its top deck. The
+  rest is four levels up, its columns rising. Two yellow tower cranes work over it. Which half
+  opens first isn't public.
+- **Houses and brick tanks.** The airport's small buildings took houses' pitched roofs, and the
+  fuel farm's tanks and the water tank by the fire station were brick with windows. Its
+  buildings are flat-roofed in pale cladding with ribbon windows now (`STYLE_AIRPORT`), and its
+  round tanks are white (`STYLE_TANK`). The terminal is drawn as before.
+- **Car parks, everywhere.** From middling distances each stall was a pixel or two wide, so a
+  car park read as coloured speckle.
+  - Rows now take over there: each run of eight stalls is the colour its cars average to (a
+    little darker than their paint, for their glass and shadows), with the aisles bare between.
+  - Up close the single cars stay, and how full a car park is varies block by block, from half
+    to nearly all of its stalls.
+  - The rows run along the parking aisles mapped in the lot, shifted so an aisle falls on each.
+    Before, they followed the lot's longest side, and crossed the mapped aisles wherever those
+    ran the other way. The heading and the shift ride in the area's kind.
+

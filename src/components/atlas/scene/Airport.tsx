@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { CLOSED_RUNWAY, GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER } from "@/lib/atlas/airport";
+import { CLOSED_RUNWAY, GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER, YELLOW_GARAGE } from "@/lib/atlas/airport";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
@@ -680,6 +680,110 @@ function towerMeshes(ground: HeightField): { solid: THREE.Mesh; cab: THREE.Mesh;
   return { solid, cab, beacon: new THREE.Vector3(tx, gy + (top + 5.4) * M * V, tz) };
 }
 
+// --- the Yellow Garage, going up -----------------------------------------------------------------
+
+/**
+ * The Yellow Garage mid-build (YELLOW_GARAGE), in metres, raised like the map's buildings: bare
+ * concrete decks a storey apart over a dark core, columns round the outside every 9 m. The built
+ * part stands at full height, its decks edged with barriers, its stair cores topped in the
+ * garage's yellow and light poles on its top deck; the rest is a few levels up, its columns
+ * rising from its top deck. Two tower cranes work over it.
+ */
+function yellowGarageMesh(ground: HeightField): THREE.Mesh {
+  const G = YELLOW_GARAGE;
+  const ex = G.se[0] - G.sw[0];
+  const ez = G.se[1] - G.sw[1];
+  const nx = G.nw[0] - G.sw[0];
+  const nz = G.nw[1] - G.sw[1];
+  const len = Math.hypot(ex, ez) / M - 2 * G.inset[0];
+  const wid = Math.hypot(nx, nz) / M - 2 * G.inset[1];
+  const turn = Math.atan2(ez, ex);
+  const cx = G.sw[0] + (ex + nx) / 2;
+  const cz = G.sw[1] + (ez + nz) / 2;
+  const CONCRETE = "#cfcabf";
+  const EDGE = "#e4e0d6";
+  const CORE = "#3a3d42";
+  const YELLOW = "#efbd1d";
+  const parts: [THREE.BufferGeometry, string][] = [];
+  const top = (G.levels - 1) * G.storey;
+  // The built part from the west end, the rest east of it (local x runs east, z south).
+  const x0 = -len / 2;
+  const xb = x0 + len * G.built;
+  const x1 = len / 2;
+  const part = (a: number, b: number, levels: number, finished: boolean) => {
+    const l = b - a;
+    const mid = (a + b) / 2;
+    const deckTop = (levels - 1) * G.storey;
+    // (The core stops under the top deck, so the two never fight for the same plane.)
+    parts.push([box(l - 4, deckTop - 0.6, wid - 4, mid, (deckTop - 0.6) / 2, 0), CORE]);
+    for (let k = 1; k < levels; k++) {
+      const y = k * G.storey;
+      parts.push([box(l, 0.4, wid, mid, y - 0.2, 0), CONCRETE]);
+      if (!finished) continue;
+      // The deck's edge and barrier, along both sides and across the west end.
+      parts.push([box(l, 1.1, 0.3, mid, y + 0.55, -wid / 2 + 0.15), EDGE]);
+      parts.push([box(l, 1.1, 0.3, mid, y + 0.55, wid / 2 - 0.15), EDGE]);
+      if (a === x0) parts.push([box(0.3, 1.1, wid, a + 0.15, y + 0.55, 0), EDGE]);
+    }
+    // Columns round the outside, rising past an unfinished top deck.
+    const colH = finished ? deckTop : deckTop + 3.2;
+    for (let x = a + 0.4; x <= b - 0.3; x += 9) {
+      for (const z of [-wid / 2 + 0.3, wid / 2 - 0.3]) parts.push([box(0.6, colH, 0.6, x, colH / 2, z), CONCRETE]);
+    }
+    if (a === x0) for (let z = -wid / 2 + 9; z < wid / 2 - 4; z += 9) parts.push([box(0.6, colH, 0.6, a + 0.3, colH / 2, z), CONCRETE]);
+  };
+  part(x0, xb, G.levels, true);
+  part(xb, x1, G.rising, false);
+  // Stair and lift cores at the built part's corners, their tops in yellow; light poles on its top deck.
+  for (const [x, z] of [
+    [x0 + 6, -wid / 2 + 7],
+    [xb - 8, wid / 2 - 7],
+  ]) {
+    parts.push([box(7, top + 2, 9, x, (top + 2) / 2, z), "#bdb8ad"]);
+    parts.push([box(7.2, 2.2, 9.2, x, top + 3.1, z), YELLOW]);
+  }
+  for (let x = x0 + 20; x < xb - 10; x += 26) {
+    for (const z of [-wid / 4, wid / 4]) parts.push([box(0.3, 9, 0.3, x, top + 4.5, z), "#8d9196"]);
+  }
+  // Tower cranes: a lattice mast (drawn solid), the jib out over the work and the counter-jib
+  // with its ballast, the cab under the slewing ring.
+  const crane = (x: number, z: number, h: number, jib: number, slew: number) => {
+    const g: [THREE.BufferGeometry, string][] = [
+      [box(1.8, h, 1.8, 0, h / 2, 0), YELLOW],
+      [box(jib, 1.4, 1.4, jib / 2 - 1, h + 0.7, 0), YELLOW],
+      [box(16, 1.2, 1.6, -8, h + 0.6, 0), YELLOW],
+      [box(4, 2.6, 2.6, -14, h + 0.3, 0), "#9a9a96"],
+      [box(1.4, 6, 1.4, 0, h + 4.4, 0), YELLOW],
+      [box(2.2, 2.4, 2.4, 1.6, h - 1.4, 0), "#f4f2ec"],
+      [box(0.15, h * 0.45, 0.15, jib * 0.62, h - h * 0.225, 0), "#3a3a3a"],
+    ];
+    for (const [geo] of g) {
+      geo.rotateY(-slew);
+      geo.translate(x, 0, z);
+    }
+    parts.push(...g);
+  };
+  crane(xb + 4, -wid / 2 - 7, 46, 56, 0.25);
+  crane(x1 - 30, wid / 2 + 8, 42, 50, Math.PI - 0.6);
+  const geo = painted(parts);
+  geo.scale(M, M * V, M);
+  geo.rotateY(-turn);
+  let floor = Infinity;
+  for (const [u, w] of [
+    [-len / 2, -wid / 2],
+    [len / 2, -wid / 2],
+    [len / 2, wid / 2],
+    [-len / 2, wid / 2],
+  ]) {
+    floor = Math.min(floor, groundY(ground, cx + (Math.cos(turn) * u - Math.sin(turn) * w) * M, cz + (Math.sin(turn) * u + Math.cos(turn) * w) * M));
+  }
+  geo.translate(cx, floor - 0.0005, cz);
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
+}
+
 // --- the gates -----------------------------------------------------------------------------------
 
 /** A stand: where the nose stops (8 m off the concourse) and the way it points. */
@@ -892,7 +996,16 @@ export default function Airport({ ground, normal }: { ground: HeightField; norma
     const { root: sim, parked } = makeSim(ground);
     const tower = towerMeshes(ground);
     const group = new THREE.Group();
-    group.add(runwayMesh(ground, shared), leadInMesh(ground, shared), tower.solid, tower.cab, bridgeMesh(ground, parked), solarMesh(ground), sim);
+    group.add(
+      runwayMesh(ground, shared),
+      leadInMesh(ground, shared),
+      tower.solid,
+      tower.cab,
+      bridgeMesh(ground, parked),
+      solarMesh(ground),
+      yellowGarageMesh(ground),
+      sim,
+    );
     group.userData.built = { sim, shared, cab: tower.cab, beacon: tower.beacon } satisfies Built;
     return group;
   }, [ground, normal]);

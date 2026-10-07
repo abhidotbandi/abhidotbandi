@@ -11,7 +11,8 @@ carries a class code for the two that aren't buildings:
   streets    open polylines: local streets, paths and tracks, the arterials again (so they can
              be drawn at their real width up close), and runways and taxiways; inside central
              Austin, only the roads cars drive on, as lanes (class code + 100), not drawn
-  areas      polygons: parking lots, aprons, helipads, swimming pools and small ponds
+  areas      polygons: parking lots, aprons, helipads, construction sites, swimming pools and
+             small ponds (with the ground airport_areas.py adds at Austin-Bergstrom)
 Tile layout: magic b"ATIL", version (1), 3 reserved bytes, then the three blobs' byte lengths
 (u32 little-endian each) and the blobs in that order. The central detail patch has its own
 street-scale surface, so streets (other than lanes) and areas stop at its edge. Tile (ix, iz) spans
@@ -30,7 +31,8 @@ import shapely
 from shapely.geometry import MultiLineString
 from shapely.ops import linemerge
 
-from build_buildings import height_m, load, record, selection
+from airport_areas import CONSTRUCTION, PARKING, PAVED
+from build_buildings import height_m, load, record, selection, towers
 from building_codec import encode
 from config import CACHE, CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, OUT, WIDTH_KM, X_MIN, Z_MIN, project
 
@@ -52,7 +54,7 @@ STREET_CODES = {
 # Streets cars drive on; inside central Austin they're stored as lanes only (code + LANES_ONLY).
 CAR_CODES = {1, 2, 3, 20, 21, 22, 23, 24}
 LANES_ONLY = 100
-AREA_PARKING, AREA_APRON, AREA_HELIPAD, AREA_POOL, AREA_POND = 1, 2, 3, 10, 11
+AREA_PARKING, AREA_APRON, AREA_HELIPAD, AREA_SITE, AREA_POOL, AREA_POND = 1, 2, 3, 5, 10, 11
 POND_MAX_M2 = 20000  # larger ponds and lakes are already in the regional water
 
 
@@ -178,6 +180,10 @@ def areas():
         if code:
             geoms.append(r["geometry"])
             codes.append(code)
+    for polys, code in ((PAVED, AREA_APRON), (PARKING, AREA_PARKING), (CONSTRUCTION, AREA_SITE)):
+        for ring, holes in polys:
+            geoms.append(shapely.to_wkb(shapely.Polygon(ring, holes)))
+            codes.append(code)
     g = to_m(shapely.from_wkb(np.array(geoms, dtype=object)))
     codes = np.array(codes)
     poly = np.array([gg.geom_type in ("Polygon", "MultiPolygon") for gg in g])
@@ -194,9 +200,13 @@ def buildings():
     in_patch = (x >= CX_MIN) & (x <= CX_MAX) & (z >= CZ_MIN) & (z <= CZ_MAX)
     take = ~select & ~in_patch & ~under & (area >= MIN_AREA_M2)
     ix, iz = tile_of(x, z)
+    # skyline.py's buildings drawn at their real heights here too (whole footprints: its towers
+    # on podiums are all in buildings.bin).
+    tall = towers(geoms)
     out = {}
     for i in np.where(take)[0]:
-        recs = record(geoms[i], height_m(heights, floors, area, i), -1)
+        h = tall[i][0] if i in tall else height_m(heights, floors, area, i)
+        recs = record(geoms[i], h, -1)
         if recs:
             out.setdefault((int(ix[i]), int(iz[i])), []).extend(recs)
     print(f"  {sum(len(v) for v in out.values()):,} footprints for the tiles")

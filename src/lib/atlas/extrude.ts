@@ -36,6 +36,11 @@ export const STYLE_CAMPUS_FLAT = 2;
 export const STYLE_WEST_CAMPUS = 3;
 export const STYLE_CAPITOL = 4;
 export const STYLE_STATE = 5;
+/** Austin-Bergstrom's buildings (airport.ts): its garages as open parking decks, its round tanks
+ * in white, and its sheds, hangars and offices flat-roofed in pale cladding. */
+export const STYLE_GARAGE = 6;
+export const STYLE_TANK = 7;
+export const STYLE_AIRPORT = 8;
 
 /** Mean vertex of a building's outer ring, km. */
 function outerCentre(d: BuildingsData, b: number): [number, number] {
@@ -231,7 +236,7 @@ export function extrudeBuildings(
     const house = site < 0 && !flags && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450;
     // Flat roofs sit behind a parapet: the walls rise a little above them (the material draws
     // both faces, so the parapet's inside shows from above).
-    const parapet = !house && flags !== STYLE_CAMPUS_TILE && hM >= 6 ? ((hM >= 45 ? 1.5 : 1.0) / 1000) * BUILDING_EXAG : 0;
+    const parapet = !house && flags !== STYLE_CAMPUS_TILE && flags !== STYLE_TANK && hM >= 6 ? ((hM >= 45 ? 1.5 : 1.0) / 1000) * BUILDING_EXAG : 0;
     const bottom = v;
     for (let j = 0; j < nPts; j++) vert(flat[j * 2], yBase, flat[j * 2 + 1], kind, yBase, hM, r, ringU[j]);
     const top = v;
@@ -385,9 +390,10 @@ export function extrudeBuildings(
       continue;
     }
 
-    // Rooftop plant on larger buildings; a penthouse on towers. The campus's flat roofs and the
-    // state's offices around the Capitol are kept clean, behind their parapets.
-    if (hM > 10 && areaM2 >= 250 && flags !== STYLE_CAMPUS_FLAT && flags !== STYLE_STATE) {
+    // Rooftop plant on larger buildings; a penthouse on towers. The campus's flat roofs, the
+    // state's offices around the Capitol, parking decks and tanks are kept clean.
+    const clean = flags === STYLE_CAMPUS_FLAT || flags === STYLE_STATE || flags === STYLE_GARAGE || flags === STYLE_TANK;
+    if (hM > 10 && areaM2 >= 250 && !clean) {
       if (hM >= 45) {
         let sx = 0;
         let sz = 0;

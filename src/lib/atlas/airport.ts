@@ -1,4 +1,6 @@
+import { STYLE_AIRPORT, STYLE_GARAGE, STYLE_TANK } from "./extrude";
 import { project } from "./geo";
+import { pointInPoly } from "./polygon";
 
 // Austin-Bergstrom International, from Overture (base/infrastructure and buildings) and USGS
 // imagery (public domain): what the airport's scene (scene/Airport.tsx) draws itself, so the
@@ -195,7 +197,7 @@ export const SOLAR: SolarArray[] = [
     ],
     { pitch: 13, gap: 1.2, height: 4.5, canopy: true },
   ),
-  solar(-97.67, 30.20524, 0, [[4, -111, 278, -4]], { pitch: 7, gap: 2.4, height: 4.7, canopy: false }),
+  solar(-97.67, 30.20524, 0, [[4, -111, 278, -4]], { pitch: 7, gap: 2.4, height: 18, canopy: false }),
   solar(-97.66861, 30.20405, -90, [[4, 4, 113, 313]], { pitch: 7, gap: 2.4, height: 13.9, canopy: false }),
 ];
 
@@ -233,3 +235,108 @@ export const GATES: [number, number, number][] = [
   [-97.671368, 30.201901, 359],
   [-97.671545, 30.202307, 89],
 ];
+
+/**
+ * The terminal's garages, Overture's outlines (to about 6 m): the Red Garage across the road from
+ * the terminal, the Blue Garage north of it (six levels), and the consolidated rental car
+ * facility beside that. The tiles draw them, and whatever stands within 12 m of them (the rental
+ * car facility's helix ramps), as open parking decks.
+ */
+const GARAGES: Float32Array[] = (
+  [
+    [
+      [-97.668609, 30.204007],
+      [-97.668589, 30.202986],
+      [-97.665518, 30.203031],
+      [-97.66552, 30.203131],
+      [-97.665324, 30.203134],
+      [-97.665341, 30.204054],
+    ],
+    [
+      [-97.667191, 30.205243],
+      [-97.669997, 30.205191],
+      [-97.669972, 30.204204],
+      [-97.667152, 30.204256],
+      [-97.667074, 30.204387],
+      [-97.667174, 30.204434],
+    ],
+    [
+      [-97.666964, 30.205417],
+      [-97.666882, 30.204273],
+      [-97.665014, 30.204289],
+      [-97.664515, 30.204479],
+      [-97.664033, 30.20449],
+      [-97.664051, 30.204817],
+      [-97.663929, 30.204822],
+      [-97.663937, 30.205075],
+      [-97.664054, 30.205073],
+      [-97.664063, 30.205403],
+      [-97.664943, 30.205311],
+      [-97.664884, 30.205463],
+      [-97.665019, 30.205545],
+      [-97.665136, 30.205484],
+      [-97.665128, 30.205358],
+      [-97.666725, 30.205322],
+      [-97.666722, 30.20547],
+      [-97.666845, 30.205515],
+    ],
+  ] as [number, number][][]
+).map((r) => Float32Array.from(r.flatMap(([lon, lat]) => project(lon, lat))));
+
+/** Distance from (x, z) to a ring's nearest edge, km. */
+function edgeDist(r: Float32Array, x: number, z: number): number {
+  let d = Infinity;
+  const n = r.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = r[j * 2];
+    const az = r[j * 2 + 1];
+    const ex = r[i * 2] - ax;
+    const ez = r[i * 2 + 1] - az;
+    const t = Math.min(1, Math.max(0, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez)));
+    d = Math.min(d, Math.hypot(ax + ex * t - x, az + ez * t - z));
+  }
+  return d;
+}
+
+/**
+ * How the tiles draw a building on the airport (by its outer ring, flat x, z km): the garages as
+ * open parking decks, round tanks (the fuel farm's, the water tank by the fire station) in white,
+ * and the rest of its sheds, hangars and offices flat-roofed in pale cladding, never as houses.
+ * The terminal, and everything off the airport, as anywhere else.
+ */
+export function airportStyle(ring: number[], hM: number, areaM2: number): number {
+  const n = ring.length / 2;
+  let cx = 0;
+  let cz = 0;
+  let perim = 0;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    cx += ring[i * 2] / n;
+    cz += ring[i * 2 + 1] / n;
+    perim += Math.hypot(ring[i * 2] - ring[j * 2], ring[i * 2 + 1] - ring[j * 2 + 1]) * 1000;
+  }
+  if (insideField(cx, cz) === 0) return 0;
+  if (GARAGES.some((g) => pointInPoly(g, cx, cz) || edgeDist(g, cx, cz) < 0.012)) return STYLE_GARAGE;
+  if (areaM2 < 3000 && (4 * Math.PI * areaM2) / (perim * perim) > 0.93) return STYLE_TANK;
+  return areaM2 > 25000 ? 0 : STYLE_AIRPORT;
+}
+
+/**
+ * The Yellow Garage, going up on the old Economy Lot B north of the Blue Garage since February
+ * 2025: seven levels and about 7,000 spaces, the first phase (nearly half of it) due to open late
+ * in 2026 and the rest in 2027. Its site is Overture's construction polygon, a 295 by 135 m
+ * rectangle with these corners; the structure stands `inset` m in from its ends and sides. It is
+ * drawn mid-build (which half opens first isn't public): the west part, `built` of its length,
+ * at its full height, the rest `rising` levels up with its columns going higher, and two tower
+ * cranes.
+ */
+export const YELLOW_GARAGE = {
+  sw: project(-97.670273, 30.205441),
+  se: project(-97.667208, 30.205507),
+  nw: project(-97.670299, 30.20666),
+  inset: [12, 10] as const,
+  levels: 7,
+  /** m, floor to floor */
+  storey: 3.2,
+  built: 0.55,
+  rising: 4,
+};

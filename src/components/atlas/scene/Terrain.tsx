@@ -256,11 +256,12 @@ const fragment = /* glsl */ `
     #else
       land = mix(land, lin(vec3(0.66, 0.81, 0.45)), park * 0.65);
     #endif
+    float field = 0.0;
     #ifdef FIELD_N
       // The airfield, mown between the runways and taxiways: olive turf (as it is from the air),
       // in stripes where the mowers ran north-south, with drier, yellower patches.
       if (vWorld.x > uFieldBox.x && vWorld.x < uFieldBox.z && vWorld.z > uFieldBox.y && vWorld.z < uFieldBox.w) {
-        float field = 1.0 - smoothstep(-0.04, 0.005, fieldDist(vWorld.xz));
+        field = 1.0 - smoothstep(-0.04, 0.005, fieldDist(vWorld.xz));
         if (field > 0.0) {
           float dry = vnoise(wp * 0.0045) * 0.65 + vnoise(wp * 0.021) * 0.35;
           vec3 turf = mix(lin(vec3(0.5, 0.6, 0.33)), lin(vec3(0.64, 0.64, 0.43)), smoothstep(0.42, 0.85, dry));
@@ -277,7 +278,9 @@ const fragment = /* glsl */ `
     vec3 crown = mix(lin(vec3(0.27, 0.52, 0.22)), lin(vec3(0.45, 0.68, 0.31)), mott);
     // A little softer from altitude, so the region still reads as a map.
     land = mix(land, crown, canopy * mix(0.8, 0.7, uZoomOut));
-    land = mix(land, lin(vec3(0.86, 0.84, 0.80)), smoothstep(0.05, 0.6, dens) * 0.5 * (1.0 - canopy));
+    // Built-up ground reads paler, except on the airport, where its paving is drawn as it is (the
+    // tint would lie over its lawns as a haze).
+    land = mix(land, lin(vec3(0.86, 0.84, 0.80)), smoothstep(0.05, 0.6, dens) * 0.5 * (1.0 - canopy) * (1.0 - field));
 
     // Shadows of the buildings, trees and landmarks, cooled by the sky's light in them.
     float sun = sunShadow(n, uSunDir) * cloudShadow(vWorld, uSunDir);

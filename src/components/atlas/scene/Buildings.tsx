@@ -59,6 +59,11 @@ const fragment = /* glsl */ `
   vec3 lin(vec3 c) { return pow(c, vec3(2.2)); }
   float hash(vec2 p) { return fract(sin(dot(p, vec2(41.7, 289.3))) * 15731.743); }
   vec3 pick(float r, vec3 a, vec3 b, vec3 c, vec3 d) { return r < 0.25 ? a : r < 0.5 ? b : r < 0.75 ? c : d; }
+  // The colours cars come in (as the car parks paint them): most white, black, grey and silver.
+  vec3 carPaintB(float h) {
+    return h < 0.25 ? vec3(0.9, 0.9, 0.88) : h < 0.45 ? vec3(0.1, 0.1, 0.11) : h < 0.62 ? vec3(0.45, 0.46, 0.48)
+      : h < 0.78 ? vec3(0.7, 0.71, 0.72) : h < 0.87 ? vec3(0.17, 0.27, 0.5) : h < 0.95 ? vec3(0.6, 0.1, 0.09) : vec3(0.75, 0.6, 0.35);
+  }
 
   void main() {
     vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
@@ -77,6 +82,10 @@ const fragment = /* glsl */ `
     bool westCampus = style > 2.5 && style < 3.5;
     bool capitol = style > 3.5 && style < 4.5;
     bool state = style > 4.5 && style < 5.5;
+    // Austin-Bergstrom's parking decks, round tanks, and its sheds, hangars and offices.
+    bool garage = style > 5.5 && style < 6.5;
+    bool tank = style > 6.5 && style < 7.5;
+    bool airport = style > 7.5 && style < 8.5;
     bool plant = kind < -1.5 && kind > -2.5;
     bool pitched = kind < -2.5 && kind > -3.5;
     bool pool = kind < -3.5 && kind > -4.5;
@@ -94,6 +103,10 @@ const fragment = /* glsl */ `
     // The Capitol's sunset-red granite; the state's Texas limestone and pink and grey granite.
     else if (capitol) walls = lin(vec3(0.78, 0.56, 0.47));
     else if (state) walls = pick(r, lin(vec3(0.92, 0.88, 0.78)), lin(vec3(0.88, 0.8, 0.67)), lin(vec3(0.94, 0.91, 0.83)), lin(vec3(0.84, 0.69, 0.6)));
+    // Precast concrete decks; white tanks; hangars and sheds in white, grey and tan cladding.
+    else if (garage) walls = lin(vec3(0.84, 0.83, 0.79));
+    else if (tank) walls = lin(vec3(0.93, 0.93, 0.91));
+    else if (airport) walls = pick(r, lin(vec3(0.92, 0.91, 0.88)), lin(vec3(0.79, 0.8, 0.8)), lin(vec3(0.86, 0.82, 0.73)), lin(vec3(0.74, 0.78, 0.82)));
     // Towers in blue, teal, steel and bronze glass; mid-rises in limestone, sand, concrete and
     // brick; houses painted white, butter, pale blue and terracotta.
     else if (glass) walls = pick(r, lin(vec3(0.38, 0.56, 0.76)), lin(vec3(0.3, 0.58, 0.64)), lin(vec3(0.64, 0.72, 0.8)), lin(vec3(0.58, 0.5, 0.42)));
@@ -120,7 +133,9 @@ const fragment = /* glsl */ `
     } else if (pool) {
       mat = lin(vec3(0.3, 0.68, 0.8));
     } else {
-      mat = mix(walls, capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : lin(vec3(0.86, 0.85, 0.82)), roof);
+      // (A garage's roof is its top deck, in weathered concrete.)
+      vec3 roofCol = capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : garage ? lin(vec3(0.68, 0.68, 0.67)) : lin(vec3(0.86, 0.85, 0.82));
+      mat = mix(walls, roofCol, roof);
     }
 
     // Facade detail by day, faded out before it can shimmer.
@@ -136,7 +151,27 @@ const fragment = /* glsl */ `
     float streetM = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag - 3.0 / uBuildingExag;
     float parapet = step(hM, streetM);
     detail *= 1.0 - parapet;
-    if (!pitched && !plant && !pool && hM >= 10.0) {
+    // A parking deck: every 3.2 m a concrete edge and barrier over an open storey in the shade of
+    // the deck above, a column every 9 m, cars parked along the barriers. From further out the
+    // storeys average to grey bands, then to a mid grey.
+    float gOpen = 0.0;
+    if (garage && !plant) {
+      float lv = streetM / 3.2;
+      float lf = fract(lv);
+      float cm = fract(vU / 9.0);
+      gOpen = step(0.34, lf) * step(lf, 0.89) * step(0.0, streetM) * (1.0 - parapet);
+      gOpen *= step(0.035, cm) * step(cm, 0.965);
+      float car = step(0.45, hash(floor(vec2(vU / 2.6, lv)) + r * 31.0)) * step(lf, 0.6);
+      car *= 1.0 - smoothstep(0.3, 0.6, fwidth(vU / 2.6)); // (gone before they'd speckle)
+      vec3 inside = mix(lin(vec3(0.16, 0.17, 0.19)), lin(carPaintB(hash(floor(vec2(vU / 2.6, lv)) + r * 7.0))) * 0.55, car);
+      float gfw = fwidth(lv);
+      float sharp = detailK * wall * (1.0 - smoothstep(0.25, 0.6, gfw));
+      vec3 banded = mix(mat, lin(vec3(0.22, 0.23, 0.25)), 0.55 * (1.0 - parapet));
+      mat = mix(mat, mix(banded, mix(mat, inside, gOpen), sharp), detailK * wall);
+      // (After dark the decks glow: storey by storey up close, as a band of light from afar.)
+      gOpen = mix(0.4 * (1.0 - parapet), gOpen, sharp) * wall;
+    }
+    if (!pitched && !plant && !pool && !garage && !tank && hM >= 10.0) {
       if (glass) {
         float m = fract(vU / 1.6);
         float mull = 1.0 - smoothstep(0.0, 0.07, min(m, 1.0 - m));
@@ -164,17 +199,27 @@ const fragment = /* glsl */ `
         mat = mix(mat, mat * vec3(0.42, 0.44, 0.5), win * detail * 0.75);
         float rust = smoothstep(0.0, 0.05, abs(fract(fl * 5.0) - 0.5) - 0.42);
         mat *= 1.0 - (0.06 + 0.12 * rust) * step(fl, 1.0) * detail;
+      } else if (airport) {
+        // Hangars and offices: a ribbon of windows along each floor, over cladding.
+        float f = fract(fl);
+        float win = step(0.42, f) * step(f, 0.72);
+        mat = mix(mat, mat * vec3(0.5, 0.56, 0.64), win * detail * 0.6);
       } else {
         vec2 f = vec2(fract(u), fract(fl));
         float win = step(0.24, f.x) * step(f.x, 0.76) * step(0.3, f.y) * step(f.y, 0.82);
         mat = mix(mat, mat * vec3(0.5, 0.56, 0.64), win * detail * 0.7);
       }
     }
+    if (airport && !pitched && !plant) {
+      // Ribbed metal cladding, faint, gone before it could shimmer.
+      float rib = smoothstep(0.35, 0.5, abs(fract(vU / 0.9) - 0.5));
+      mat *= 1.0 - 0.05 * rib * detail * (1.0 - smoothstep(0.15, 0.4, fwidth(vU / 0.9)));
+    }
 
     if (!pitched && !plant && !pool && hM >= 8.0) {
       // Shopfronts and lobbies: the ground floor glazed dark under a pale fascia, read from
       // further out than the windows above. (The Capitol and UT keep their stone.)
-      if (!capitol && !campus) {
+      if (!capitol && !campus && !garage && !tank && !airport) {
         float aa = max(fwidth(streetM), 1e-3);
         float gf = detailK * wall * (1.0 - smoothstep(0.8, 1.8, aa));
         float shop = smoothstep(0.3 - aa, 0.3 + aa, streetM) * (1.0 - smoothstep(4.0 - aa, 4.0 + aa, streetM));
@@ -207,8 +252,10 @@ const fragment = /* glsl */ `
     col *= 1.0 - uNight * 0.84;
     // The Capitol is floodlit after dark, like the stone of the landmarks.
     if (capitol) col += mix(vec3(0.26, 0.19, 0.14), walls * 0.5, 0.45) * uNight * mix(1.1, 0.85, rel) * (0.4 + 0.6 * wall);
+    // A garage's decks lit all night, in white light.
+    if (garage) col += lin(vec3(0.82, 0.88, 0.95)) * gOpen * 0.55 * smoothstep(0.35, 1.0, uNight);
     // Lit windows after dark.
-    if (wall > 0.5 && !plant && !pitched && !pool) {
+    if (wall > 0.5 && !plant && !pitched && !pool && !garage && !tank) {
       // Fewer windows lit at dusk than at full night, and fewer in houses than in towers.
       float dark = smoothstep(0.35, 1.0, uNight);
       float share = hM > 10.0 ? 0.86 - 0.18 * dark : 0.9 - 0.12 * dark;

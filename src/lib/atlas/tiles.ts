@@ -101,10 +101,15 @@ export const CARS: Record<number, CarClass> = {
 export const AREA_PARKING = 1;
 export const AREA_APRON = 2;
 export const AREA_HELIPAD = 3;
+/** Bare ground on a building site. */
+export const AREA_SITE = 5;
 export const AREA_POOL = 10;
 export const AREA_POND = 11;
 /** As drawn (detail/build.ts): an apron of asphalt rather than concrete... */
 export const AREA_APRON_ASPHALT = 4;
 /** ...and a car park as this plus the heading of its rows (degrees counterclockwise from east,
- * 0 to 180), so its stalls are laid out along them. */
+ * 0 to 180), so its stalls are laid out along them, plus PHASE_STEP_KIND for every PHASE_STEP_M
+ * its rows are shifted across (0 to 18 m), so its aisles fall on the ones mapped there. */
 export const AREA_PARKING_ROWS = 100;
+export const PHASE_STEP_KIND = 200;
+export const PHASE_STEP_M = 0.5;

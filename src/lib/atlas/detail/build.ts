@@ -3,11 +3,12 @@
 // them. No three.js here, so the detail worker can run it.
 
 import earcut from "earcut";
-import { TOWER, asphaltApron, inAirfield, insideField } from "../airport";
+import { TOWER, airportStyle, asphaltApron, inAirfield, insideField } from "../airport";
 import type { BuildingsData } from "../buildingsCodec";
 import { extrudeBuildings } from "../extrude";
 import { CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, elevToY, type HeightField } from "../geo";
-import { AREA_APRON, AREA_APRON_ASPHALT, AREA_PARKING, AREA_PARKING_ROWS, CARS, LANES_ONLY, STREETS, type TileData } from "../tiles";
+import { pointInPoly } from "../polygon";
+import { AREA_APRON, AREA_APRON_ASPHALT, AREA_PARKING, AREA_PARKING_ROWS, CARS, LANES_ONLY, PHASE_STEP_KIND, PHASE_STEP_M, STREETS, type TileData } from "../tiles";
 
 export interface BuildingParts {
   position: Float32Array;
@@ -339,12 +340,31 @@ function gridCut(tri: number[], cell: number, emit: (poly: number[]) => void) {
 const AREA_CELL_KM = 0.04;
 
 /** Parking lots, aprons, pools and ponds as flat polygons on the ground. */
+/** build_tiles.py's street code for a car park's aisles (service, parking_aisle). */
+const AISLE = 6;
+
+/** The parking aisles mapped in a tile, as segments (x0, z0, x1, z1 km). */
+function aisleSegments(st: BuildingsData): number[] {
+  const out: number[] = [];
+  for (let b = 0; b < st.count; b++) {
+    if (st.height[b] !== AISLE) continue;
+    for (let r = st.ringStart[b]; r < st.ringStart[b + 1]; r++) {
+      for (let j = st.vertStart[r] + 1; j < st.vertStart[r + 1]; j++) {
+        out.push(st.x[j - 1] / 1000, st.z[j - 1] / 1000, st.x[j] / 1000, st.z[j] / 1000);
+      }
+    }
+  }
+  return out;
+}
+
 /**
- * An area's kind as drawn: a car park carries the heading of its rows (its longest side's, as
- * lots are laid out along their length), Austin-Bergstrom's general aviation aprons are asphalt.
- * `flat` is its rings (x, z km), the outer one first, `n` points long.
+ * An area's kind as drawn: a car park carries the heading of its rows and where across them
+ * they fall, Austin-Bergstrom's general aviation aprons are asphalt. Rows run along the parking
+ * aisles mapped in the lot, with an aisle (the shader's run every 18 m) on each one; in a lot
+ * without them, along its longest side, as lots are laid out along their length. `flat` is its
+ * rings (x, z km), the outer one first, `n` points long.
  */
-function areaKind(code: number, flat: number[], n: number): number {
+function areaKind(code: number, flat: number[], n: number, aisles: number[]): number {
   if (code === AREA_PARKING) {
     let best = 0;
     let heading = 0;
@@ -358,15 +378,52 @@ function areaKind(code: number, flat: number[], n: number): number {
         heading = Math.atan2(-dz, dx);
       }
     }
+    // The aisles in the lot: their mean direction (angles doubled, so opposite ways agree)...
+    const outer = Float32Array.from(flat.slice(0, n * 2));
+    const inLot: number[] = [];
+    let c2 = 0;
+    let s2 = 0;
+    let total = 0;
+    for (let i = 0; i < aisles.length; i += 4) {
+      const [x0, z0, x1, z1] = [aisles[i], aisles[i + 1], aisles[i + 2], aisles[i + 3]];
+      if (!pointInPoly(outer, (x0 + x1) / 2, (z0 + z1) / 2)) continue;
+      const l = Math.hypot(x1 - x0, z1 - z0) * 1000;
+      const a = Math.atan2(-(z1 - z0), x1 - x0);
+      c2 += l * Math.cos(2 * a);
+      s2 += l * Math.sin(2 * a);
+      total += l;
+      inLot.push(i);
+    }
+    let phase = 0;
+    if (total >= 30 && Math.hypot(c2, s2) > total * 0.6) {
+      heading = Math.atan2(s2, c2) / 2;
+      // ...and where across the rows they lie: the aisles parallel to them, averaged on the 18 m
+      // circle, put the middle of an aisle there.
+      const ax = Math.sin(heading);
+      const az = Math.cos(heading);
+      let pc = 0;
+      let ps = 0;
+      for (const i of inLot) {
+        const [x0, z0, x1, z1] = [aisles[i], aisles[i + 1], aisles[i + 2], aisles[i + 3]];
+        const l = Math.hypot(x1 - x0, z1 - z0);
+        if (Math.abs((x1 - x0) * Math.cos(heading) - (z1 - z0) * Math.sin(heading)) < l * 0.94) continue;
+        const across = (((x0 + x1) / 2) * ax + ((z0 + z1) / 2) * az) * 1000;
+        const t = (across / 18) * 2 * Math.PI;
+        pc += l * Math.cos(t);
+        ps += l * Math.sin(t);
+      }
+      if (pc || ps) phase = ((((Math.atan2(ps, pc) / (2 * Math.PI)) * 18 - 9) % 18) + 18) % 18;
+    }
     const deg = ((heading * 180) / Math.PI + 360) % 180;
-    return AREA_PARKING_ROWS + Math.round(deg * 10) / 10;
+    return AREA_PARKING_ROWS + Math.round(deg * 10) / 10 + PHASE_STEP_KIND * Math.round(phase / PHASE_STEP_M);
   }
   if (code === AREA_APRON && asphaltApron(flat[0], flat[1])) return AREA_APRON_ASPHALT;
   return code;
 }
 
-function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
+function flatAreas(a: BuildingsData, ground: HeightField, streets: BuildingsData): AreaArrays | null {
   if (!a.count) return null;
+  const aisles = aisleSegments(streets);
   const pos = new F32(a.x.length * 3);
   const kind = new F32(a.x.length);
   const idx = new U32(a.x.length * 3);
@@ -394,7 +451,7 @@ function flatAreas(a: BuildingsData, ground: HeightField): AreaArrays | null {
     }
     const tris = earcut(flat, holes.length ? holes : undefined, 2);
     if (!tris.length) continue;
-    const k = areaKind(a.height[b], flat, holes.length ? holes[0] : flat.length / 2);
+    const k = areaKind(a.height[b], flat, holes.length ? holes[0] : flat.length / 2, aisles);
     if (Math.max(maxX - minX, maxZ - minZ) <= AREA_CELL_KM) {
       const base = pos.n / 3;
       for (let j = 0; j < flat.length; j += 2) {
@@ -605,15 +662,16 @@ function scatterTrees(t: TileData, world: World, o: TileOptions, key: number, se
 export function buildTile(t: TileData, world: World, o: TileOptions, key: number): TileMeshes {
   let buildings: BuildingParts | null = null;
   if (t.buildings.count) {
-    // (The airport's control tower is modelled with the airport, Airport.tsx.)
+    // (The airport's control tower is modelled with the airport, Airport.tsx, and its other
+    // buildings take its styles.)
     const replaced = (x: number, z: number) => Math.hypot(x - TOWER.site[0], z - TOWER.site[1]) < 0.02;
-    const a = extrudeBuildings(t.buildings, world.ground, [], 0, o.minFootprint, replaced);
+    const a = extrudeBuildings(t.buildings, world.ground, [], 0, o.minFootprint, replaced, airportStyle);
     if (a.index.length) buildings = { position: a.position, info: a.info, u: a.u, index: a.index };
   }
   return {
     buildings,
     streets: ribbons(t.streets, world.ground),
-    areas: flatAreas(t.areas, world.ground),
+    areas: flatAreas(t.areas, world.ground, t.streets),
     lanes: lanes(t.streets),
     trees: scatterTrees(t, world, o, key, key * 2654435761),
   };

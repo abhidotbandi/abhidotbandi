@@ -41,4 +41,5 @@ TOWERS = [
     ("Domain Tower", -97.72333, 30.39207, 44, None, None),  # 11 storeys; Overture 25.9 m
     ("Zilker Point", -97.75809, 30.26346, 32, None, None),  # 7 storeys; no height
     ("Dimensional Place", -97.83034, 30.29793, 20, None, None),  # a few storeys; Overture 61 m
+    ("AUS Blue Garage", -97.66858, 30.20472, 18, None, None),  # 6 levels of parking; Overture 4.7 m
 ]

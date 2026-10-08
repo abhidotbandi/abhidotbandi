@@ -86,6 +86,7 @@ const fragment = /* glsl */ `
     bool garage = style > 5.5 && style < 6.5;
     bool tank = style > 6.5 && style < 7.5;
     bool airport = style > 7.5 && style < 8.5;
+    bool terminal = style > 8.5 && style < 9.5;
     bool plant = kind < -1.5 && kind > -2.5;
     bool pitched = kind < -2.5 && kind > -3.5;
     bool pool = kind < -3.5 && kind > -4.5;
@@ -107,6 +108,8 @@ const fragment = /* glsl */ `
     else if (garage) walls = lin(vec3(0.84, 0.83, 0.79));
     else if (tank) walls = lin(vec3(0.93, 0.93, 0.91));
     else if (airport) walls = pick(r, lin(vec3(0.92, 0.91, 0.88)), lin(vec3(0.79, 0.8, 0.8)), lin(vec3(0.86, 0.82, 0.73)), lin(vec3(0.74, 0.78, 0.82)));
+    // The terminal's grey metal panels (its glass is drawn over them below).
+    else if (terminal) walls = lin(vec3(0.7, 0.72, 0.74));
     // Towers in blue, teal, steel and bronze glass; mid-rises in limestone, sand, concrete and
     // brick; houses painted white, butter, pale blue and terracotta.
     else if (glass) walls = pick(r, lin(vec3(0.38, 0.56, 0.76)), lin(vec3(0.3, 0.58, 0.64)), lin(vec3(0.64, 0.72, 0.8)), lin(vec3(0.58, 0.5, 0.42)));
@@ -134,7 +137,8 @@ const fragment = /* glsl */ `
       mat = lin(vec3(0.3, 0.68, 0.8));
     } else {
       // (A garage's roof is its top deck, in weathered concrete.)
-      vec3 roofCol = capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : garage ? lin(vec3(0.68, 0.68, 0.67)) : lin(vec3(0.86, 0.85, 0.82));
+      vec3 roofCol = capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : garage ? lin(vec3(0.68, 0.68, 0.67))
+        : terminal ? lin(vec3(0.88, 0.89, 0.9)) : lin(vec3(0.86, 0.85, 0.82));
       mat = mix(walls, roofCol, roof);
     }
 
@@ -144,7 +148,7 @@ const fragment = /* glsl */ `
     float fl = (vWorld.y - vInfo.y) * 1000.0 / uBuildingExag / (capitol ? 6.0 : 3.9);
     float fw = max(fwidth(u), fwidth(fl));
     // Company buildings keep their materials from further out than the paper city around them.
-    float detailK = isSite || campus || capitol || state ? max(uDetail, 0.9) : uDetail;
+    float detailK = isSite || campus || capitol || state || terminal ? max(uDetail, 0.9) : uDetail;
     float detail = detailK * wall * (1.0 - smoothstep(0.3, 0.7, fw));
     // Metres above the street (walls start 3 m below it, at their lowest corner); above the
     // roofline, the parapet: no windows in it.
@@ -171,7 +175,33 @@ const fragment = /* glsl */ `
       // (After dark the decks glow: storey by storey up close, as a band of light from afar.)
       gOpen = mix(0.4 * (1.0 - parapet), gOpen, sharp) * wall;
     }
-    if (!pitched && !plant && !pool && !garage && !tank && hM >= 10.0) {
+    // The terminal: curtain walls of glass from a metre up to its fascia, in 9 m bays between
+    // grey piers, mullions every 1.5 m and a transom every 4.5 m; the glass holds the sky. From
+    // further out the bays still read, then the band of glass under its metal fascia.
+    float tGlass = 0.0;
+    if (terminal && !plant) {
+      // (The tall hall's glass stops at 60% of its height, grey metal panels above, as on its
+      // landside front.)
+      float band = step(1.0, streetM) * step(streetM, hM > 20.0 ? hM * 0.6 : hM - 2.2);
+      float bay = fract(vU / 9.0);
+      float pier = 1.0 - step(0.055, bay) * step(bay, 0.945);
+      tGlass = band * (1.0 - pier) * wall;
+      vec3 view = normalize(uCamPos - vWorld);
+      float fres = pow(1.0 - max(dot(view, n), 0.0), 3.0);
+      vec3 pane = mix(lin(vec3(0.36, 0.43, 0.5)), mix(uHorizon, uZenith, 0.5), 0.3 + 0.4 * fres);
+      float m = fract(vU / 1.5);
+      float t = fract(streetM / 4.5);
+      float frame = max(1.0 - smoothstep(0.0, 0.06, min(m, 1.0 - m)), 1.0 - smoothstep(0.0, 0.05, min(t, 1.0 - t)));
+      float sharp = 1.0 - smoothstep(0.3, 0.7, fwidth(vU / 1.5));
+      pane = mix(pane, lin(vec3(0.42, 0.44, 0.47)), frame * 0.8 * sharp);
+      mat = mix(mat, pane, tGlass * detailK);
+      // The pier caps and fascia a little lighter, catching the light; panel joints in the metal
+      // above the glass, up close.
+      mat = mix(mat, lin(vec3(0.8, 0.81, 0.83)), (1.0 - band) * step(1.0, streetM) * wall * detailK * 0.6);
+      float pj = max(1.0 - smoothstep(0.0, 0.04, abs(fract(vU / 3.0) - 0.5) - 0.46), 1.0 - smoothstep(0.0, 0.05, abs(fract(streetM / 1.5) - 0.5) - 0.45));
+      mat *= 1.0 - 0.12 * pj * (1.0 - band) * step(1.0, streetM) * wall * sharp * detailK;
+    }
+    if (!pitched && !plant && !pool && !garage && !tank && !terminal && hM >= 10.0) {
       if (glass) {
         float m = fract(vU / 1.6);
         float mull = 1.0 - smoothstep(0.0, 0.07, min(m, 1.0 - m));
@@ -219,7 +249,7 @@ const fragment = /* glsl */ `
     if (!pitched && !plant && !pool && hM >= 8.0) {
       // Shopfronts and lobbies: the ground floor glazed dark under a pale fascia, read from
       // further out than the windows above. (The Capitol and UT keep their stone.)
-      if (!capitol && !campus && !garage && !tank && !airport) {
+      if (!capitol && !campus && !garage && !tank && !airport && !terminal) {
         float aa = max(fwidth(streetM), 1e-3);
         float gf = detailK * wall * (1.0 - smoothstep(0.8, 1.8, aa));
         float shop = smoothstep(0.3 - aa, 0.3 + aa, streetM) * (1.0 - smoothstep(4.0 - aa, 4.0 + aa, streetM));
@@ -252,10 +282,11 @@ const fragment = /* glsl */ `
     col *= 1.0 - uNight * 0.84;
     // The Capitol is floodlit after dark, like the stone of the landmarks.
     if (capitol) col += mix(vec3(0.26, 0.19, 0.14), walls * 0.5, 0.45) * uNight * mix(1.1, 0.85, rel) * (0.4 + 0.6 * wall);
-    // A garage's decks lit all night, in white light.
+    // A garage's decks lit all night, in white light; the terminal's glass in warm light.
     if (garage) col += lin(vec3(0.82, 0.88, 0.95)) * gOpen * 0.55 * smoothstep(0.35, 1.0, uNight);
+    if (terminal) col += lin(vec3(1.0, 0.86, 0.62)) * tGlass * 0.62 * smoothstep(0.35, 1.0, uNight);
     // Lit windows after dark.
-    if (wall > 0.5 && !plant && !pitched && !pool && !garage && !tank) {
+    if (wall > 0.5 && !plant && !pitched && !pool && !garage && !tank && !terminal) {
       // Fewer windows lit at dusk than at full night, and fewer in houses than in towers.
       float dark = smoothstep(0.35, 1.0, uNight);
       float share = hM > 10.0 ? 0.86 - 0.18 * dark : 0.9 - 0.12 * dark;

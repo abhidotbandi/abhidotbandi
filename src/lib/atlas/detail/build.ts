@@ -3,7 +3,7 @@
 // them. No three.js here, so the detail worker can run it.
 
 import earcut from "earcut";
-import { TOWER, airportStyle, asphaltApron, inAirfield, insideField } from "../airport";
+import { TOWER, airportStyle, asphaltApron, inAirfield, insideField, terminalReplaced } from "../airport";
 import type { BuildingsData } from "../buildingsCodec";
 import { extrudeBuildings } from "../extrude";
 import { CX_MAX, CX_MIN, CZ_MAX, CZ_MIN, HEIGHT_KM, WIDTH_KM, X_MIN, Z_MIN, elevToY, type HeightField } from "../geo";
@@ -662,9 +662,9 @@ function scatterTrees(t: TileData, world: World, o: TileOptions, key: number, se
 export function buildTile(t: TileData, world: World, o: TileOptions, key: number): TileMeshes {
   let buildings: BuildingParts | null = null;
   if (t.buildings.count) {
-    // (The airport's control tower is modelled with the airport, Airport.tsx, and its other
-    // buildings take its styles.)
-    const replaced = (x: number, z: number) => Math.hypot(x - TOWER.site[0], z - TOWER.site[1]) < 0.02;
+    // (The airport's control tower and terminal are modelled with the airport, Airport.tsx, and
+    // its other buildings take its styles.)
+    const replaced = (x: number, z: number) => Math.hypot(x - TOWER.site[0], z - TOWER.site[1]) < 0.02 || terminalReplaced(x, z);
     const a = extrudeBuildings(t.buildings, world.ground, [], 0, o.minFootprint, replaced, airportStyle);
     if (a.index.length) buildings = { position: a.position, info: a.info, u: a.u, index: a.index };
   }

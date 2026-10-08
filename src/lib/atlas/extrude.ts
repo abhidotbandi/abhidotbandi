@@ -41,6 +41,8 @@ export const STYLE_STATE = 5;
 export const STYLE_GARAGE = 6;
 export const STYLE_TANK = 7;
 export const STYLE_AIRPORT = 8;
+/** The Barbara Jordan Terminal (Airport.tsx): glass curtain walls in grey metal frames. */
+export const STYLE_TERMINAL = 9;
 
 /** Mean vertex of a building's outer ring, km. */
 function outerCentre(d: BuildingsData, b: number): [number, number] {
@@ -392,7 +394,8 @@ export function extrudeBuildings(
 
     // Rooftop plant on larger buildings; a penthouse on towers. The campus's flat roofs, the
     // state's offices around the Capitol, parking decks and tanks are kept clean.
-    const clean = flags === STYLE_CAMPUS_FLAT || flags === STYLE_STATE || flags === STYLE_GARAGE || flags === STYLE_TANK;
+    const clean =
+      flags === STYLE_CAMPUS_FLAT || flags === STYLE_STATE || flags === STYLE_GARAGE || flags === STYLE_TANK || flags === STYLE_TERMINAL;
     if (hM > 10 && areaM2 >= 250 && !clean) {
       if (hM >= 45) {
         let sx = 0;

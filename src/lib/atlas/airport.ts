@@ -1,3 +1,4 @@
+import terminal from "@/data/atlas/terminal.json";
 import { STYLE_AIRPORT, STYLE_GARAGE, STYLE_TANK } from "./extrude";
 import { project } from "./geo";
 import { pointInPoly } from "./polygon";
@@ -340,3 +341,25 @@ export const YELLOW_GARAGE = {
   built: 0.55,
   rising: 4,
 };
+
+/** A ring of (lon, lat) as flat scene km, x0, z0, x1, z1, ... */
+const flatRing = (r: number[][]) => Float32Array.from(r.flatMap(([lon, lat]) => project(lon, lat)));
+
+/**
+ * The Barbara Jordan Terminal, which the airport scene builds (scripts/atlas/build_terminal.py):
+ * its parts (outer rings, flat scene km, and heights m), the curb canopies (rings and tops m)
+ * and the departures roadway's deck (its ring).
+ */
+export const TERMINAL = {
+  parts: terminal.parts.map((p) => ({ ring: flatRing(p.ring), h: p.h })),
+  canopies: terminal.canopies.map((c) => ({ ring: flatRing(c.ring), top: c.top })),
+  deck: flatRing(terminal.deck),
+  /** the departures level, m above the ground */
+  deckM: 7.5,
+};
+
+const REPLACED = terminal.replaced.map(flatRing);
+
+/** Whether a footprint centred at (x, z) km is the terminal or one of its canopies, which the
+ * detail tiles leave out for the airport scene's own. */
+export const terminalReplaced = (x: number, z: number) => REPLACED.some((r) => pointInPoly(r, x, z));

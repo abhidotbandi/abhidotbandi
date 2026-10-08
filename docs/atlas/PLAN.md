@@ -1210,3 +1210,35 @@ wrong in six ways.
     Before, they followed the lot's longest side, and crossed the mapped aisles wherever those
     ran the other way. The heading and the shift ride in the area's kind.
 
+### 2.25 The Barbara Jordan Terminal, as built (2026-10-08)
+
+Asked: fix the terminal building too. Overture maps it as one 41,000 m^2 footprint at 24.7 m,
+which the tiles drew as a single beige block with office windows. The four curb canopies in
+front of it (Overture roof outlines at 15 and 21 m) stood as solid grey towers.
+
+The building, from the architects' photographs (Page Southerland Page and Gensler, Larry Speck
+lead designer, 1999) and USGS imagery, is a crescent. A long airside concourse, glass-walled
+under a pale metal roof with a raised clerestory, curves along the apron. Behind its middle is
+the 60 ft "living room" hall facing the road, in grey metal panels over glass. The departures
+roadway runs along the front on its own deck.
+
+- **The parts.** `build_terminal.py` cuts Overture's footprint along lines read from the
+  imagery, into `src/data/atlas/terminal.json`:
+  - the west concourse (14 m);
+  - the hall (24.7 m), with its three skylights and the oval drum at its east end;
+  - the concourse's curved frontage south of the hall (16 m);
+  - the east connector (15 m) and the 2019 East Infill (17 m).
+
+  Every concourse part has a clerestory spine 3.5 m higher, 9 m in from its edges. The tiles
+  leave the footprint and its canopies out, and the airport scene extrudes the parts with the
+  map's building shader in a new style (`STYLE_TERMINAL`).
+- **Walls.** Glass curtain walls run from a metre up to the metal fascia, in 9 m bays between
+  grey piers. Mullions every 1.5 m and a transom every 4.5 m show up close, and the glass holds
+  the sky. The hall's glass stops at 60% of its height, with grey metal panels above, as on its
+  landside front. After dark the glass glows warm: the terminal is lit all night.
+- **Roofs.** Pale metal, kept clear of the random rooftop plant other buildings get.
+- **The landside.** The departures roadway is a concrete deck 7.5 m up, with its parapet and
+  the skybridges to the Red Garage, on piers every 16 m (Overture's trestle outline). Its curb
+  canopies are gull-winged steel roofs, white frames over red panels as in the photographs, on
+  posts from the deck. They stand where the grey towers stood.
+

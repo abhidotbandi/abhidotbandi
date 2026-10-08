@@ -2,12 +2,18 @@
 
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import earcut from "earcut";
 import * as THREE from "three";
-import { CLOSED_RUNWAY, GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TOWER, YELLOW_GARAGE } from "@/lib/atlas/airport";
+import { CLOSED_RUNWAY, GATES, RUNWAYS, RUNWAY_HALF, SOLAR, TERMINAL, TOWER, YELLOW_GARAGE } from "@/lib/atlas/airport";
+import { buildingGeometry } from "@/lib/atlas/buildings";
+import { STYLE_TERMINAL, extrudeBuildings } from "@/lib/atlas/extrude";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
+import { pointInPoly } from "@/lib/atlas/polygon";
 import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
+import { makeBuildingMaterial } from "./Buildings";
 import { box, instanced, merge } from "./figures";
+import { aoCaster } from "./Occlusion";
 import { LIT, paintMaterial, sharedUniforms, updatePaint, type SharedPaint } from "./paint";
 import { SHADOW_VERTEX_PARS, shadowVertex } from "./shadows";
 
@@ -784,6 +790,166 @@ function yellowGarageMesh(ground: HeightField): THREE.Mesh {
   return mesh;
 }
 
+// --- the Barbara Jordan Terminal ----------------------------------------------------------------
+
+/**
+ * The terminal's parts (TERMINAL, from scripts/atlas/build_terminal.py), extruded and shaded like
+ * the map's buildings, in its own style: glass curtain walls between grey piers under a metal
+ * fascia, and pale metal roofs.
+ */
+function terminalMesh(ground: HeightField): THREE.Mesh {
+  const parts = TERMINAL.parts;
+  const n = parts.reduce((t, p) => t + p.ring.length / 2, 0);
+  const x = new Int32Array(n);
+  const z = new Int32Array(n);
+  const ringStart = new Uint32Array(parts.length + 1);
+  const vertStart = new Uint32Array(parts.length + 1);
+  const height = new Uint16Array(parts.length);
+  let v = 0;
+  parts.forEach((p, i) => {
+    ringStart[i] = i;
+    vertStart[i] = v;
+    for (let j = 0; j < p.ring.length; j += 2) {
+      x[v] = Math.round(p.ring[j] * 1000);
+      z[v] = Math.round(p.ring[j + 1] * 1000);
+      v++;
+    }
+    height[i] = Math.round(p.h * 10);
+  });
+  ringStart[parts.length] = parts.length;
+  vertStart[parts.length] = v;
+  const data = { sites: [], count: parts.length, height, site: new Int16Array(parts.length).fill(-1), ringStart, vertStart, x, z };
+  const a = extrudeBuildings(data, ground, [], 0, 0, undefined, () => STYLE_TERMINAL);
+  const mesh = new THREE.Mesh(buildingGeometry(a), makeBuildingMaterial());
+  mesh.castShadow = mesh.receiveShadow = true;
+  aoCaster(mesh);
+  return mesh;
+}
+
+/** A flat slab over a ring (flat scene km) from y0 to y1 (world), its sides walled. */
+function slab(ring: Float32Array, y0: number, y1: number): THREE.BufferGeometry {
+  const n = ring.length / 2;
+  const pos: number[] = [];
+  const tris = earcut(Array.from(ring));
+  for (const y of [y1, y0]) for (const t of tris) pos.push(ring[t * 2], y, ring[t * 2 + 1]);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [ax, az, bx, bz] = [ring[i * 2], ring[i * 2 + 1], ring[j * 2], ring[j * 2 + 1]];
+    pos.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The departures roadway (Overture's trestle): a concrete deck at the upper level, TERMINAL.deckM
+ * up, with its parapet, on piers every 16 m, and the skybridges to the Red Garage. Over its curb,
+ * the terminal's canopies: gull-winged steel roofs (the photographs' white frames over red
+ * panels) on posts from the deck.
+ */
+function landsideMesh(ground: HeightField): THREE.Mesh {
+  const D = TERMINAL.deck;
+  let floor = Infinity;
+  let [x0, z0, x1, z1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < D.length; i += 2) {
+    floor = Math.min(floor, groundY(ground, D[i], D[i + 1]));
+    [x0, z0, x1, z1] = [Math.min(x0, D[i]), Math.min(z0, D[i + 1]), Math.max(x1, D[i]), Math.max(z1, D[i + 1])];
+  }
+  const up = (m: number) => floor + m * M * V;
+  const deckTop = up(TERMINAL.deckM);
+  const parts: [THREE.BufferGeometry, string][] = [[slab(D, up(TERMINAL.deckM - 1.3), deckTop), "#d6d1c6"]];
+  // The parapet: a low wall round the deck's edge.
+  const n = D.length / 2;
+  const wall: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [ax, az, bx, bz] = [D[i * 2], D[i * 2 + 1], D[j * 2], D[j * 2 + 1]];
+    const y0 = deckTop;
+    const y1 = up(TERMINAL.deckM + 1.05);
+    wall.push(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y0, az, bx, y1, bz, ax, y1, az);
+  }
+  const parapet = new THREE.BufferGeometry();
+  parapet.setAttribute("position", new THREE.Float32BufferAttribute(wall, 3));
+  parapet.computeVertexNormals();
+  parts.push([parapet, "#e6e2d9"]);
+  // Piers on a 16 m grid wherever the deck is wide enough to stand on them.
+  const step = 16 * M;
+  for (let x = x0 + step / 2; x < x1; x += step) {
+    for (let z = z0 + step / 2; z < z1; z += step) {
+      const inside = [
+        [0, 0],
+        [3, 0],
+        [-3, 0],
+        [0, 3],
+        [0, -3],
+      ].every(([dx, dz]) => pointInPoly(D, x + dx * M, z + dz * M));
+      if (!inside) continue;
+      const p = box(1.4, TERMINAL.deckM - 1.3, 1.4, 0, (TERMINAL.deckM - 1.3) / 2, 0);
+      p.scale(M, M * V, M);
+      p.translate(x, floor, z);
+      parts.push([p, "#c9c4b9"]);
+    }
+  }
+  // The canopies, each along its longest side.
+  for (const c of TERMINAL.canopies) {
+    const r = c.ring;
+    const k = r.length / 2;
+    let best = 0;
+    let ux = 1;
+    let uz = 0;
+    for (let i = 0; i < k; i++) {
+      const j = (i + 1) % k;
+      const dx = r[j * 2] - r[i * 2];
+      const dz = r[j * 2 + 1] - r[i * 2 + 1];
+      const l = Math.hypot(dx, dz);
+      if (l > best) [best, ux, uz] = [l, dx / l, dz / l];
+    }
+    let [a0, a1, b0, b1] = [Infinity, -Infinity, Infinity, -Infinity];
+    for (let i = 0; i < k; i++) {
+      const a = r[i * 2] * ux + r[i * 2 + 1] * uz;
+      const b = -r[i * 2] * uz + r[i * 2 + 1] * ux;
+      [a0, a1, b0, b1] = [Math.min(a0, a), Math.max(a1, a), Math.min(b0, b), Math.max(b1, b)];
+    }
+    const len = (a1 - a0) / M;
+    const wid = (b1 - b0) / M;
+    const ca = (a0 + a1) / 2;
+    const cb = (b0 + b1) / 2;
+    const cx = ca * ux - cb * uz;
+    const cz = ca * uz + cb * ux;
+    const tilt = 0.16;
+    const valley = c.top - 1.4;
+    const g: [THREE.BufferGeometry, string][] = [];
+    for (const side of [-1, 1]) {
+      const wing = box(len, 0.35, wid / 2 + 0.6, 0, 0, 0);
+      wing.rotateX(-side * tilt); // (the outer edge up)
+      wing.translate(0, valley + (wid / 4) * Math.sin(tilt), (side * wid) / 4);
+      g.push([wing, "#eeece6"]);
+      const panel = box(len - 1, 0.12, wid / 2 - 0.6, 0, 0, 0);
+      panel.rotateX(-side * tilt);
+      panel.translate(0, valley - 0.35 + (wid / 4) * Math.sin(tilt), (side * wid) / 4);
+      g.push([panel, "#c4302b"]);
+    }
+    const posts = Math.max(2, Math.round(len / 12) + 1);
+    for (let i = 0; i < posts; i++) {
+      const a = -len / 2 + 3 + ((len - 6) * i) / (posts - 1);
+      g.push([box(0.7, valley - TERMINAL.deckM, 0.7, a, (valley + TERMINAL.deckM) / 2, 0), "#eeece6"]);
+    }
+    for (const [geo] of g) {
+      geo.scale(M, M * V, M);
+      geo.rotateY(-Math.atan2(uz, ux));
+      geo.translate(cx, floor, cz);
+    }
+    parts.push(...g);
+  }
+  const geo = painted(parts);
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
+}
+
 // --- the gates -----------------------------------------------------------------------------------
 
 /** A stand: where the nose stops (8 m off the concourse) and the way it points. */
@@ -1004,6 +1170,8 @@ export default function Airport({ ground, normal }: { ground: HeightField; norma
       bridgeMesh(ground, parked),
       solarMesh(ground),
       yellowGarageMesh(ground),
+      terminalMesh(ground),
+      landsideMesh(ground),
       sim,
     );
     group.userData.built = { sim, shared, cab: tower.cab, beacon: tower.beacon } satisfies Built;

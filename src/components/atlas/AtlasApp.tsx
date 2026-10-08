@@ -28,6 +28,7 @@ import SearchPalette from "./ui/SearchPalette";
 import ListView from "./ui/ListView";
 import About from "./ui/About";
 import Loader from "./ui/Loader";
+import Locator from "./ui/Locator";
 
 // The map and its labels (three.js and all) load apart from the page's first script, which only
 // has to put up the loader; the load effect asks for them straight away.
@@ -384,6 +385,7 @@ export default function AtlasApp() {
       {mode === "explore" && <ExplorePanel />}
       {mode === "ride" && scene && <RideHud stations={scene.assets.vectors.redLine.stations} />}
       {mode === "paddle" && paddleRoute && <PaddleHud route={paddleRoute} />}
+      {ready && !webglFailed && <Locator />}
       <CompanyPanel onShowOnMap={(id) => {
         switchMode("explore");
         flyToSite(id);

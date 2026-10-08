@@ -1306,3 +1306,22 @@ town, forking where creeks joined it. `build_vectors.py` now cuts creek lines wh
 open water: lakes, reservoirs and mapped river banks over 2 ha, from 15 m inside their shores.
 That takes out about 400 km of line. Creeks keep their lines up to the shore, and so do creeks
 running through their own narrow polygons.
+
+### 2.28 The locator map (2026-10-08)
+
+Asked: a relational map like the Levels.fyi atlases' card ("N ↑ · THE BAY"), with a dot and a
+view cone on a small outline of the region.
+
+- **The card** (`ui/Locator.tsx`) sits in the bottom-right corner. It is a north-up map of the
+  whole region, drawn from `build_locator.py`:
+  - Travis County as the land, outlined, among the paler counties round it;
+  - the lakes cut out, and the Colorado as a line where it runs narrow.
+- **The marks.** A burnt-orange dot (the UI accent) marks the middle of the view, and a cone shows
+  the way the camera faces, as wide as the view is across. They follow `runtime.cam` on their own
+  animation frame and only write when the camera moves, so React never re-renders.
+- **The caption** reads "N ↑ ·" and the city under the camera, or else its county (a 0.5 km grid
+  built from Overture's city and county outlines). Outside the region it reads "Central Texas".
+- **Room for it.** Its data (9 kB gzipped) loads once the map is up. Phones and screens under
+  560 px tall go without. It steps aside for an open company or place panel, and for the
+  ride's controls on screens under 1000 px wide. While it shows, the tour's Red Line rail rides
+  up to stay clear of it.

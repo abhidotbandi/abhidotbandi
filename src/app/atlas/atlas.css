@@ -917,6 +917,122 @@
   pointer-events: none;
 }
 
+/* ---------- the locator: where the camera is in the region (ui/Locator.tsx) ---------- */
+
+.locator {
+  position: fixed;
+  z-index: 4;
+  right: clamp(14px, 2vw, 26px);
+  bottom: clamp(14px, 2vw, 26px);
+  width: 156px;
+  margin: 0;
+  padding: 12px 12px 9px;
+  border-radius: 14px;
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  pointer-events: none;
+  transition: opacity 0.35s, visibility 0.35s;
+}
+
+.locator svg {
+  display: block;
+  width: 126px; /* DRAW_PX */
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.locator path,
+.locator circle {
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.lc-county {
+  fill: #ebe3cf;
+  stroke: rgba(35, 35, 56, 0.34);
+  stroke-width: 0.6;
+}
+
+.lc-travis {
+  fill: #e0d2b2;
+  stroke: #232338;
+  stroke-width: 1.1;
+}
+
+.lc-water {
+  fill: var(--paper);
+  fill-rule: evenodd;
+  stroke: #232338;
+  stroke-width: 0.7;
+}
+
+.lc-river {
+  fill: none;
+  stroke: #232338;
+  stroke-width: 0.9;
+}
+
+.lc-cone {
+  fill: var(--accent);
+  fill-opacity: 0.34;
+}
+
+.lc-dot {
+  fill: var(--accent);
+  stroke: var(--paper);
+  stroke-width: 1.4;
+}
+
+.locator figcaption {
+  margin-top: 7px;
+  overflow: hidden;
+  font: 500 9px / 1.3 var(--font-num);
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+/* Out of the way of an open company or place panel, and of the ride's controls where they
+   would meet it. */
+.atlas[data-ready="0"] .locator,
+.atlas[data-selected="1"] .locator {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@media (max-width: 999px) {
+  .atlas[data-mode="ride"] .locator,
+  .atlas[data-mode="paddle"] .locator {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Phones and short screens go without; elsewhere the tour's Red Line rides up to make room. */
+@media (max-width: 759px), (max-height: 559px) {
+  .locator {
+    display: none;
+  }
+}
+
+@media (min-width: 760px) and (min-height: 560px) {
+  .tour-rail {
+    top: calc(50% - 94px);
+  }
+
+  .tr-line {
+    height: min(46vh, 420px, calc(100vh - 352px));
+  }
+}
+
 /* ---------- map labels ---------- */
 
 .atlas-labels {

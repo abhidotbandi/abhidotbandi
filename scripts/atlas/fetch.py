@@ -106,6 +106,10 @@ def fetch_overture(which):
     if "divisions" in which:
         overture("divisions", "division", ["id", "geometry", "bbox", "names", "subtype", "class",
                                            "population"], "divisions.parquet")
+        # County and city outlines, for the locator map (build_locator.py).
+        overture("divisions", "division_area", ["id", "geometry", "bbox", "names", "subtype", "class",
+                                                "division_id", "is_land"], "division_areas.parquet",
+                 extra=pc.field("subtype").isin(["county", "locality"]))
     if "landcover" in which:
         overture("base", "land_cover", ["subtype", "geometry", "bbox"], "land_cover.parquet",
                  extra=pc.field("subtype").isin(["forest", "shrub"]))

@@ -43,6 +43,10 @@ export const STYLE_TANK = 7;
 export const STYLE_AIRPORT = 8;
 /** The Barbara Jordan Terminal (Airport.tsx): glass curtain walls in grey metal frames. */
 export const STYLE_TERMINAL = 9;
+/** Pease Park's restroom and storage buildings (2021): flat roofs, weathered steel mesh walls. */
+export const STYLE_PAVILION = 10;
+/** Pease Park's 1920s Tudor Cottage: white walls framed in dark timber under a wood shake roof. */
+export const STYLE_TUDOR = 11;
 
 /** Mean vertex of a building's outer ring, km. */
 function outerCentre(d: BuildingsData, b: number): [number, number] {
@@ -235,7 +239,7 @@ export function extrudeBuildings(
       }
       perim.push(cum + Math.hypot(flat[s0 * 2] - flat[(s1 - 1) * 2], flat[s0 * 2 + 1] - flat[(s1 - 1) * 2 + 1]) * 1000);
     }
-    const house = site < 0 && !flags && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450;
+    const house = site < 0 && (!flags || flags === STYLE_TUDOR) && rings === 1 && hM <= 10 && areaM2 >= 40 && areaM2 <= 450;
     // Flat roofs sit behind a parapet: the walls rise a little above them (the material draws
     // both faces, so the parapet's inside shows from above).
     const parapet = !house && flags !== STYLE_CAMPUS_TILE && flags !== STYLE_TANK && hM >= 6 ? ((hM >= 45 ? 1.5 : 1.0) / 1000) * BUILDING_EXAG : 0;
@@ -395,7 +399,12 @@ export function extrudeBuildings(
     // Rooftop plant on larger buildings; a penthouse on towers. The campus's flat roofs, the
     // state's offices around the Capitol, parking decks and tanks are kept clean.
     const clean =
-      flags === STYLE_CAMPUS_FLAT || flags === STYLE_STATE || flags === STYLE_GARAGE || flags === STYLE_TANK || flags === STYLE_TERMINAL;
+      flags === STYLE_CAMPUS_FLAT ||
+      flags === STYLE_STATE ||
+      flags === STYLE_GARAGE ||
+      flags === STYLE_TANK ||
+      flags === STYLE_TERMINAL ||
+      flags === STYLE_PAVILION;
     if (hM > 10 && areaM2 >= 250 && !clean) {
       if (hM >= 45) {
         let sx = 0;

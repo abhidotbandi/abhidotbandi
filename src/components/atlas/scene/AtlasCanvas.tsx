@@ -21,6 +21,7 @@ import SiteModels from "./SiteModels";
 import Traffic from "./Traffic";
 import RiverLife from "./RiverLife";
 import ParkLife from "./ParkLife";
+import PeasePark from "./PeasePark";
 import CityLife from "./CityLife";
 import Paddle from "./Paddle";
 import Trees from "./Trees";
@@ -502,6 +503,7 @@ export default function AtlasCanvas({ scene, settled }: { scene: PreparedScene; 
         {!scene.lowPower && <Traffic lines={highways} height={ground} count={1400} />}
         {central && <CityLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
         {central && <ParkLife central={central.data} ground={ground} lowPower={scene.lowPower} />}
+        {central && <PeasePark central={central.data} ground={ground} lowPower={scene.lowPower} />}
         <TownLights assets={assets} lowPower={scene.lowPower} />
         {central && <Bats central={central.data} ground={ground} count={scene.lowPower ? 4000 : 12000} />}
         <Airport ground={ground} normal={tex.normal} />

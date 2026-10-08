@@ -1,6 +1,6 @@
 import { FLAT_ROOFED, TILE_ROOFS_NORTH_OF, UT_CAMPUS, WEST_CAMPUS } from "@/data/atlas/campus";
 import { STATE_BUILDINGS } from "@/data/atlas/capitol";
-import { STYLE_CAMPUS_FLAT, STYLE_CAMPUS_TILE, STYLE_STATE, STYLE_WEST_CAMPUS } from "./extrude";
+import { STYLE_CAMPUS_FLAT, STYLE_CAMPUS_TILE, STYLE_PAVILION, STYLE_STATE, STYLE_TUDOR, STYLE_WEST_CAMPUS } from "./extrude";
 import { project } from "./geo";
 import { pointInPoly } from "./polygon";
 
@@ -15,6 +15,13 @@ const WEST = ring(WEST_CAMPUS);
 const NORTH_Z = project(-97.74, TILE_ROOFS_NORTH_OF)[1];
 const FLAT = FLAT_ROOFED.map(([lon, lat]) => project(lon, lat));
 const STATE = STATE_BUILDINGS.map(([lon, lat]) => project(lon, lat));
+// Pease Park's Kingsbury Commons: the restroom and storage buildings on its western edge, and
+// the Tudor Cottage (points inside their Overture footprints).
+const PAVILIONS = [
+  [-97.75256, 30.28194],
+  [-97.75241, 30.28173],
+].map(([lon, lat]) => project(lon, lat));
+const COTTAGE = project(-97.75231, 30.28136);
 
 function bounds(r: Float32Array) {
   let x0 = Infinity;
@@ -54,6 +61,11 @@ export function districtStyle(footprint: number[], hM: number, areaM2: number): 
   if (inBox(SB, cx, cz, 0.15)) {
     const poly = Float32Array.from(footprint);
     if (STATE.some(([x, z]) => pointInPoly(poly, x, z))) return STYLE_STATE;
+  }
+  if (Math.hypot(cx - COTTAGE[0], cz - COTTAGE[1]) < 0.12) {
+    const poly = Float32Array.from(footprint);
+    if (PAVILIONS.some(([x, z]) => pointInPoly(poly, x, z))) return STYLE_PAVILION;
+    if (pointInPoly(poly, COTTAGE[0], COTTAGE[1])) return STYLE_TUDOR;
   }
   return 0;
 }

@@ -87,6 +87,9 @@ const fragment = /* glsl */ `
     bool tank = style > 6.5 && style < 7.5;
     bool airport = style > 7.5 && style < 8.5;
     bool terminal = style > 8.5 && style < 9.5;
+    // Pease Park's restroom and storage buildings, and its Tudor Cottage.
+    bool pavilion = style > 9.5 && style < 10.5;
+    bool tudor = style > 10.5 && style < 11.5;
     bool plant = kind < -1.5 && kind > -2.5;
     bool pitched = kind < -2.5 && kind > -3.5;
     bool pool = kind < -3.5 && kind > -4.5;
@@ -110,6 +113,9 @@ const fragment = /* glsl */ `
     else if (airport) walls = pick(r, lin(vec3(0.92, 0.91, 0.88)), lin(vec3(0.79, 0.8, 0.8)), lin(vec3(0.86, 0.82, 0.73)), lin(vec3(0.74, 0.78, 0.82)));
     // The terminal's grey metal panels (its glass is drawn over them below).
     else if (terminal) walls = lin(vec3(0.7, 0.72, 0.74));
+    // Weathered steel mesh; white stucco.
+    else if (pavilion) walls = lin(vec3(0.5, 0.4, 0.31));
+    else if (tudor) walls = lin(vec3(0.93, 0.91, 0.86));
     // Towers in blue, teal, steel and bronze glass; mid-rises in limestone, sand, concrete and
     // brick; houses painted white, butter, pale blue and terracotta.
     else if (glass) walls = pick(r, lin(vec3(0.38, 0.56, 0.76)), lin(vec3(0.3, 0.58, 0.64)), lin(vec3(0.64, 0.72, 0.8)), lin(vec3(0.58, 0.5, 0.42)));
@@ -123,8 +129,13 @@ const fragment = /* glsl */ `
         : q < 0.92 ? lin(vec3(0.31, 0.35, 0.42)) : lin(vec3(0.72, 0.42, 0.29));
       vec3 shingle = campus
         ? pick(q, lin(vec3(0.72, 0.34, 0.22)), lin(vec3(0.65, 0.29, 0.19)), lin(vec3(0.77, 0.4, 0.26)), lin(vec3(0.69, 0.36, 0.26)))
-        : house;
+        : tudor ? lin(vec3(0.45, 0.33, 0.23)) : house;
       mat = n.y > 0.3 ? shingle : walls;
+      if (tudor && n.y <= 0.3) {
+        // Half-timbering: dark studs every 0.9 m and a rail across the middle, up close.
+        float tb = max(1.0 - smoothstep(0.0, 0.1, abs(fract(vU / 0.9) - 0.5) - 0.38), 1.0 - smoothstep(0.0, 0.1, abs((vWorld.y - vInfo.y) * 1000.0 / uBuildingExag - 4.6) - 0.12));
+        mat = mix(mat, lin(vec3(0.27, 0.2, 0.15)), tb * (1.0 - smoothstep(0.2, 0.5, fwidth(vU / 0.9))));
+      }
       if (campus) {
         // Courses of clay tile down the slope, faint, gone before they'd shimmer.
         float tc = dot(vWorld.xz, normalize(n.xz + vec2(1e-4))) * 1000.0 / 0.6;
@@ -139,7 +150,12 @@ const fragment = /* glsl */ `
       // (A garage's roof is its top deck, in weathered concrete.)
       vec3 roofCol = capitol ? lin(vec3(0.6, 0.55, 0.5)) : state ? lin(vec3(0.78, 0.75, 0.7)) : garage ? lin(vec3(0.68, 0.68, 0.67))
         : terminal ? lin(vec3(0.88, 0.89, 0.9)) : lin(vec3(0.86, 0.85, 0.82));
-      mat = mix(walls, roofCol, roof);
+      mat = mix(walls, pavilion ? lin(vec3(0.43, 0.41, 0.38)) : roofCol, roof);
+      if (pavilion) {
+        // The steel mesh: fine vertical wires over the dark behind, up close.
+        float wire = 1.0 - smoothstep(0.2, 0.35, abs(fract(vU / 0.15) - 0.5));
+        mat = mix(mat, mat * 0.55, wall * (1.0 - wire) * 0.5 * (1.0 - smoothstep(0.3, 0.8, fwidth(vU / 0.15))));
+      }
     }
 
     // Facade detail by day, faded out before it can shimmer.

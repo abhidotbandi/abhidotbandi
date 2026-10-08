@@ -92,6 +92,29 @@ export const PLACES_RAW: Place[] = [
     sources: [wiki("Zilker_Park")],
   },
   {
+    id: "pease-park",
+    name: "Pease Park",
+    kind: "Park",
+    lat: 30.2822,
+    lon: -97.7524,
+    view: { dist: 0.32, tilt: 52, bearing: -30, tod: 0.45 },
+    blurb:
+      "Woods along Shoal Creek a few blocks from downtown, with the Shoal Creek Trail down its length and dogs in its meadows. At its south end, Kingsbury Commons has a splash pad, an all-abilities playground and a steel treehouse orb.",
+    facts: [
+      "Governor Elisha M. Pease and his wife gave the land to the city in 1875.",
+      "84 acres along Shoal Creek, between West 15th and 31st Streets.",
+      "Kingsbury Commons, the park's south end, reopened in June 2021 after a $15 million rebuild led by Ten Eyck Landscape Architects.",
+      "Its Treehouse, by Mell Lawrence Architects, is a two-level steel orb about 40 feet across, with a cargo net to lie on.",
+      "Eeyore's Birthday Party has been held here every spring since 1974.",
+      "Thomas Dambo's wooden troll Malin stood in the park from March 2024 until it burned in May 2026.",
+    ],
+    sources: [
+      wiki("Pease_Park"),
+      { label: "Pease Park Conservancy: Kingsbury Commons", url: "https://peasepark.org/kingsbury-commons" },
+      { label: "ARQA: Kingsbury Commons at Pease Park", url: "https://arqa.com/en/architecture/kingsbury-commons-at-pease-park.html" },
+    ],
+  },
+  {
     id: "deep-eddy",
     name: "Deep Eddy Pool",
     kind: "Pool",

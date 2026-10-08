@@ -43,8 +43,8 @@ TREE_BUDGET = 60000
 PARK_CLASSES = {"park", "dog_park", "nature_reserve", "recreation_ground", "garden", "cemetery",
                 "grave_yard", "grass", "meadow", "golf_course", "fairway", "green", "rough", "tee",
                 "driving_range", "pitch", "playground", "village_green", "common", "flowerbed"}
-# Open lawn: never covered by canopy.
-LAWN_CLASSES = {"grass", "pitch", "fairway", "green", "tee", "driving_range", "playground"}
+# Open lawn: never covered by canopy. (The patch's only meadows are Pease Park's lawns.)
+LAWN_CLASSES = {"grass", "pitch", "fairway", "green", "tee", "driving_range", "playground", "meadow"}
 ROAD_WIDTH_M = {"motorway": 24, "trunk": 20, "primary": 16, "secondary": 14, "tertiary": 12,
                 "residential": 9, "unclassified": 8, "living_street": 7, "service": 5}
 PATH_CLASSES = {"footway", "cycleway", "path", "pedestrian", "steps", "track"}
@@ -97,6 +97,24 @@ STREETS = {
     "congress": (["Congress Avenue"], None),
     "soco": (["South Congress Avenue"], (30.2460, 30.2620)),
 }
+
+# Pease Park: Pease District Park (West 15th to 24th Street) and, north of 24th, the Shoal Creek
+# Greenbelt up to West 31st Street, the park's north end. See pease().
+PEASE_PARKS = {"Pease District Park", "Shoal Creek Greenbelt"}
+PEASE_NORTH_LAT = 30.2992
+PEASE_LAWNS = ["Kingsbury Commons", "Live Oak Meadow"]  # Overture meadows: the Great Lawn first
+# Kingsbury Commons (Ten Eyck Landscape Architects, 2021), from Overture's points and footprints:
+PEASE_SPOTS = {
+    "treescape": (-97.75275, 30.28226),  # the Treehouse observation pod (Overture artwork)
+    "splash": (-97.75220, 30.28171),  # the splash pad (Overture fountain)
+    "cottage": (-97.75231, 30.28136),  # the 1920s Tudor Cottage's footprint
+    "entry": (-97.75149, 30.28085),  # the limestone entry wall at Parkway and Kingsbury Street
+}
+PEASE_WOODS_BUDGET = 6000
+# Clearings (m) the woods leave round Kingsbury Commons' features.
+PEASE_CLEAR_M = {"treescape": 13, "splash": 12, "cottage": 9, "entry": 6}
+# The two big live oaks that frame the entry wall, this far (m) either side of it.
+PEASE_OAK_M = 7.5
 
 W, S, E, N = C_WEST, C_SOUTH, C_EAST, C_NORTH
 
@@ -724,6 +742,173 @@ def landmark_footprints(bgeoms, brows):
 
 # ---------------------------------------------------------------- build
 
+# ---------------------------------------------------------------- Pease Park
+
+def pease_graph(lines):
+    """Paths (LineStrings, metres) as a graph walkers can wander, in the trails' layout: endpoints
+    snapped within 2 m, dead ends joined to another part within 25 m, parts under 150 m dropped."""
+    g = nx.Graph()
+    key = lambda p: (round(p[0] / 2), round(p[1] / 2))
+    for ln in lines:
+        c = list(ln.coords)
+        a, b = key(c[0]), key(c[-1])
+        if a != b and not (g.has_edge(a, b) and g[a][b]["line"].length <= ln.length):
+            g.add_edge(a, b, line=ln)
+    comp = {n: i for i, c in enumerate(nx.connected_components(g)) for n in c}
+    names = list(g.nodes)
+    pts = np.array(names, dtype=float) * 2
+    for n in [n for n in g.nodes if g.degree(n) == 1]:
+        p = np.array(n, dtype=float) * 2
+        d = np.hypot(*(pts - p).T)
+        for j in np.argsort(d)[1:6]:
+            if d[j] > 25:
+                break
+            if comp[names[j]] != comp[n]:
+                g.add_edge(n, names[j], line=LineString([p, pts[j]]))
+                old, new = comp[names[j]], comp[n]
+                for m, c in comp.items():
+                    if c == old:
+                        comp[m] = new
+                break
+    keep = set().union(*[c for c in nx.connected_components(g)
+                         if sum(g[u][v]["line"].length for u, v in g.subgraph(c).edges) > 150] or [set()])
+    sub = g.subgraph(keep)
+    nodes = list(sub.nodes)
+    index = {n: i for i, n in enumerate(nodes)}
+    edges = []
+    for u, v, dat in sub.edges(data=True):
+        ln = dat["line"]
+        if key(ln.coords[0]) != u:
+            ln = LineString(list(ln.coords)[::-1])
+        e = encode(ln.simplify(0.8))
+        if e:
+            edges.append([index[u], index[v], 0, e])
+    return {"nodes": [[n[0] * 2, n[1] * 2] for n in nodes], "edges": edges}
+
+
+def pease(segs, canopy, sd, hard, lawn, trees_rec, rng):
+    """Pease Park: its outline, open lawns, courts, its paths as a graph for walkers, Kingsbury
+    Commons' features, and the trees its woods need beyond the patch's budget (as records).
+
+    The patch's tree budget thins every wood alike; along Shoal Creek that left the park's
+    woods (Ashe juniper, cedar elm, live oak and pecan on the hillsides, sycamore and cypress by
+    the creek) a lawn with scattered trees. Here they are filled in on a 7 m jittered grid,
+    where the canopy raster has trees, clear of lawns, courts, paths, water and the trees
+    already there."""
+    rows = bbox_rows(str(CACHE / "land_use.parquet"), ["geometry", "names", "class", "surface"])
+    nm = lambda r: (r["names"] or {}).get("primary")
+    parks = [to_m(shapely.from_wkb(r["geometry"])) for r in rows if nm(r) in PEASE_PARKS
+             and shapely.from_wkb(r["geometry"]).centroid.y < PEASE_NORTH_LAT]
+    outline = shapely.union_all(parks).buffer(2).buffer(-2)
+    lawns = []
+    for name in PEASE_LAWNS:
+        g = next((to_m(shapely.from_wkb(r["geometry"])) for r in rows if nm(r) == name), None)
+        if g is not None:
+            lawns.append(g)
+    near = outline.buffer(10)
+    courts = {"basketball": [], "volleyball": [], "playground": []}
+    for r in rows:
+        if r["class"] not in ("pitch", "playground"):
+            continue
+        g = to_m(shapely.from_wkb(r["geometry"]))
+        if not near.contains(g.centroid):
+            continue
+        # Sand pitches are the volleyball courts; the one paved court of its size, basketball.
+        sand, paved = r["surface"] == "recreation_sand", r["surface"] == "recreation_paved"
+        kind = ("playground" if r["class"] == "playground" else "volleyball" if sand
+                else "basketball" if paved and 350 < g.area < 500 else None)
+        if kind:
+            courts[kind].append(g)
+    # The park's paths: the Shoal Creek Trail and the paths off it (not sidewalks or crossings).
+    zone = outline.buffer(25)
+    lines = []
+    for r in segs:
+        if r["class"] in ("footway", "cycleway", "path", "track") and r["subclass"] not in ("sidewalk", "crosswalk"):
+            g = to_m(r["g"]).intersection(zone)
+            lines += [ln for ln in lines_of(g) if ln.length > 3]
+    graph = pease_graph(lines)
+    # The Treehouse's bridge up the hillside: Overture's bridge lines at the pod.
+    tx, tz = (v * 1000 for v in project(*PEASE_SPOTS["treescape"]))
+    bridge = []
+    for r in bbox_rows(str(CACHE / "infrastructure_central.parquet"), ["geometry", "class"]):
+        if r["class"] == "bridge":
+            g = to_m(shapely.from_wkb(r["geometry"]))
+            if g.geom_type == "LineString" and g.distance(Point(tx, tz)) < 25:
+                bridge.append(g)
+    bridge = lines_of(linemerge(shapely.union_all(bridge))) if bridge else []
+
+    # The woods.
+    h, w = canopy.shape
+    step = 7.0
+    x0, z0, x1, z1 = outline.bounds
+    X, Z = np.meshgrid(np.arange(x0, x1, step), np.arange(z0, z1, step))
+    X = X + rng.uniform(0, step, X.shape)
+    Z = Z + rng.uniform(0, step, Z.shape)
+    keep_u, cone_u = rng.uniform(0, 1, X.shape), rng.uniform(0, 1, X.shape)
+    size = rng.normal(5.4, 1.2, X.shape)
+    tint = rng.integers(0, 128, X.shape)
+    inside = shapely.contains_xy(outline, X, Z)
+    spots_m = {k: Point(*(v * 1000 for v in project(*PEASE_SPOTS[k]))) for k in PEASE_SPOTS}
+    clearings = shapely.union_all([spots_m[k].buffer(r) for k, r in PEASE_CLEAR_M.items()]
+                                  + [g.buffer(2) for v in courts.values() for g in v])
+    clear = shapely.union_all([*lawns, clearings, *[g.buffer(4) for v in courts.values() for g in v],
+                               *[ln.buffer(2.5) for ln in lines]])
+    inside &= ~shapely.contains_xy(clear, X, Z)
+    px = np.clip(((X / 1000 - CX_MIN) * 1000 / SURFACE_PX_M).astype(int), 0, w - 1)
+    pz = np.clip(((Z / 1000 - CZ_MIN) * 1000 / SURFACE_PX_M).astype(int), 0, h - 1)
+    c = canopy[pz, px]
+    ok = inside & (c > 0.35) & (keep_u < c ** 1.2) & (hard[pz, px] < 0.3) & (lawn[pz, px] < 0.3) & (sd[pz, px] < -2.5)
+    tx_ = trees_rec["x"] / 4 + CX_MIN * 1000
+    tz_ = trees_rec["z"] / 4 + CZ_MIN * 1000
+    # The patch's own trees standing in those clearings go too.
+    drop = shapely.contains_xy(clearings, tx_, tz_)
+    near_old = np.zeros_like(ok)
+    cand = np.flatnonzero(ok)
+    if len(cand):
+        from scipy.spatial import cKDTree
+        d, _ = cKDTree(np.column_stack([tx_, tz_])).query(np.column_stack([X.ravel()[cand], Z.ravel()[cand]]))
+        near_old.ravel()[cand[d < 4.0]] = True
+    ok &= ~near_old
+    sel = np.flatnonzero(ok)
+    if len(sel) > PEASE_WOODS_BUDGET:
+        sel = rng.choice(sel, PEASE_WOODS_BUDGET, replace=False)
+    X, Z = X.ravel()[sel], Z.ravel()[sel]
+    dist = sd[pz.ravel()[sel], px.ravel()[sel]]
+    cc = c.ravel()[sel]
+    # Cypress and sycamore by the creek; Ashe juniper scattered up the hillsides.
+    conical = ((dist > -14) & (cone_u.ravel()[sel] < 0.55)) | ((dist <= -14) & (cone_u.ravel()[sel] < 0.22))
+    radius = np.clip(size.ravel()[sel] * np.where(conical, 0.72, 1.0) * (0.85 + 0.3 * cc), 2.6, 8.5)
+    # The entry wall's two live oaks, either side of it across the way in from the street.
+    ex, ez = (v * 1000 for v in project(*PEASE_SPOTS["entry"]))
+    lx, lz = lawns[0].centroid.x - ex, lawns[0].centroid.y - ez
+    ox, oz = -lz / math.hypot(lx, lz) * PEASE_OAK_M, lx / math.hypot(lx, lz) * PEASE_OAK_M
+    OX, OZ = np.array([ex + ox, ex - ox]), np.array([ez + oz, ez - oz])
+    room = lambda x, z: np.min(np.hypot(x[:, None] - OX, z[:, None] - OZ), axis=1) > 6.0
+    keep = room(X, Z)
+    drop |= ~room(tx_, tz_)
+    woods = np.concatenate([
+        tree_records(X[keep] - CX_MIN * 1000, Z[keep] - CZ_MIN * 1000, radius[keep], conical[keep], tint.ravel()[sel][keep]),
+        tree_records(OX - CX_MIN * 1000, OZ - CZ_MIN * 1000, np.full(2, 8.5), np.zeros(2, bool), np.full(2, 30)),
+    ])
+    print(f"  entry oaks: {[round(float(shapely.distance(Point(x, z), shapely.union_all(lines))), 1) for x, z in zip(OX, OZ)]} m "
+          f"from the paths; the wall {shapely.distance(Point(ex, ez), shapely.union_all(lines)):.1f} m")
+
+    m = lambda g: encode(LineString(g.exterior.coords))
+    spot = lambda k: [round(v * 1000) for v in project(*PEASE_SPOTS[k])]
+    data = {
+        "outline": [m(p) for p in (outline.geoms if outline.geom_type == "MultiPolygon" else [outline])],
+        "lawns": [m(g) for g in lawns],
+        "courts": {k: [m(g) for g in v] for k, v in courts.items()},
+        "trail": graph,
+        "spots": {k: spot(k) for k in PEASE_SPOTS},
+        "bridge": [e for e in (encode(ln) for ln in bridge) if e],
+    }
+    print(f"  Pease Park: {outline.area / 1e4:.1f} ha, {len(lawns)} lawns, "
+          f"{', '.join(f'{len(v)} {k}' for k, v in courts.items())}, trail graph {len(graph['nodes'])} nodes / "
+          f"{len(graph['edges'])} edges, {len(woods):,} more trees in its woods, {drop.sum()} cleared")
+    return data, woods, drop
+
+
 def build():
     t0 = time.time()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -772,6 +957,9 @@ def build():
     draw_polys(ImageDraw.Draw(img), to_px(grounds, sw, sh), 255)
     planted = np.asarray(img, dtype=np.float32) / 255
     rec = np.concatenate([trees(canopy, sd, park, rng, planted), capitol_trees(grounds, bgeoms, segs, rng)])
+    # (Pease Park draws from its own generator, so nothing else moves when it changes.)
+    pease_data, woods, drop = pease(segs, canopy, sd, hard, lawn, rec, np.random.default_rng(31))
+    rec = np.concatenate([rec[~drop], woods])
     rec.tofile(OUT / "central_trees.bin")
     print(f"  central_trees.bin {len(rec):,} trees, {(OUT / 'central_trees.bin').stat().st_size / 1e6:.2f} MB")
 
@@ -790,6 +978,7 @@ def build():
         "pools": polygon_named(CACHE / "water.parquet", {"Barton Springs Pool", "Deep Eddy Pool"}),
         "lawns": [e for e in [open_lawn("Zilker Metropolitan Park", canopy, hard, sd)] if e],
         "landmarks": landmark_footprints(bgeoms, brows),
+        "pease": pease_data,
     }
     (OUT / "central.json").write_text(json.dumps(data, separators=(",", ":")))
     print(f"  central.json {(OUT / 'central.json').stat().st_size / 1e6:.2f} MB")

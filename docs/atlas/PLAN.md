@@ -1242,3 +1242,57 @@ roadway runs along the front on its own deck.
   canopies are gull-winged steel roofs, white frames over red panels as in the photographs, on
   posts from the deck. They stand where the grey towers stood.
 
+
+### 2.26 Pease Park, filled in (2026-10-08)
+
+Asked: flesh out Pease Park. It drew as a pale lawn with scattered trees along Shoal Creek,
+with nobody in it, and no place card.
+
+- **The woods.** The canopy raster has the park as solid forest, but the central patch's
+  60,000-tree budget thins every wood alike, and along the creek that left a lawn. In
+  `build_central.py`, `pease()` fills the park (Overture's Pease District Park and Shoal Creek
+  Greenbelt south of 29th Street) on a 7 m jittered grid where the canopy has trees. Trees stay
+  clear of lawns, courts, paths and water, and 4 m from the trees already there. That adds about
+  3,100 trees beyond the budget. They are a mix of round crowns, plus junipers and cypress drawn
+  as cones: 55% cones by the creek and 22% on the slopes. Small clearings leave room for the
+  Treehouse, the splash pad, the cottage and the entry wall. The wall's two big live oaks are
+  set either side of it.
+- **The lawns.** Overture's two meadows, Kingsbury Commons' Great Lawn and Live Oak Meadow, now
+  count as lawn, so they are mown open ground with no trees on them.
+- **Kingsbury Commons.** Its 2021 rebuild (Ten Eyck Landscape Architects) is modelled from the
+  Conservancy's plans and photographs. Pieces with a footprint use their Overture outline:
+  - the basketball court (Overture's paved pitch), painted, with hoops;
+  - three sand volleyball courts (its sand pitches) with nets;
+  - the playground on wood chips: timber towers, cargo nets and a slide.
+
+  The rest are placed from the plans:
+  - the splash pad with its limestone seat wall;
+  - the ribbon wall round the Great Lawn;
+  - the seat terraces;
+  - the limestone entry wall at Parkway and Kingsbury Street, with "Pease Park" carved in it,
+    between two big live oaks;
+  - the restored CCC-era picnic tables under the trees.
+
+  The Treehouse (Mell Lawrence Architects) is a steel geodesic orb, 12 m across and green at its
+  foot, with its cargo-net floor, walkway ring, ledgestone seat wall and the bridge in from the
+  hillside along Overture's bridge line. The park's buildings in Overture get their own
+  styles. The two new support buildings (Clayton Korte), a restroom and a storage building, are
+  weathering-steel mesh over board-formed concrete under painted steel roofs
+  (`STYLE_PAVILION`). The 1920s Tudor Cottage is white half-timber under a shake roof
+  (`STYLE_TUDOR`).
+- **People** (`PeasePark.tsx`, drawn only within a few hundred metres of the park):
+  - walkers and runners on the park's paths, which are snapped into a graph, most with dogs;
+  - dogs and their owners on Live Oak Meadow;
+  - picnics and frisbee on the Great Lawn;
+  - children on the playground and in the splash pad's jets;
+  - games on the volleyball and basketball courts;
+  - people lying on the Treehouse net;
+  - up to 30 hammocks slung between pairs of trees 4 to 6.5 m apart near the paths and lawns.
+
+  The crowd thins out at night and the splash pad runs only in the day. Phones get under half
+  the people.
+- **Place card.** "Pease Park" opens on Kingsbury Commons, with the creek woods behind. Its
+  sources are Wikipedia, the Conservancy and ARQA. Not modelled:
+  - Thomas Dambo's troll Malin, which burned in May 2026;
+  - the disc golf course, which closed when the Commons was rebuilt;
+  - the Commons' bocce court, which no map has yet.

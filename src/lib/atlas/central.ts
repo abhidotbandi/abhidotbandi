@@ -57,6 +57,21 @@ export interface River {
   half: Float32Array;
 }
 
+/** Pease Park (scripts/atlas/build_central.py's pease()): scene km. */
+export interface Pease {
+  /** Pease District Park and, north of 24th Street, the Shoal Creek Greenbelt to 31st */
+  outline: Polyline[];
+  /** open lawns: Kingsbury Commons' Great Lawn first, then Live Oak Meadow */
+  lawns: Polyline[];
+  courts: { basketball: Polyline[]; volleyball: Polyline[]; playground: Polyline[] };
+  /** the Shoal Creek Trail and the paths off it, as a graph (edges' kind is always 0) */
+  trail: { nodes: Float32Array; edges: TrailEdge[] };
+  /** Kingsbury Commons: the Treehouse pod, the splash pad, the Tudor Cottage, the entrance */
+  spots: Record<"treescape" | "splash" | "cottage" | "entry", [number, number]>;
+  /** the Treehouse's bridge up the hillside, and the walkway round its pod */
+  bridge: Polyline[];
+}
+
 export interface Central {
   meta: CentralMeta;
   /** terrain grid (~8 m): elevation in metres and tree canopy 0..255 */
@@ -75,6 +90,7 @@ export interface Central {
   pools: Polyline[];
   lawns: Polyline[];
   landmarks: Record<string, { outline: Polyline; height: number | null }>;
+  pease: Pease | null;
   trees: Trees;
 }
 
@@ -102,6 +118,14 @@ export interface CentralRaw {
   pools: number[][];
   lawns: number[][];
   landmarks: Record<string, { outline: number[]; height: number | null }>;
+  pease?: {
+    outline: number[][];
+    lawns: number[][];
+    courts: Record<"basketball" | "volleyball" | "playground", number[][]>;
+    trail: { nodes: [number, number][]; edges: [number, number, number, number[]][] };
+    spots: Record<"treescape" | "splash" | "cottage" | "entry", [number, number]>;
+    bridge: number[][];
+  };
 }
 
 export function decodeLine(enc: number[]): Polyline {
@@ -215,11 +239,19 @@ export function decodeCentral(
     terrain: { width: terrain.width, height: terrain.height },
     surface: { ...meta.surface, width: surface.width, height: surface.height },
   };
-  const nodes = new Float32Array(raw.trails.nodes.length * 2);
-  raw.trails.nodes.forEach(([x, z], i) => {
-    nodes[i * 2] = x / 1000;
-    nodes[i * 2 + 1] = z / 1000;
-  });
+  const graph = (g: CentralRaw["trails"]) => {
+    const nodes = new Float32Array(g.nodes.length * 2);
+    g.nodes.forEach(([x, z], i) => {
+      nodes[i * 2] = x / 1000;
+      nodes[i * 2 + 1] = z / 1000;
+    });
+    const edges = g.edges.map(([a, b, kind, e]) => {
+      const line = decodeLine(e);
+      return { a, b, kind, line, length: lineLength(line) };
+    });
+    return { nodes, edges };
+  };
+  const pp = raw.pease;
   const river = (r?: { line: number[]; half: number[] }): River | undefined =>
     r && { line: decodeLine(r.line), half: Float32Array.from(r.half, (m) => m / 1000) };
   return {
@@ -228,13 +260,7 @@ export function decodeCentral(
     canopy,
     surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
     paths: Object.fromEntries(Object.entries(raw.paths).map(([k, v]) => [k, lines(v)])),
-    trails: {
-      nodes,
-      edges: raw.trails.edges.map(([a, b, kind, e]) => {
-        const line = decodeLine(e);
-        return { a, b, kind, line, length: lineLength(line) };
-      }),
-    },
+    trails: graph(raw.trails),
     bridges: raw.bridges.map((b) => ({ name: b.name, cls: b.cls, line: decodeLine(b.line) })),
     piers: { polys: lines(raw.piers.polys), lines: lines(raw.piers.lines) },
     train: lines(raw.train),
@@ -256,6 +282,16 @@ export function decodeCentral(
     landmarks: Object.fromEntries(
       Object.entries(raw.landmarks).map(([k, v]) => [k, { outline: decodeLine(v.outline), height: v.height }]),
     ),
+    pease: pp
+      ? {
+          outline: lines(pp.outline),
+          lawns: lines(pp.lawns),
+          courts: { basketball: lines(pp.courts.basketball), volleyball: lines(pp.courts.volleyball), playground: lines(pp.courts.playground) },
+          trail: graph(pp.trail),
+          spots: Object.fromEntries(Object.entries(pp.spots).map(([k, [x, z]]) => [k, [x / 1000, z / 1000]])) as Pease["spots"],
+          bridge: lines(pp.bridge),
+        }
+      : null,
     trees: decodeTrees(trees),
   };
 }

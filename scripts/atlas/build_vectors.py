@@ -21,6 +21,11 @@ from config import CACHE, OUT, X_MAX, X_MIN, Z_MAX, Z_MIN, project
 ROAD_CLASSES = ["motorway", "trunk", "primary", "secondary", "tertiary"]
 SIMPLIFY_M = {"motorway": 12, "trunk": 12, "primary": 15, "secondary": 18, "tertiary": 20,
               "rail": 12, "creek": 25}
+# Open water a creek line stops at: lakes, reservoirs and mapped river banks this big (m^2),
+# from this far (m) inside their shores, so lines through narrow creeks' own polygons stay.
+OPEN_WATER_CLASSES = ("lake", "reservoir", "river", "stream", "water")
+OPEN_WATER_MIN_M2 = 20000
+OPEN_WATER_INSET_M = 15
 
 # Highway shields: (label, [(network, ref), ...], spacing_km)
 SHIELDS = [
@@ -205,22 +210,33 @@ def rail(segs):
 
 
 def creeks():
+    """Named creeks and rivers over 2.5 km, as lines, except across open water: the lakes and the
+    wide river draw as water, and their centrelines would draw as a line down the middle."""
     t = pq.read_table(CACHE / "water.parquet", columns=["geometry", "class", "names"]).to_pylist()
     by_name = {}
+    open_water = []
     for r in t:
         name = (r["names"] or {}).get("primary")
-        if r["class"] in ("river", "stream") and name:
-            g = shapely.from_wkb(r["geometry"])
-            if g.geom_type in ("LineString", "MultiLineString"):
-                by_name.setdefault(name, []).append(geom_to_m(g))
+        g = shapely.from_wkb(r["geometry"])
+        if r["class"] in ("river", "stream") and name and g.geom_type in ("LineString", "MultiLineString"):
+            by_name.setdefault(name, []).append(geom_to_m(g))
+        elif r["class"] in OPEN_WATER_CLASSES and g.geom_type in ("Polygon", "MultiPolygon"):
+            g = geom_to_m(g)
+            if g.area > OPEN_WATER_MIN_M2:
+                open_water.append(g.buffer(-OPEN_WATER_INSET_M))
+    open_water = shapely.union_all(open_water)
     out = []
+    cut = 0.0
     for name, geoms in by_name.items():
         for ln in merged(geoms, SIMPLIFY_M["creek"]):
-            if ln.length > 2500:
-                e = encode(ln)
-                if e:
+            if ln.length <= 2500:
+                continue
+            dry = ln.difference(open_water)
+            cut += ln.length - dry.length
+            for part in lines_of(dry):
+                if part.length > 60 and (e := encode(part)):
                     out.append(e)
-    print(f"  creeks: {len(out)} lines, {sum(len(e) for e in out) // 2} pts")
+    print(f"  creeks: {len(out)} lines, {sum(len(e) for e in out) // 2} pts ({cut / 1000:.1f} km left out across open water)")
     return out
 
 

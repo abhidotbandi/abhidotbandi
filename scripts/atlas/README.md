@@ -6,7 +6,7 @@ Bakes the static map assets in `public/atlas/` for the `/atlas` page from open d
 |---|---|---|
 | `terrain.webp`: elevation (R/G = decimetres, 16-bit) + built-up density (B) | `build_terrain.py` | AWS Terrain Tiles (Terrarium, z12) + Overture buildings |
 | `surface.webp`: water signed-distance field (R) + parks and airfield grass (G) | `build_surface.py` | Overture `base/water`, `base/land_use`, `base/infrastructure` (airfield bounds) |
-| `vectors.json`: roads, rail, Red Line + stations, creeks, labels | `build_vectors.py` | Overture `transportation/segment`, `base/water`, `divisions` |
+| `vectors.json`: roads, rail, Red Line + stations, creeks (cut where they cross open water), labels | `build_vectors.py` | Overture `transportation/segment`, `base/water`, `divisions` |
 | `surface.webp` B: tree and shrub cover | `build_surface.py` | Overture `base/land_cover` (ESA WorldCover) |
 | `buildings.bin`, `central_buildings.bin`: footprints + heights, tagged with company sites (binary; the format is documented in `building_codec.py`) | `build_buildings.py` | Overture `buildings/building` + `src/data/atlas/companies.json` |
 | `central_terrain.webp`: ~8 m elevation (R/G) + tree canopy (B) for central Austin | `build_central.py` | Terrain Tiles z14 + Overture `base/land_cover` |

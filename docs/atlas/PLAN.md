@@ -1296,3 +1296,13 @@ with nobody in it, and no place card.
   - Thomas Dambo's troll Malin, which burned in May 2026;
   - the disc golf course, which closed when the Commons was rebuilt;
   - the Commons' bocce court, which no map has yet.
+
+### 2.27 No centreline down the lakes (2026-10-08)
+
+Asked: get rid of the white line through the water. The creek layer draws every named creek
+and river over 2.5 km as a thin pale line. That included the Colorado's centreline, so the
+line ran down the middle of Lake Travis, Lake Austin, Lady Bird Lake and the wide river below
+town, forking where creeks joined it. `build_vectors.py` now cuts creek lines where they cross
+open water: lakes, reservoirs and mapped river banks over 2 ha, from 15 m inside their shores.
+That takes out about 400 km of line. Creeks keep their lines up to the shore, and so do creeks
+running through their own narrow polygons.

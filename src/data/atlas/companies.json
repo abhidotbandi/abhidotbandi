@@ -259,7 +259,8 @@
     "builds": "Anti-drone micro-missiles",
     "blurb": "Guided micro-missiles for knocking down drones, from a Y Combinator team of NASA and Boeing alumni.",
     "facts": [
-      "Founded in 2025; picked Buda's Tower Business Park for its HQ",
+      "Founded in 2025; its headquarters is Building 2 of Tower Business Park in Buda",
+      "Fitting out the 17,515 sq ft tilt-wall building with offices and a fab shop in 2026",
       "Plans roughly 400 jobs within five years"
     ],
     "founded": 2025,
@@ -274,9 +275,9 @@
         "id": "perseus-defense",
         "label": "HQ",
         "place": "Buda",
-        "address": "Tower Business Park, 1340 FM 2001, Buda",
-        "lat": 30.0672,
-        "lon": -97.8086,
+        "address": "Tower Business Park, Building 2, 1340 FM 2001, Buda",
+        "lat": 30.069133,
+        "lon": -97.809027,
         "radius": 0.08
       }
     ],
@@ -288,6 +289,10 @@
       {
         "label": "Buda EDC",
         "url": "https://www.budaedc.com/news/perseus-defense-emerges-from-y-combinator-establishes-buda-as-headquarters-to-launch-aerospace-defense-startup/"
+      },
+      {
+        "label": "Texas TDLR: Perseus Defense TI",
+        "url": "https://www.tdlr.texas.gov/TABS/Projects/TABS2026017707"
       }
     ]
   },

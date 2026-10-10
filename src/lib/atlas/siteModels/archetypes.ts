@@ -432,7 +432,9 @@ export const PLANS: Record<string, Plan> = {
   // The supercomputers' chillers, in the yard beside the machine room.
   tacc: { kind: "lab", props: (kit, s, _fps, _tops, ground) => chillers(kit, ground, ...offset(s, -55, -41), 4) },
   // Offices.
-  "perseus-defense": { kind: "office" },
+  // A tilt-wall warehouse in Tower Business Park, fitted out with offices and a fab shop; its
+  // drive-in doors face the truck court to the south.
+  "perseus-defense": { kind: "factory", docks: [0, -1, 0] },
   "ideal-power": { kind: "office" },
   skyways: {
     kind: "glass",

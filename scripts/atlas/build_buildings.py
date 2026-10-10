@@ -21,6 +21,7 @@ from shapely.geometry import Point
 
 from building_codec import encode
 from skyline import TOWERS
+from traced_buildings import TRACED
 from config import C_EAST, C_NORTH, C_SOUTH, C_WEST, CACHE, COMPANIES_JSON, OUT, project, unproject
 
 ZONES = {
@@ -86,6 +87,17 @@ def load():
     heights = np.array([h if h is not None else 0 for h in t.column("height").to_pylist()], dtype=float)
     floors = np.array([f if f is not None else 0 for f in t.column("num_floors").to_pylist()], dtype=float)
     under = np.array([bool(u) for u in t.column("is_underground").to_pylist()])
+    # Buildings Overture hasn't mapped yet (traced_buildings.py), added at the end. An Overture
+    # footprint they cover is left out as if underground, so every other index (and with it the
+    # random thinning in selection()) stays as it was.
+    traced = np.array([shapely.Polygon(ring) for _, _, ring in TRACED], dtype=object)
+    tree = shapely.STRtree(geoms)
+    for t in traced:
+        under[tree.query(t, predicate="intersects")] = True
+    geoms = np.concatenate([geoms, traced])
+    heights = np.concatenate([heights, [h for _, h, _ in TRACED]])
+    floors = np.concatenate([floors, np.zeros(len(TRACED))])
+    under = np.concatenate([under, np.zeros(len(TRACED), bool)])
     cen = shapely.centroid(geoms)
     lon, lat = shapely.get_x(cen), shapely.get_y(cen)
     area = shapely.area(geoms) * (111320 * np.cos(np.radians(lat))) * 110574

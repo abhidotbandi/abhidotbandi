@@ -1346,3 +1346,30 @@ The glows are now sized in screen pixels and shrink as the view pulls back. At 3
 and 6 px from across town, a tower reads as one bright lamp among the city's lights rather than
 a beacon. `glow.ts`'s `pullTowardCamera` draws them 200 m nearer the camera along the line of
 sight, so they stay in place on screen and clear of the ground in front.
+
+### 2.30 Perseus Defense in the right building (2026-10-10)
+
+Asked: is this really all of Perseus's office? No. Perseus's pin was at the park's main address
+point, but Overture has none of Tower Business Park's buildings. With no footprint under the
+pin, `selection()` gave the site the nearest building over 300 m² within 120 m. That was an older
+872 m² building outside the park, so the map showed the pin in an empty field and an "office" on
+someone else's building.
+
+- **Where Perseus is.** Tower Business Park (1340 FM 2001, Buda) is six tilt-wall shallow-bay
+  buildings, 164,241 sq ft in all, built in 2024–25. The state's accessibility registration for
+  "Perseus Defense TI" (TDLR TABS2026017707) is a 17,515 sq ft fit-out of Building 2, with
+  offices and a fab shop. That matches the roughly 18,000 sq ft in the press.
+- **The buildings** (`scripts/atlas/traced_buildings.py`, added by `build_buildings.load()`)
+  come from the brokers' leasing site plan. The plan is drawn turned 90°, with Old FM 2001
+  along its left edge, and is scaled by Building 1's stated 160 × 110 ft. It was placed by
+  fitting its roofs and paving to Sentinel-2 imagery of 7 October 2026. Three checks agree:
+  - the fit lands within 4 m of one made from the address points;
+  - all 14 of Overture's address points for 1340 FM 2001 fall inside the buildings;
+  - Overture's Robot Ranch Blvd loops round Buildings 5 and 6.
+
+  Heights come from the listed clear heights. An Overture footprint under a traced building
+  would be left out as if underground, so the other buildings' indices and their random
+  thinning stay as they were (none was).
+- **Perseus** moves to Building 2's centre, and only that building is tagged as its site. Its
+  model is a tilt-wall works (the factory archetype) with drive-in doors facing the truck court
+  to the south. Its card gains the building, the fit-out and the TDLR source.

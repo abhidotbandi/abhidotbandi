@@ -19,7 +19,7 @@ export interface Site {
 }
 
 export type CompanyStatus =
-  | { kind: "private"; raised?: number; valuation?: number; lastRound?: string; asOf?: string }
+  | { kind: "private"; raised?: number; valuation?: number; lastRound?: string; asOf?: string; stage?: string }
   | { kind: "public"; ticker: string; exchange: string; note?: string }
   | { kind: "subsidiary"; parent: string }
   | { kind: "institution"; parent: string; est?: number };

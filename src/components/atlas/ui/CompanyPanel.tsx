@@ -22,7 +22,7 @@ function Stats({ c }: { c: Company }) {
     if (s.valuation) rows.push(["Valuation", formatUsd(s.valuation)]);
     if (s.raised) rows.push(["Raised", formatUsd(s.raised)]);
     if (s.lastRound) rows.push(["Latest round", s.lastRound]);
-    if (!s.valuation && !s.raised && !s.lastRound) rows.push(["Stage", "Venture-backed"]);
+    if (!s.valuation && !s.raised && !s.lastRound) rows.push(["Stage", s.stage ?? "Venture-backed"]);
   }
   return (
     <dl className="cp-stats">

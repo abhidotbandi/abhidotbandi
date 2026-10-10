@@ -70,12 +70,21 @@
     "sites": [
       {
         "id": "firefly",
-        "label": "HQ, mission control & spacecraft lines",
+        "label": "HQ",
         "place": "Cedar Park",
-        "address": "2203 Scottsdale Dr, Cedar Park",
+        "address": "2203 Scottsdale Dr, Leander",
         "lat": 30.54155,
         "lon": -97.81189,
-        "radius": 0.35
+        "radius": 0.08
+      },
+      {
+        "id": "firefly-hive",
+        "label": "Spacecraft lines & mission control (the Hive)",
+        "place": "Cedar Park",
+        "address": "5900 183A Toll Rd, Leander",
+        "lat": 30.54661,
+        "lon": -97.81568,
+        "radius": 0.08
       },
       {
         "id": "firefly-ranch",
@@ -103,6 +112,10 @@
       {
         "label": "Wikipedia",
         "url": "https://en.wikipedia.org/wiki/Firefly_Aerospace"
+      },
+      {
+        "label": "Texas TDLR: Firefly Hive cleanroom",
+        "url": "https://www.tdlr.texas.gov/TABS/Search/Print/TABS2026008904"
       }
     ]
   },
@@ -132,10 +145,10 @@
         "id": "cesiumastro",
         "label": "HQ & manufacturing",
         "place": "Bee Cave",
-        "address": "13215 Bee Cave Pkwy, Bee Cave",
-        "lat": 30.31368,
-        "lon": -97.94611,
-        "radius": 0.25
+        "address": "13215 Bee Cave Pkwy, Building A, Bee Cave",
+        "lat": 30.3141,
+        "lon": -97.94578,
+        "radius": 0.08
       }
     ],
     "sources": [
@@ -150,6 +163,10 @@
       {
         "label": "Texas Space Commission grant",
         "url": "https://space.texas.gov/news/release/texas-space-commission-awards-grant-to-cesiumastro-inc"
+      },
+      {
+        "label": "Texas TDLR: CesiumAstro, Galleria Oaks Building 1",
+        "url": "https://www.tdlr.texas.gov/TABS/Search/Print/TABS2021022763"
       }
     ]
   },
@@ -190,7 +207,13 @@
         "address": "15700 Long Vista Dr, Austin",
         "lat": 30.4554,
         "lon": -97.67357,
-        "radius": 0.25
+        "radius": 0.25,
+        "buildings": [
+          [
+            30.4555,
+            -97.67339
+          ]
+        ]
       }
     ],
     "sources": [
@@ -321,7 +344,29 @@
         "address": "6500 Tracor Ln, Austin",
         "lat": 30.27803,
         "lon": -97.66155,
-        "radius": 0.45
+        "radius": 0.45,
+        "buildings": [
+          [
+            30.28004,
+            -97.66543
+          ],
+          [
+            30.2793,
+            -97.66407
+          ],
+          [
+            30.278,
+            -97.66252
+          ],
+          [
+            30.27886,
+            -97.66136
+          ],
+          [
+            30.27789,
+            -97.66136
+          ]
+        ]
       }
     ],
     "sources": [
@@ -602,7 +647,17 @@
         "address": "10000 Burnet Rd, Austin",
         "lat": 30.38389,
         "lon": -97.72467,
-        "radius": 0.3
+        "radius": 0.3,
+        "buildings": [
+          [
+            30.3842,
+            -97.7248
+          ],
+          [
+            30.38503,
+            -97.72662
+          ]
+        ]
       }
     ],
     "sources": [
@@ -731,7 +786,37 @@
         "address": "6501 W William Cannon Dr, Austin",
         "lat": 30.23565,
         "lon": -97.86639,
-        "radius": 0.5
+        "radius": 0.5,
+        "buildings": [
+          [
+            30.23898,
+            -97.86952
+          ],
+          [
+            30.23922,
+            -97.86849
+          ],
+          [
+            30.23877,
+            -97.86834
+          ],
+          [
+            30.23898,
+            -97.86693
+          ],
+          [
+            30.2382,
+            -97.86619
+          ],
+          [
+            30.23959,
+            -97.86627
+          ],
+          [
+            30.23927,
+            -97.86458
+          ]
+        ]
       },
       {
         "id": "nxp-ed-bluestein",
@@ -780,7 +865,33 @@
         "address": "9700 E U.S. 290, Austin",
         "lat": 30.33438,
         "lon": -97.61594,
-        "radius": 0.6
+        "radius": 0.6,
+        "buildings": [
+          [
+            30.33402,
+            -97.61974
+          ],
+          [
+            30.33504,
+            -97.61449
+          ],
+          [
+            30.3394,
+            -97.61392
+          ],
+          [
+            30.3353,
+            -97.61632
+          ],
+          [
+            30.33638,
+            -97.61713
+          ],
+          [
+            30.33738,
+            -97.61755
+          ]
+        ]
       }
     ],
     "sources": [
@@ -815,7 +926,25 @@
         "address": "7171 Southwest Pkwy, Austin",
         "lat": 30.25159,
         "lon": -97.86405,
-        "radius": 0.35
+        "radius": 0.35,
+        "buildings": [
+          [
+            30.25131,
+            -97.86367
+          ],
+          [
+            30.25116,
+            -97.86254
+          ],
+          [
+            30.25211,
+            -97.86377
+          ],
+          [
+            30.2507,
+            -97.86268
+          ]
+        ]
       }
     ],
     "sources": [
@@ -850,9 +979,23 @@
         "label": "Fab 25",
         "place": "Southeast Austin",
         "address": "5204 E Ben White Blvd, Austin",
-        "lat": 30.21774,
-        "lon": -97.72418,
-        "radius": 0.35
+        "lat": 30.21841,
+        "lon": -97.72104,
+        "radius": 0.35,
+        "buildings": [
+          [
+            30.21841,
+            -97.72104
+          ],
+          [
+            30.21816,
+            -97.72236
+          ],
+          [
+            30.21671,
+            -97.72268
+          ]
+        ]
       }
     ],
     "sources": [
@@ -965,7 +1108,8 @@
         "address": "6500 River Place Blvd, Austin",
         "lat": 30.39212,
         "lon": -97.84864,
-        "radius": 0.08
+        "radius": 0.08,
+        "shares": "broadcom-river-place"
       }
     ],
     "sources": [
@@ -1074,9 +1218,9 @@
         "id": "canon-nanotechnologies",
         "label": "R&D and tool development",
         "place": "North Austin",
-        "address": "1807 W Braker Ln, Austin",
-        "lat": 30.39085,
-        "lon": -97.70547,
+        "address": "1807 W Braker Ln, Building C, Austin",
+        "lat": 30.38971,
+        "lon": -97.70584,
         "radius": 0.06
       }
     ],
@@ -1084,6 +1228,10 @@
       {
         "label": "Overture Maps Places",
         "url": "https://overturemaps.org"
+      },
+      {
+        "label": "Craft: Canon Nanotechnologies",
+        "url": "https://craft.co/cnt"
       }
     ]
   },
@@ -1184,7 +1332,21 @@
         "address": "2706 Montopolis Dr, Austin",
         "lat": 30.21765,
         "lon": -97.71271,
-        "radius": 0.3
+        "radius": 0.3,
+        "buildings": [
+          [
+            30.21772,
+            -97.71274
+          ],
+          [
+            30.21831,
+            -97.71337
+          ],
+          [
+            30.21733,
+            -97.71189
+          ]
+        ]
       }
     ],
     "sources": [
@@ -1724,8 +1886,8 @@
         "label": "HQ",
         "place": "Southeast Austin",
         "address": "4101 Smith School Rd, Austin",
-        "lat": 30.19861,
-        "lon": -97.71087,
+        "lat": 30.1979,
+        "lon": -97.71073,
         "radius": 0.08
       }
     ],

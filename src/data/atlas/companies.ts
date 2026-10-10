@@ -13,6 +13,9 @@ export interface Site {
   radius: number;
   /** a co-tenant's site whose building this one is in (the building is painted as that site's) */
   shares?: string;
+  /** the site's buildings named outright, a [lat, lon] point in each (else the pipeline takes the
+   *  building under the pin, or for a campus everything big within `radius`) */
+  buildings?: [number, number][];
 }
 
 export type CompanyStatus =

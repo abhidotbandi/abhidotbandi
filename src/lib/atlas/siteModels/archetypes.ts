@@ -360,7 +360,7 @@ export const PLANS: Record<string, Plan> = {
     props: (kit, s, _fps, _tops, ground) => boats(kit, ground, ...offset(s, 90, 90), 4),
   },
   // Fabs: SkyWater's Fab 25 and the Montopolis research fab.
-  skywater: { kind: "fab", fab: { cub: [165, 51], yard: [174, -29, 0] } },
+  skywater: { kind: "fab", fab: { cub: [-137, -23], yard: [-128, -103, 0] } },
   tie: { kind: "fab", fab: { cub: [79, -36], yard: [208, 16, 0] } },
   // Factories.
   "allen-control-systems": { kind: "factory", wall: C.metalLight },
@@ -370,8 +370,9 @@ export const PLANS: Record<string, Plan> = {
   infinitum: { kind: "factory" },
   apptronik: { kind: "factory", wall: C.metalLight },
   "fox-robotics": { kind: "factory", docks: [0.7, 0.7, 0] },
-  // Spacecraft lines and mission control: a dish on the roof.
-  firefly: {
+  firefly: { kind: "factory", wall: C.metalLight },
+  // Spacecraft lines and mission control (the Hive): a dish on the roof.
+  "firefly-hive": {
     kind: "factory",
     wall: C.metalLight,
     props: (kit, s, fps, tops) => {

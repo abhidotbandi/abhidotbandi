@@ -1373,3 +1373,64 @@ someone else's building.
 - **Perseus** moves to Building 2's centre, and only that building is tagged as its site. Its
   model is a tilt-wall works (the factory archetype) with drive-in doors facing the truck court
   to the south. Its card gains the building, the fit-out and the TDLR source.
+
+### 2.31 Every company on its own buildings (2026-10-10)
+
+Asked: check the other companies' offices are on the right buildings, and whether Citadel
+Securities really has an office there. It does. Its Austin office is in San Jacinto Center (98 San
+Jacinto Blvd), the building the map tags. The state's TDLR registrations show "Citadel Austin"
+fit-outs there in 2020, 2022 and 2024, about 28,000 sq ft on the 14th floor, and the firm lists
+the same building.
+
+**The audit.** For all 85 sites, the audit checked how the pipeline picked the buildings: the
+footprint under the pin, the nearest one (the fallback), a placeholder, or everything big within
+a campus radius. It cross-checked each site against three things:
+- Overture's address points for the site's street address;
+- Overture's place listings for the company;
+- the names on the buildings.
+
+Doubtful cases were checked on USGS imagery and against TDLR filings. Most were right, often
+with the company's own name on the building: Indeed Tower, Block 185, Colorado Tower, Quarry Oaks
+II, IBM Bldg 90x, Building C for EA and so on. Overture's "Norwood Tower" name on Meta's 300 W
+6th St tower is wrong, but the building is right; it holds that address and the "Facebook
+Austin" listing. Fixed:
+
+- **Wrong building.**
+  - Canon Nanotechnologies was on the Bouldin Acres restaurant across Braker Ln. It is now on
+    Braker C (1807 W Braker Ln, Building C), where its listing and Molecular Imprints' are.
+  - Fox Robotics' address point falls in the truck court between two twin warehouses. Its listing
+    is in the southwest one.
+- **Co-tenant.** Ambiq is in Broadcom's 6500 River Place Blvd building, its listing inside, so it
+  now shares it (it had no building).
+- **Radius too wide.** A campus radius took in other businesses' buildings. These sites now name
+  their buildings outright (`buildings` in `companies.json`: a point in each; `selection()` tags
+  the footprint under each):
+  - Allen Control Systems' factory: the former Farmers Insurance building only. Its neighbours
+    are logistics firms, Muto Technology and a flooring business.
+  - ARL:UT: its main lab and the ARL Engineering Support Facility. Not the retail and office
+    strips across Burnet Rd.
+  - SkyWater Fab 25: the fab and the buildings joined to it. Not the frontage office building,
+    which holds the Mexican consulate and a city department, nor the strip buildings by the
+    highway. Its pin moves onto the fab, and the plant's utility building and gas yard keep
+    their places.
+  - AMD: the four buildings inside the Lone Star campus loop. Not those on Rialto Blvd or the
+    apartments across the road.
+  - TIE: 2704, 2706 and 2708 Montopolis Dr. Not the state disability office across the railway.
+  - BAE Systems: its own buildings. Before this, the radius reached down into NXP's Ed Bluestein
+    campus and took a building Overture names "NXP".
+  - Applied Materials: Bldgs. 31–37. Not Southern Tire Mart or Life Storage.
+  - NXP Oak Hill: everything but an office building of other tenants.
+  - CesiumAstro: Galleria Oaks Building 1 (13215 Bee Cave Pkwy, A-300). Its neighbours house a
+    title company, a bank's advisors and accountants. Its new 16900 Cross Peak Dr campus is
+    still being fitted out, until 2027.
+- **Firefly** was three new buildings on Scottsdale Dr by radius. Only 2203 Scottsdale Dr is
+  sourced: Firefly's own contact page, and its TDLR "B44" fit-out. It is now the HQ. The
+  spacecraft lines and mission control are at "the Hive", 5900 183A Toll Rd (TDLR: the Hive
+  cleanroom, 2026; the mission-ops rooms, 2023). That is a new site, and the dish moves onto it.
+
+Left as they are:
+- Skyways: its address point is in the parking lot of the building taken.
+- Base Power: the former Statesman plant.
+- The Boring Company and the other signature sites.
+
+The detail tiles were rebuilt, since the set of buildings in the always-loaded file changed.

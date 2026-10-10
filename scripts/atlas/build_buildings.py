@@ -136,6 +136,19 @@ def selection(geoms, lon, lat, area, under):
         select |= (dist < ctx) & (area >= 60)
         if s.get("shares"):
             continue  # a co-tenant: the building is the other site's
+        if s.get("buildings"):
+            # Its buildings named outright, by a point in each: a campus whose radius would take
+            # in other businesses' buildings too.
+            for la, lo in s["buildings"]:
+                p = Point(lo, la)
+                inside = [i for i in tree.query(p) if geoms[i].contains(p) and not under[i]]
+                if not inside:
+                    raise SystemExit(f"{s['id']}: no footprint at {la}, {lo}")
+                i = max(inside, key=lambda j: area[j])
+                if site_of[i] == -1:
+                    site_of[i] = si
+                    select[i] = True
+            continue
         pt = Point(s["lon"], s["lat"])
         hit = [i for i in tree.query(pt) if geoms[i].contains(pt)]
         if s["radius"] >= 0.15:

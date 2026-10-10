@@ -57,6 +57,11 @@ export default function About() {
           <li>
             Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noreferrer">Terrain Tiles on AWS</a> (Mapzen), from USGS 3DEP and SRTM.
           </li>
+          <li>
+            Footprints Overture doesn&apos;t have yet (Austin-Bergstrom&apos;s terminal and paving, Tower Business Park in
+            Buda) were traced from USGS orthoimagery and Copernicus Sentinel-2 imagery (contains modified Copernicus
+            Sentinel data, 2026), with the owners&apos; plans and Texas TDLR filings.
+          </li>
           <li>Vertical scale is exaggerated 3× for terrain and 1.6× for buildings so the hills read.</li>
         </ul>
       </div>

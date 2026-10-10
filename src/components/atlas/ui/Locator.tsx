@@ -8,9 +8,8 @@ import { runtime } from "@/lib/atlas/store";
 
 type LocatorData = typeof LocatorJson;
 
-/** The drawing's width in px (atlas.css), so marks can be sized in px within the km viewBox. */
-const DRAW_PX = 126;
-/** The view cone's length and the dot's radius, px. */
+/** The view cone's length and the dot's radius, px (the drawing is measured, so they keep their
+ *  size in the phone's smaller card). */
 const CONE_PX = 26;
 const DOT_PX = 3.3;
 const DEG = Math.PI / 180;
@@ -26,6 +25,7 @@ export default function Locator() {
   const cone = useRef<SVGPathElement>(null);
   const dot = useRef<SVGCircleElement>(null);
   const caption = useRef<HTMLSpanElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -44,17 +44,26 @@ export default function Locator() {
       grid.fill(runs[i + 1], at, at + runs[i]);
       at += runs[i];
     }
-    const k = fw / DRAW_PX; // km a px
-    dot.current?.setAttribute("r", String(DOT_PX * k));
+    let k = 0; // km a px
+    let coneLen = CONE_PX;
+    let sized = "";
     let last = "";
     let named = -2;
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const c = runtime.cam;
-      const key = `${c.x.toFixed(2)} ${c.z.toFixed(2)} ${c.bearing.toFixed(1)} ${window.innerWidth}x${window.innerHeight}`;
+      const size = `${window.innerWidth}x${window.innerHeight}`;
+      const key = `${c.x.toFixed(2)} ${c.z.toFixed(2)} ${c.bearing.toFixed(1)} ${size}`;
       if (key === last) return;
       last = key;
+      if (size !== sized) {
+        sized = size;
+        const w = svg.current?.clientWidth || 126;
+        k = fw / w;
+        coneLen = CONE_PX * clamp(w / 126, 0.7, 1); // a little shorter in the phone's card
+        dot.current?.setAttribute("r", String(DOT_PX * k));
+      }
       const x = clamp(c.x, fx, fx + fw);
       const z = clamp(c.z, fz, fz + fh);
       dot.current?.setAttribute("cx", x.toFixed(2));
@@ -63,7 +72,7 @@ export default function Locator() {
       const aspect = window.innerWidth / Math.max(1, window.innerHeight);
       const half = Math.atan(Math.tan((viewFov(window.innerWidth, window.innerHeight) * DEG) / 2) * aspect);
       const b = c.bearing * DEG;
-      const r = CONE_PX * k;
+      const r = coneLen * k;
       const p = (a: number) => `${(x + Math.sin(a) * r).toFixed(2)} ${(z - Math.cos(a) * r).toFixed(2)}`;
       cone.current?.setAttribute("d", `M${x.toFixed(2)} ${z.toFixed(2)}L${p(b - half)}A${r.toFixed(2)} ${r.toFixed(2)} 0 0 1 ${p(b + half)}Z`);
       // The caption: the city (or county) under the middle of the view.
@@ -83,7 +92,7 @@ export default function Locator() {
   const [fx, fz, fw, fh] = data.frame;
   return (
     <figure className="locator" data-obstacle aria-hidden="true">
-      <svg viewBox={`${fx} ${fz} ${fw} ${fh}`}>
+      <svg ref={svg} viewBox={`${fx} ${fz} ${fw} ${fh}`}>
         <path className="lc-county" d={data.counties} />
         <path className="lc-travis" d={data.travis} />
         <path className="lc-water" d={data.water} />

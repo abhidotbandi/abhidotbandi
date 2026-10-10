@@ -1321,10 +1321,14 @@ view cone on a small outline of the region.
   animation frame and only write when the camera moves, so React never re-renders.
 - **The caption** reads "N ↑ ·" and the city under the camera, or else its county (a 0.5 km grid
   built from Overture's city and county outlines). Outside the region it reads "Central Texas".
-- **Room for it.** Its data (9 kB gzipped) loads once the map is up. Phones and screens under
+- **Room for it.** Its data (9 kB gzipped) loads once the map is up. Landscape screens under
   560 px tall go without. It steps aside for an open company or place panel, and for the
   ride's controls on screens under 1000 px wide. While it shows, the tour's Red Line rail rides
   up to stay clear of it.
+- **On phones** (asked for 2026-10-10) a smaller card sits at the top left, under the header.
+  That keeps it clear of the filters, the ride's controls and the story cards, which all take
+  the bottom of the screen. It stays up while a company sheet is open below it. The dot and
+  cone are sized from the drawing's measured width, so they keep their proportions.
 
 ### 2.29 The moonlight towers' glow (2026-10-10)
 

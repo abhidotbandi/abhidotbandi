@@ -939,7 +939,7 @@
 
 .locator svg {
   display: block;
-  width: 126px; /* DRAW_PX */
+  width: 126px;
   height: auto;
   margin: 0 auto;
   overflow: visible;
@@ -1000,15 +1000,15 @@
   color: var(--ink-3);
 }
 
-/* Out of the way of an open company or place panel, and of the ride's controls where they
-   would meet it. */
+/* Out of the way of an open company or place panel (on the right, beside the map), and of the
+   ride's controls where they would meet it. */
 .atlas[data-ready="0"] .locator,
 .atlas[data-selected="1"] .locator {
   opacity: 0;
   visibility: hidden;
 }
 
-@media (max-width: 999px) {
+@media (min-width: 760px) and (max-width: 999px) {
   .atlas[data-mode="ride"] .locator,
   .atlas[data-mode="paddle"] .locator {
     opacity: 0;
@@ -1016,10 +1016,39 @@
   }
 }
 
-/* Phones and short screens go without; elsewhere the tour's Red Line rides up to make room. */
-@media (max-width: 759px), (max-height: 559px) {
+/* Short landscape screens go without; elsewhere the tour's Red Line rides up to make room. */
+@media (min-width: 760px) and (max-height: 559px) {
   .locator {
     display: none;
+  }
+}
+
+/* Phones: a smaller card at the top left, under the header, clear of the panels and cards that
+   take the bottom of the screen; there the company sheet leaves it be. */
+@media (max-width: 759px) {
+  .locator {
+    top: 68px;
+    right: auto;
+    bottom: auto;
+    left: 10px;
+    width: 104px;
+    padding: 8px 8px 6px;
+    border-radius: 11px;
+  }
+
+  .locator svg {
+    width: 88px;
+  }
+
+  .locator figcaption {
+    margin-top: 5px;
+    font-size: 7px;
+    letter-spacing: 0.04em;
+  }
+
+  .atlas[data-selected="1"][data-ready="1"] .locator {
+    opacity: 1;
+    visibility: visible;
   }
 }
 

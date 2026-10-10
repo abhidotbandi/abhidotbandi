@@ -12,10 +12,11 @@ import { CAPITOL_YAW, capitolAt, capitolUV } from "@/lib/atlas/capitol";
 import { KIND_PITCHED, KIND_PLAIN, STYLE_CAMPUS_TILE, STYLE_CAPITOL } from "@/lib/atlas/extrude";
 import { BUILDING_EXAG, groundY, project, type HeightField } from "@/lib/atlas/geo";
 import { coverRectangles, hipRoof } from "@/lib/atlas/roofs";
+import { runtime } from "@/lib/atlas/store";
 import { sky } from "@/lib/atlas/timeOfDay";
 import Buildings from "./Buildings";
 import { aoCaster } from "./Occlusion";
-import { radialTexture } from "./glow";
+import { pullTowardCamera, radialTexture } from "./glow";
 
 // Austin's landmarks as procedural low-poly models: the Texas State Capitol in sunset-red
 // granite and its grounds, with the Governor's Mansion, the Old Land Office and St. Mary
@@ -1563,7 +1564,7 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
     glow: new THREE.PointsMaterial({
       map: glowTexture(),
       color: "#e4ecff",
-      size: 30 * Math.min(2, window.devicePixelRatio || 1),
+      size: 30,
       sizeAttenuation: false,
       transparent: true,
       depthWrite: false,
@@ -1573,7 +1574,7 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
     warmGlow: new THREE.PointsMaterial({
       map: glowTexture(),
       color: "#ffcf8f",
-      size: 12 * Math.min(2, window.devicePixelRatio || 1),
+      size: 12,
       sizeAttenuation: false,
       transparent: true,
       depthWrite: false,
@@ -1606,11 +1607,14 @@ function build(c: Central, ground: HeightField): { root: THREE.Group; glass: THR
   gg.setAttribute("position", new THREE.Float32BufferAttribute(glow, 3));
   parts.glowPoints = new THREE.Points(gg, parts.glow);
   parts.glowPoints.renderOrder = 2;
+  // Clear of the ground in front of each tower (its lamps stand 80 m up).
+  pullTowardCamera(parts.glow, 0.2);
   root.add(parts.glowPoints);
   const wg = new THREE.BufferGeometry();
   wg.setAttribute("position", new THREE.Float32BufferAttribute(warmGlow, 3));
   parts.warmPoints = new THREE.Points(wg, parts.warmGlow);
   parts.warmPoints.renderOrder = 2;
+  pullTowardCamera(parts.warmGlow, 0.05);
   root.add(parts.warmPoints);
   root.userData.parts = parts;
   const glass = new THREE.BufferGeometry();
@@ -1644,6 +1648,11 @@ export default function Landmarks({ central, ground }: { central: Central; groun
     p.lit.emissive.setRGB(0.64, 0.46, 0.3).multiplyScalar(n);
     p.warm.emissive.setRGB(0.95, 0.74, 0.45).multiplyScalar(n);
     p.pave.emissive.setRGB(0.02, 0.017, 0.013).multiplyScalar(n);
+    // Glows in screen pixels (three scales them by the pixel ratio), smaller as the view pulls
+    // back: a moonlight tower is one lamp among the city's, not a beacon, from across town.
+    const far = Math.pow(Math.max(runtime.cam.dist, 0.1), 0.75);
+    p.glow.size = THREE.MathUtils.clamp(48 / far, 6, 30);
+    p.warmGlow.size = THREE.MathUtils.clamp(19 / far, 3, 12);
     p.glow.opacity = Math.min(1, n * 1.3);
     p.glowPoints.visible = n > 0.03;
     p.warmGlow.opacity = Math.min(1, n * 1.3);

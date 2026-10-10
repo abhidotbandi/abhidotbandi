@@ -30,3 +30,20 @@ export function radialTexture(size: number, stops: [number, number, number, numb
   tex.needsUpdate = true;
   return tex;
 }
+
+/**
+ * Draw a glow's points `km` nearer the camera than they are, along the line of sight, so they
+ * stay where they are on screen. A point sprite has one depth for all of it, so without this
+ * the ground just in front of a lamp cuts off the bottom of its glow.
+ */
+export function pullTowardCamera(material: THREE.PointsMaterial, km: number) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <project_vertex>",
+      `#include <project_vertex>
+      mvPosition.xyz *= max(0.05, 1.0 - ${km.toFixed(4)} / length(mvPosition.xyz));
+      gl_Position = projectionMatrix * mvPosition;`,
+    );
+  };
+  material.customProgramCacheKey = () => `pull${km}`;
+}

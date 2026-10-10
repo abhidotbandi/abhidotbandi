@@ -1325,3 +1325,20 @@ view cone on a small outline of the region.
   560 px tall go without. It steps aside for an open company or place panel, and for the
   ride's controls on screens under 1000 px wide. While it shows, the tour's Red Line rail rides
   up to stay clear of it.
+
+### 2.29 The moonlight towers' glow (2026-10-10)
+
+Asked: what are the white lights over the city at night? They were the halos of the 13
+moonlight towers, the 1890s arc-light masts, and two bugs blew them up into big flat-bottomed
+blobs:
+- **Size.** Their point size was multiplied by the screen's pixel ratio, but three.js already
+  scales points by the renderer's pixel ratio. On phones and Retina screens they drew at up to
+  twice their size, and more where the renderer runs at a lower resolution. The same applied to
+  the bulbs and neon in `CityLife`.
+- **Clipping.** A point sprite has one depth for all of it, so the ground in front of each tower
+  cut off the lower half of its glow.
+
+The glows are now sized in screen pixels and shrink as the view pulls back. At 30 px close up
+and 6 px from across town, a tower reads as one bright lamp among the city's lights rather than
+a beacon. `glow.ts`'s `pullTowardCamera` draws them 200 m nearer the camera along the line of
+sight, so they stay in place on screen and clear of the ground in front.

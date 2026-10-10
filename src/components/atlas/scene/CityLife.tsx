@@ -89,7 +89,7 @@ function points(pos: number[], col: number[], size: number, map: THREE.Texture):
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   const m = new THREE.PointsMaterial({
-    size: size * Math.min(2, window.devicePixelRatio || 1),
+    size, // screen px: three scales points by the pixel ratio itself
     sizeAttenuation: false,
     vertexColors: true,
     map,

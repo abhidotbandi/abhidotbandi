@@ -1,0 +1,2721 @@
+/* Silicon Hills atlas. A printed field atlas by day, a night-lights map after dusk. */
+
+.atlas {
+  --paper: #f8f3e9;
+  --paper-glass: rgba(249, 245, 236, 0.9);
+  --paper-2: #efe7d6;
+  --ink: #1c1914;
+  --ink-2: #4f483e;
+  --ink-3: #857d70;
+  --rule: rgba(28, 25, 20, 0.12);
+  --rule-2: rgba(28, 25, 20, 0.22);
+  --accent: #bf5700; /* burnt orange: UI accent only, never a data colour */
+  --accent-ink: #9a4600;
+  --red-line: #c8102e; /* Capital Metro's Red Line */
+  --focus: #1d4ed8;
+  --shadow: 0 1px 2px rgba(40, 30, 10, 0.08), 0 14px 38px -18px rgba(40, 30, 10, 0.45);
+
+  /* Domain marks (validated palette, see docs/atlas/PLAN.md) */
+  --d-defense-space: #eda100;
+  --d-chips-compute: #4a3aa7;
+  --d-energy-mobility: #008300;
+  --d-robotics-mfg: #e87ba4;
+  --d-big-tech: #5d8ff0;
+  --d-finance: #931848;
+
+  --font-ui: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-num: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-serif), "Iowan Old Style", Georgia, serif;
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #efe8d8;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.atlas *,
+.atlas *::before,
+.atlas *::after {
+  box-sizing: border-box;
+}
+
+.atlas :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.glyph[data-domain="defense-space"] { color: var(--d-defense-space); }
+.glyph[data-domain="chips-compute"] { color: var(--d-chips-compute); }
+.glyph[data-domain="energy-mobility"] { color: var(--d-energy-mobility); }
+.glyph[data-domain="robotics-mfg"] { color: var(--d-robotics-mfg); }
+.glyph[data-domain="big-tech"] { color: var(--d-big-tech); }
+.glyph[data-domain="finance"] { color: var(--d-finance); }
+.glyph { flex: none; }
+
+/* A company's logo: a tile of the baked sprite (CompanyLogo), ringed in its domain's colour. */
+.logo {
+  flex: none;
+  display: inline-block;
+  width: var(--logo, 20px);
+  height: var(--logo, 20px);
+  border-radius: 24%;
+  background: #fff url(/atlas/logos.webp) no-repeat;
+  box-shadow: 0 0 0 1.5px var(--ring, var(--rule-2));
+}
+.logo[data-domain="defense-space"] { --ring: var(--d-defense-space); }
+.logo[data-domain="chips-compute"] { --ring: var(--d-chips-compute); }
+.logo[data-domain="energy-mobility"] { --ring: var(--d-energy-mobility); }
+.logo[data-domain="robotics-mfg"] { --ring: var(--d-robotics-mfg); }
+.logo[data-domain="big-tech"] { --ring: var(--d-big-tech); }
+.logo[data-domain="finance"] { --ring: var(--d-finance); }
+
+/* ---------- layers ---------- */
+
+/* The map's labels come up with the live map, as the loader wipes away. */
+.atlas-labels {
+  transition: opacity 0.9s ease;
+}
+
+.atlas[data-ready="0"] .atlas-labels {
+  opacity: 0;
+}
+
+.atlas-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.atlas-canvas canvas {
+  display: block;
+}
+
+/* The map's corners a little darker, as on a printed plate (under the labels and panels). */
+.atlas-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(115% 90% at 50% 42%, transparent 58%, rgba(28, 25, 20, 0.14) 100%);
+}
+
+.atlas-scroller {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  outline: none;
+}
+
+.atlas-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+.atlas[data-mode="explore"] .atlas-scroller,
+.atlas[data-mode="ride"] .atlas-scroller,
+.atlas[data-mode="paddle"] .atlas-scroller {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.story-track {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+  /* The first and last lanes run past the ends of the tour: they mustn't lengthen it. (Clip, not
+     hidden, so the cards still stick to the scroller.) */
+  overflow-y: clip;
+}
+
+/* A card's lane: the card scrolls in with the page, sticks at its anchor while the camera holds
+   on its stop (the spacer after it is that hold), then scrolls on as the camera flies to the
+   next stop. */
+.story-lane {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+/* ---------- story cards ---------- */
+
+.story-card {
+  position: sticky;
+  margin-left: clamp(16px, 4.2vw, 64px);
+  width: min(410px, calc(100vw - 32px));
+  transform: translateY(-50%);
+  padding: 22px 24px 20px;
+  border-radius: 14px;
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  pointer-events: auto;
+  transition: opacity 0.2s linear;
+}
+
+/* Past the chapter list, where there's room for it down the left (lib/atlas/framing.ts). */
+@media (min-width: 1100px) {
+  .story-card {
+    margin-left: max(280px, 16vw);
+  }
+}
+
+.story-card .kicker {
+  margin: 0;
+  font: 600 11px/1.3 var(--font-num);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.story-card h2 {
+  margin: 8px 0 10px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+.story-card h2 {
+  font-size: 30px;
+  line-height: 1.08;
+}
+
+.story-card .story-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.site-list {
+  list-style: none;
+  margin: 16px -8px 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--rule);
+}
+
+.site-row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.site-row:hover,
+.site-row:focus-visible {
+  background: rgba(28, 25, 20, 0.055);
+}
+
+.site-row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.site-row .logo {
+  --logo: 22px;
+}
+
+.site-row-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.site-row-place {
+  font-weight: 450;
+  color: var(--ink-3);
+}
+
+.site-row-builds {
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--ink-2);
+}
+
+.site-row-status {
+  font: 500 11px/1.2 var(--font-num);
+  color: var(--ink-3);
+  text-align: right;
+  max-width: 120px;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* Short laptop screens: a stop's companies one line each (what they build, cut short, after the
+   name: the map's labels carry it in full), so the longer cards fit between the header and the
+   bottom edge while they hold. */
+@media (min-width: 760px) and (max-height: 860px) {
+  .story-card {
+    padding: 18px 22px 16px;
+  }
+
+  .story-card h2 {
+    font-size: 27px;
+    margin: 6px 0 8px;
+  }
+
+  .site-list {
+    margin-top: 12px;
+    padding-top: 6px;
+  }
+
+  .site-row {
+    padding: 4px 8px;
+  }
+
+  .site-row-main {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .site-row-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .site-row-builds {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ---------- buttons ---------- */
+
+/* Zero-specificity reset so component classes (.btn-primary, .al-site…) always win. */
+:where(.atlas) button {
+  font: inherit;
+  color: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-2);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+  background: #fff;
+}
+
+.btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fbf7ef;
+}
+
+.btn-primary:hover {
+  background: #332d24;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 9px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  background: var(--paper-glass);
+  color: var(--ink);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.icon-btn:hover {
+  background: #fff;
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: var(--paper-glass);
+}
+
+.icon-btn kbd,
+.sp-input kbd {
+  font: 500 10.5px/1 var(--font-num);
+  color: var(--ink-3);
+  padding: 3px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--rule);
+}
+
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------- header ---------- */
+
+.atlas-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px clamp(16px, 2.4vw, 28px);
+  pointer-events: none;
+}
+
+.atlas-header > * {
+  pointer-events: auto;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 10px;
+  border-radius: 12px;
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.wordmark svg {
+  color: var(--accent);
+}
+
+.wm-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.wm-name {
+  font: 500 17px/1.05 var(--font-display);
+  letter-spacing: -0.005em;
+}
+
+.wm-sub {
+  font: 500 10px/1.3 var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seg button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.seg button[aria-pressed="true"] {
+  background: var(--ink);
+  color: #fbf7ef;
+}
+
+.seg-ride[aria-pressed="true"] {
+  background: #c8102e !important;
+}
+
+.seg-paddle[aria-pressed="true"] {
+  background: #1f7fa6 !important;
+}
+
+/* ---------- the opening: title card and scroll cue ---------- */
+
+/* The atlas's title over the middle of the opening view (as the Levels.fyi atlases open): its
+   parts rise into place one after another as it comes up. The wheel and touches go through it
+   to the story, except on ×. */
+.atlas-hero {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  z-index: 5;
+  width: max-content;
+  max-width: min(920px, calc(100vw - 32px));
+  padding: 30px 44px 26px;
+  border-radius: 18px;
+  background: rgba(249, 245, 236, 0.94);
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  box-shadow: 0 6px 20px rgba(28, 25, 20, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s, visibility 0.45s;
+}
+
+.atlas-hero[data-on="1"] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.atlas-hero > * {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.55s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.atlas-hero[data-on="1"] > * {
+  opacity: 1;
+  transform: none;
+}
+
+.atlas-hero[data-on="1"] > :nth-child(2) {
+  transition-delay: 0.07s;
+}
+
+.atlas-hero[data-on="1"] > :nth-child(3) {
+  transition-delay: 0.14s;
+}
+
+.atlas-hero[data-on="1"] > :nth-child(4) {
+  transition-delay: 0.2s;
+}
+
+.hero-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0 0 2px;
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.hero-close:hover {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.hero-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 0 0 14px;
+  font: 500 clamp(9px, 1vw, 11.5px) / 1.2 var(--font-num);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--accent-ink);
+}
+
+.hero-kicker::before,
+.hero-kicker::after {
+  content: "";
+  flex: none;
+  width: 42px;
+  height: 1.5px;
+  background: var(--accent);
+}
+
+.atlas-hero h1 {
+  margin: 0;
+  font: 900 clamp(38px, 5.4vw, 68px) / 1 var(--font-rounded), var(--font-ui);
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.atlas-hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.hero-sub {
+  max-width: 34em;
+  margin: 14px auto 0;
+  font: italic 400 clamp(15px, 1.7vw, 19.5px) / 1.45 var(--font-display);
+  color: var(--ink-2);
+  text-wrap: balance;
+}
+
+.hero-sub b {
+  font: 500 0.62em / 1 var(--font-num);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  vertical-align: 0.18em;
+  color: var(--ink-2);
+}
+
+.atlas-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font: 500 10px / 1.2 var(--font-num);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  text-shadow: 0 0 2px var(--paper), 0 0 5px var(--paper), 0 0 10px var(--paper);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.atlas-hint[data-on="1"] {
+  opacity: 1;
+}
+
+.atlas-hint b {
+  font-size: 14px;
+  animation: atlas-bob 1.6s ease-in-out infinite;
+}
+
+@keyframes atlas-bob {
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* ---------- chapters: the list down the left, the Red Line down the right ---------- */
+
+.chapter-nav {
+  position: fixed;
+  left: 24px;
+  top: 50%;
+  z-index: 5;
+  /* Always clear of the cards beside it (they start at max(280px, 16vw)), whatever the font. */
+  max-width: calc(max(280px, 16vw) - 36px);
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(249, 245, 236, 0.94);
+  border: 1px solid rgba(28, 25, 20, 0.16);
+  box-shadow: 0 2px 8px rgba(28, 25, 20, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateY(-50%);
+  transition: opacity 0.35s, transform 0.35s, visibility 0.35s;
+}
+
+.chapter-nav ol {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-nav button {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  padding: 2px 15px 0 0;
+  border: 0;
+  background: none;
+  font: 500 10.5px / 1.3 var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.chapter-nav i {
+  flex: none;
+  width: 18px;
+  font-style: normal;
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.chapter-nav em {
+  position: relative;
+  min-width: 0;
+  padding-bottom: 2.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.chapter-nav em::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 1.5px;
+  background: var(--accent);
+  transition: width 0.22s;
+}
+
+/* "›": go there */
+.chapter-nav button::after {
+  content: "\203A";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent-ink);
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+.chapter-nav button:hover,
+.chapter-nav button[aria-current] {
+  color: var(--ink);
+}
+
+.chapter-nav button[aria-current] i {
+  color: var(--accent);
+}
+
+.chapter-nav button[aria-current] em::after {
+  width: 100%;
+}
+
+.chapter-nav button:hover::after {
+  opacity: 0.9;
+}
+
+.atlas:not([data-mode="tour"]) .chapter-nav {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-14px);
+}
+
+@media (max-height: 700px) {
+  .chapter-nav ol {
+    gap: 1px;
+  }
+}
+
+@media (max-width: 1099px), (max-height: 539px) {
+  .chapter-nav {
+    display: none;
+  }
+}
+
+/* A stop for each chapter at its place along the scroll, and a train riding down to where the
+   story is (--p, 0..1, from AtlasApp): the line red behind it, each stop red once it's reached. */
+.tour-rail {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  z-index: 5;
+  transform: translateY(-50%);
+  transition: opacity 0.35s, visibility 0.35s;
+}
+
+.tr-line {
+  --p: 0;
+  position: relative;
+  width: 3px;
+  height: min(46vh, 420px);
+  background: rgba(28, 25, 20, 0.16);
+}
+
+.tr-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--red-line);
+  transform: scaleY(var(--p));
+  transform-origin: top;
+}
+
+.tr-stop {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--at) * 100%);
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.tr-stop::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--red-line);
+  opacity: clamp(0, (var(--p) - var(--at)) * 400 + 1, 1);
+}
+
+.tr-stop:hover,
+.tr-stop:focus-visible {
+  transform: translate(-50%, -50%) scale(1.45);
+}
+
+.tr-tip {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  padding: 3px 7px;
+  border: 1px solid var(--ink);
+  background: rgba(249, 245, 236, 0.94);
+  font: 500 9.5px / 1.2 var(--font-num);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.tr-stop:hover .tr-tip,
+.tr-stop:focus-visible .tr-tip {
+  opacity: 1;
+}
+
+.tr-train {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--p) * 100%);
+  width: 11px;
+  height: 17px;
+  border: 1.5px solid var(--ink);
+  border-radius: 3px 3px 1px 1px;
+  background: var(--red-line);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.tr-train::after {
+  content: "";
+  position: absolute;
+  inset: 2.5px 2px auto;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--paper);
+}
+
+.atlas:not([data-mode="tour"]) .tour-rail {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---------- the locator: where the camera is in the region (ui/Locator.tsx) ---------- */
+
+.locator {
+  position: fixed;
+  z-index: 4;
+  right: clamp(14px, 2vw, 26px);
+  bottom: clamp(14px, 2vw, 26px);
+  width: 156px;
+  margin: 0;
+  padding: 12px 12px 9px;
+  border-radius: 14px;
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  pointer-events: none;
+  transition: opacity 0.35s, visibility 0.35s;
+}
+
+.locator svg {
+  display: block;
+  width: 126px;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.locator path,
+.locator circle {
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.lc-county {
+  fill: #ebe3cf;
+  stroke: rgba(35, 35, 56, 0.34);
+  stroke-width: 0.6;
+}
+
+.lc-travis {
+  fill: #e0d2b2;
+  stroke: #232338;
+  stroke-width: 1.1;
+}
+
+.lc-water {
+  fill: var(--paper);
+  fill-rule: evenodd;
+  stroke: #232338;
+  stroke-width: 0.7;
+}
+
+.lc-river {
+  fill: none;
+  stroke: #232338;
+  stroke-width: 0.9;
+}
+
+.lc-cone {
+  fill: var(--accent);
+  fill-opacity: 0.34;
+}
+
+.lc-dot {
+  fill: var(--accent);
+  stroke: var(--paper);
+  stroke-width: 1.4;
+}
+
+.locator figcaption {
+  margin-top: 7px;
+  overflow: hidden;
+  font: 500 9px / 1.3 var(--font-num);
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+/* Out of the way of an open company or place panel (on the right, beside the map), and of the
+   ride's controls where they would meet it. */
+.atlas[data-ready="0"] .locator,
+.atlas[data-selected="1"] .locator {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@media (min-width: 760px) and (max-width: 999px) {
+  .atlas[data-mode="ride"] .locator,
+  .atlas[data-mode="paddle"] .locator {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Short landscape screens go without; elsewhere the tour's Red Line rides up to make room. */
+@media (min-width: 760px) and (max-height: 559px) {
+  .locator {
+    display: none;
+  }
+}
+
+/* Phones: a smaller card at the top left, under the header, clear of the panels and cards that
+   take the bottom of the screen; there the company sheet leaves it be. */
+@media (max-width: 759px) {
+  .locator {
+    top: 68px;
+    right: auto;
+    bottom: auto;
+    left: 10px;
+    width: 104px;
+    padding: 8px 8px 6px;
+    border-radius: 11px;
+  }
+
+  .locator svg {
+    width: 88px;
+  }
+
+  .locator figcaption {
+    margin-top: 5px;
+    font-size: 7px;
+    letter-spacing: 0.04em;
+  }
+
+  .atlas[data-selected="1"][data-ready="1"] .locator {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@media (min-width: 760px) and (min-height: 560px) {
+  .tour-rail {
+    top: calc(50% - 94px);
+  }
+
+  .tr-line {
+    height: min(46vh, 420px, calc(100vh - 352px));
+  }
+}
+
+/* ---------- map labels ---------- */
+
+.atlas-labels {
+  --halo: rgba(248, 244, 234, 0.95);
+  --label-ink: #28231c;
+  --label-ink-2: #5d5549;
+  --water-ink: #2d6780;
+  --chip-bg: rgba(250, 246, 238, 0.93);
+  --chip-ink: #1c1914;
+  --chip-ink-2: #5a5247;
+  --chip-rule: rgba(28, 25, 20, 0.14);
+  --chip-money: #1b7a45;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.atlas-labels[data-night="1"] {
+  /* the domains' night colours (domains.ts), for the logos' rings */
+  --d-defense-space: #c98500;
+  --d-chips-compute: #9085e9;
+  --d-robotics-mfg: #d55181;
+  --d-big-tech: #4859dd;
+  --d-finance: #904651;
+  --halo: rgba(9, 13, 26, 0.92);
+  --label-ink: #ece6da;
+  --label-ink-2: #b9b1a3;
+  --water-ink: #8ec4d8;
+  --chip-bg: rgba(16, 20, 36, 0.86);
+  --chip-ink: #f3efe6;
+  --chip-ink-2: #b8b2a8;
+  --chip-rule: rgba(255, 255, 255, 0.14);
+  --chip-money: #6fd69b;
+}
+
+.al {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.22s ease, visibility 0s linear 0.22s;
+}
+
+.al[data-on="1"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.22s ease, visibility 0s;
+}
+
+.al-town,
+.al-hood,
+.al-landmark,
+.al-water {
+  text-shadow: 0 0 2px var(--halo), 0 0 3px var(--halo), 0 0 6px var(--halo), 0 0 10px var(--halo);
+}
+
+.al-town {
+  font: 650 10.5px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--label-ink);
+}
+
+.al-town[data-rank="1"] {
+  font-size: 14px;
+  letter-spacing: 0.24em;
+}
+
+.al-town[data-rank="3"] {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--label-ink-2);
+}
+
+.al-hood {
+  font: 600 9.5px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label-ink-2);
+}
+
+.al-water {
+  font: italic 400 14px/1 var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--water-ink);
+}
+
+.al-landmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 550 10.5px/1 var(--font-ui);
+  color: var(--label-ink-2);
+}
+
+/* Labels that open a place's card. */
+.al-clickable {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.al-clickable[data-on="1"] {
+  pointer-events: auto;
+}
+
+.al-clickable:hover {
+  color: var(--label-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.al-landmark::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+  background: var(--label-ink-2);
+}
+
+.al-shield {
+  padding: 2px 5px 2px;
+  border-radius: 3px;
+  background: #fbfaf6;
+  border: 1px solid #27417e;
+  color: #27417e;
+  font: 700 9.5px/1.1 var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.atlas-labels[data-night="1"] .al-shield {
+  background: #151a2c;
+  border-color: #8ea4d8;
+  color: #c3d0f0;
+}
+
+.al-station {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #c8102e;
+  color: #fff;
+  font: 650 10px/1.2 var(--font-ui);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.al-site {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 4px 10px 4px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--chip-rule);
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+  font: 650 12px/1.2 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(20, 15, 5, 0.12), 0 6px 16px -10px rgba(20, 15, 5, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.al-site[data-on="1"] {
+  pointer-events: auto;
+}
+
+.al-site[data-focus="0"] {
+  opacity: 0.8;
+  font-size: 11px;
+}
+
+.al-site[data-inst="1"] {
+  border-radius: 3px;
+}
+
+.al-site:hover,
+.al-site[data-hover="1"] {
+  opacity: 1 !important;
+  border-color: var(--chip-ink);
+}
+
+/* A hovered label opens up over its neighbours rather than pushing them around. */
+.al-site[data-hover="1"],
+.al-site[data-sel="1"] {
+  z-index: 2;
+}
+
+.al-site[data-sel="1"] {
+  opacity: 1 !important;
+  box-shadow: 0 0 0 2px var(--chip-ink), 0 8px 20px -10px rgba(20, 15, 5, 0.6);
+}
+
+.al-site-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.al-site-sub {
+  font-weight: 500;
+  color: var(--chip-ink-2);
+}
+
+.al-site-figure {
+  margin-left: 7px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--chip-money);
+}
+
+.al-site-figure[data-kind="ticker"] {
+  font: 600 10px/1.2 var(--font-num);
+  letter-spacing: 0.04em;
+  color: var(--chip-ink-2);
+}
+
+.al-site-detail {
+  display: none;
+  font-size: 11px;
+  font-weight: 450;
+  color: var(--chip-ink-2);
+}
+
+.al-site[data-detail="1"] .al-site-detail {
+  display: block;
+}
+
+.al-site .glyph {
+  width: 14px;
+  height: 14px;
+}
+
+.al-site .logo {
+  --logo: 20px;
+}
+
+.al-site[data-focus="0"] .logo {
+  --logo: 17px;
+}
+
+/* ---------- panels ---------- */
+
+.panel-surface,
+.company-panel,
+.explore-panel,
+.ride-hud,
+.search-palette,
+.list-view,
+.about {
+  background: var(--paper-glass);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.company-panel:focus-visible {
+  outline: none;
+}
+
+.company-panel {
+  position: fixed;
+  z-index: 7;
+  top: 76px;
+  right: clamp(14px, 2vw, 26px);
+  width: min(380px, calc(100vw - 28px));
+  max-height: calc(100dvh - 92px);
+  overflow-y: auto;
+  padding: 16px 18px 18px;
+  animation: atlas-panel-in 0.22s ease;
+}
+
+@keyframes atlas-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.cp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.cp-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cp-close {
+  margin-left: auto;
+  min-width: 32px;
+  height: 32px;
+}
+
+.cp-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 6px;
+}
+
+.cp-title .logo {
+  --logo: 40px;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.cp-title .cp-name {
+  margin: 0;
+}
+
+.cp-name {
+  margin: 12px 0 2px;
+  font: 400 30px/1.05 var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+.cp-builds {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.cp-blurb {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.cp-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  margin: 14px 0 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cp-stats dt {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.cp-stats dd {
+  margin: 3px 0 0;
+  font: 500 16px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp-asof {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.cp-facts {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.cp-facts li + li {
+  margin-top: 5px;
+}
+
+.cp-sites h3 {
+  margin: 16px 0 6px;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.cp-sites ul {
+  list-style: none;
+  margin: 0 -6px;
+  padding: 0;
+}
+
+.cp-sites button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cp-sites button:hover,
+.cp-sites button.is-current {
+  background: rgba(28, 25, 20, 0.055);
+}
+
+.cp-site-label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.cp-site-addr {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.cp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.cp-sources {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.cp-sources summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cp-sources ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.cp-sources a,
+.about a {
+  color: var(--accent-ink);
+}
+
+/* explore */
+
+.explore-panel {
+  position: fixed;
+  z-index: 5;
+  left: clamp(14px, 2vw, 26px);
+  bottom: clamp(14px, 2vw, 26px);
+  width: 290px;
+  padding: 14px;
+}
+
+.ep-title {
+  margin: 0 0 8px;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ep-domains {
+  list-style: none;
+  margin: 0 -6px;
+  padding: 0;
+}
+
+.ep-domains button {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ep-domains button:hover {
+  background: rgba(28, 25, 20, 0.055);
+}
+
+.ep-domains button[aria-pressed="false"] {
+  opacity: 0.4;
+}
+
+.ep-domains button[aria-pressed="false"] .ep-label {
+  text-decoration: line-through;
+}
+
+.ep-label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.ep-count {
+  font: 500 12px/1 var(--font-num);
+  color: var(--ink-3);
+}
+
+.ep-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ep-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.ep-switch-track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(28, 25, 20, 0.2);
+  transition: background 0.15s;
+}
+
+.ep-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+
+.ep-switch input:checked + .ep-switch-track {
+  background: var(--ink);
+}
+
+.ep-switch input:checked + .ep-switch-track::after {
+  transform: translateX(12px);
+}
+
+.ep-switch input:focus-visible + .ep-switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.ep-tod {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(28, 25, 20, 0.06);
+}
+
+.ep-tod button {
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ep-tod button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.ep-hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+/* ride */
+
+.ride-hud {
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  bottom: clamp(14px, 2.4vw, 28px);
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 28px));
+  padding: 14px 18px 16px;
+}
+
+.rh-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rh-controls {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.rh-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.rh-bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #c8102e;
+}
+
+.rh-now {
+  margin: 6px 0 12px;
+  font: 400 24px/1.1 var(--font-display);
+}
+
+.rh-track {
+  position: relative;
+  height: 4px;
+  margin: 0 6px;
+  border-radius: 2px;
+  background: rgba(28, 25, 20, 0.14);
+}
+
+.rh-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: #c8102e;
+}
+
+.rh-scrub {
+  /* a finger-sized hit area around the 4px bar, without changing the layout */
+  margin: -12px 0;
+  padding: 12px 0;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.rh-stop {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  border: 2px solid #c8102e;
+  background: #fff;
+}
+
+.rh-stop[data-passed="1"] {
+  background: #c8102e;
+}
+
+.rh-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.rh-near {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.rh-near-title {
+  margin: 0 0 4px;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.rh-near ul {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 10px;
+  margin: 0 -6px;
+  padding: 0;
+}
+
+.rh-near button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rh-near button:hover {
+  background: rgba(28, 25, 20, 0.055);
+}
+
+.rh-near-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rh-near-dist {
+  margin-left: auto;
+  font: 500 11px/1 var(--font-num);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* modals */
+
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+  background: rgba(20, 16, 10, 0.28);
+  animation: atlas-fade 0.15s ease;
+}
+
+@keyframes atlas-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.search-palette {
+  width: min(620px, 100%);
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.sp-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+}
+
+.sp-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font: 400 17px/1.3 var(--font-ui);
+  color: var(--ink);
+}
+
+.sp-results {
+  list-style: none;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+}
+
+.sp-results button {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1.1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sp-results button > svg {
+  justify-self: center;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+
+.sp-results [aria-selected="true"] button {
+  background: rgba(28, 25, 20, 0.07);
+}
+
+.sp-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-sub {
+  font-weight: 450;
+  color: var(--ink-3);
+}
+
+.sp-builds {
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-place {
+  font: 500 11.5px/1 var(--font-num);
+  color: var(--ink-3);
+}
+
+.sp-empty {
+  padding: 18px 12px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.list-view {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  max-height: 84vh;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.lv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.lv-head h2 {
+  margin: 0;
+  font: 400 24px/1.1 var(--font-display);
+}
+
+.lv-scroll {
+  overflow: auto;
+}
+
+.company-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.company-table th,
+.company-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.company-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.company-table thead button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.company-table tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.company-table tbody th .logo {
+  --logo: 18px;
+  margin-right: 9px;
+  vertical-align: middle;
+}
+
+.ct-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.ct-name:hover {
+  text-decoration: underline;
+}
+
+.ct-def {
+  margin-left: 8px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--rule-2);
+  font: 600 10px/1.3 var(--font-num);
+  color: var(--ink-2);
+}
+
+.ct-domain {
+  white-space: nowrap;
+}
+
+.ct-domain .glyph {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.ct-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.about {
+  position: relative;
+  width: min(620px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px 26px;
+  background: var(--paper);
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.about h2 {
+  margin: 0 0 8px;
+  font: 400 30px/1.1 var(--font-display);
+  color: var(--ink);
+}
+
+.about h3 {
+  margin: 18px 0 4px;
+  font: 600 11px/1 var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.about ul {
+  padding-left: 18px;
+}
+
+.about-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+/* ---------- loader ---------- */
+
+/* The atlas opens on Austin drawing itself in while the map is built: the Capitol against a dusk
+   sun, downtown rising either side, the Congress Avenue Bridge, its bats; the name, and a Red
+   Line train riding the progress bar. Then the whole panel wipes away upward to the live map (as
+   the Levels.fyi atlases open). */
+.loader {
+  --sun: #f2a65e;
+  --water: #3d86b0;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.9s cubic-bezier(0.7, 0, 0.2, 1), visibility 0s linear 0.9s;
+}
+
+.loader[data-done="1"] {
+  clip-path: inset(0 0 100% 0);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1.5px solid rgba(28, 25, 20, 0.16);
+  pointer-events: none;
+}
+
+.ld-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 0 20px;
+}
+
+.ld-scene {
+  width: min(240px, 64vw);
+  margin-bottom: -2px;
+}
+
+.ld-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ld-art .la-sun {
+  fill: var(--sun);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: la-pop 0.7s 0.05s cubic-bezier(0.2, 1.3, 0.3, 1) forwards;
+}
+
+.ld-art .la-grow {
+  fill: var(--ink);
+  transform: scaleY(0.02);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: la-grow 0.55s cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
+}
+
+.la-towers .la-grow:nth-child(1) { animation-delay: 0.3s; }
+.la-towers .la-grow:nth-child(2) { animation-delay: 0.18s; }
+.la-towers .la-grow:nth-child(3) { animation-delay: 0.38s; }
+.la-towers .la-grow:nth-child(4) { animation-delay: 0.24s; }
+.la-towers .la-grow:nth-child(5) { animation-delay: 0.44s; }
+.la-towers .la-grow:nth-child(6) { animation-delay: 0.2s; }
+.la-towers .la-grow:nth-child(7) { animation-delay: 0.12s; }
+.la-towers .la-grow:nth-child(8) { animation-delay: 0.34s; }
+.la-towers .la-grow:nth-child(9) { animation-delay: 0.42s; }
+.la-towers .la-grow:nth-child(10) { animation-delay: 0.28s; }
+.la-capitol .la-grow:nth-child(1) { animation-delay: 0.1s; }
+.la-capitol .la-grow:nth-child(2) { animation-delay: 0.22s; }
+.la-capitol .la-grow:nth-child(3) { animation-delay: 0.38s; }
+
+.ld-art .la-dome {
+  fill: var(--ink);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: la-pop 0.5s 0.52s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+
+.ld-art .la-lantern {
+  fill: var(--ink);
+  opacity: 0;
+  animation: la-fade 0.3s 0.78s forwards;
+}
+
+.ld-art .la-draw {
+  fill: none;
+  stroke: var(--ink);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: la-draw 0.4s forwards;
+}
+
+.ld-art .la-statue {
+  stroke-width: 1.1;
+  animation-delay: 0.86s;
+}
+
+.ld-art .la-mast {
+  stroke-width: 1;
+  animation-delay: 0.8s;
+}
+
+.ld-art .la-deck {
+  stroke-width: 2.2;
+  animation: la-draw 0.9s 0.15s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+.ld-art .la-arches {
+  stroke-width: 1.4;
+  animation: la-draw 1.1s 0.45s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+.ld-art .la-star {
+  fill: var(--accent);
+  opacity: 0;
+  animation: la-fade 0.3s 1.1s forwards;
+}
+
+.ld-art .la-piers {
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  opacity: 0;
+  animation: la-fade 0.4s 0.7s forwards;
+}
+
+.ld-art .la-windows rect {
+  fill: #ffd99a;
+  opacity: 0;
+  animation: la-fade 0.3s 1s forwards, la-twinkle 2s 1.3s ease-in-out infinite;
+}
+
+.ld-art .la-windows rect:nth-child(2n) { animation-delay: 1.1s, 1.8s; }
+.ld-art .la-windows rect:nth-child(3n) { animation-delay: 1.2s, 2.3s; }
+
+.ld-art .la-water {
+  fill: none;
+  stroke: var(--water);
+  stroke-width: 1.5;
+  opacity: 0.55;
+  animation: la-drift 3s linear infinite;
+}
+
+.ld-art .la-water + .la-water {
+  opacity: 0.3;
+  animation-duration: 4.4s;
+}
+
+.ld-art .la-bats g {
+  opacity: 0;
+  animation: la-bat 2.6s linear infinite;
+}
+
+.ld-art .la-bats path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.95;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: 50% 60%;
+  animation: la-flap 0.16s ease-in-out infinite alternate;
+}
+
+.la-bats g:nth-child(1) { --dx: -18px; animation-delay: 1.2s; }
+.la-bats g:nth-child(2) { --dx: 8px; animation-delay: 1.55s; }
+.la-bats g:nth-child(3) { --dx: -6px; animation-delay: 1.9s; }
+.la-bats g:nth-child(4) { --dx: 20px; animation-delay: 2.25s; }
+.la-bats g:nth-child(5) { --dx: -12px; animation-delay: 2.6s; }
+.la-bats g:nth-child(6) { --dx: 14px; animation-delay: 2.95s; }
+.la-bats g:nth-child(7) { --dx: -24px; animation-delay: 3.3s; }
+
+@keyframes la-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes la-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-16px); }
+}
+
+@keyframes la-fade {
+  to { opacity: 1; }
+}
+
+@keyframes la-grow {
+  to { transform: scaleY(1); }
+}
+
+@keyframes la-pop {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes la-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes la-bat {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  12% { opacity: 0.95; }
+  80% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(var(--dx), -44px) scale(1.1); }
+}
+
+@keyframes la-flap {
+  to { transform: scaleY(0.25); }
+}
+
+.ld-title {
+  display: flex;
+  margin: 0;
+  font: 900 clamp(28px, 6vw, 54px) / 1 var(--font-rounded), var(--font-ui);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.ld-ch {
+  animation: ld-rise 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+  animation-delay: calc(var(--i, 0) * 0.04s);
+}
+
+@keyframes ld-rise {
+  from { opacity: 0; transform: translateY(0.55em); }
+  to { opacity: 1; transform: none; }
+}
+
+.ld-bar {
+  position: relative;
+  width: min(340px, 70vw);
+  height: 3px;
+  margin-top: 6px;
+  background: rgba(28, 25, 20, 0.16);
+}
+
+/* Moved by transforms, which the compositor keeps smooth while the page is busy building. */
+.ld-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform: scaleX(var(--p));
+  transform-origin: left;
+  transition: transform 0.35s ease-out;
+}
+
+.ld-car {
+  position: absolute;
+  inset: 0;
+  transform: translateX(calc(var(--p) * 100%));
+  transition: transform 0.35s ease-out;
+}
+
+.ld-train {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 15px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  background: var(--red-line);
+  transform: translate(-50%, -50%);
+}
+
+.ld-train::after {
+  content: "";
+  position: absolute;
+  inset: 2px 2px auto;
+  height: 2.5px;
+  border-radius: 1px;
+  background: var(--paper);
+  opacity: 0.85;
+}
+
+.ld-line {
+  min-height: 1.5em;
+  margin: 0;
+  font: 500 10.5px / 1.5 var(--font-num);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.ld-foot {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  width: max-content;
+  max-width: calc(100% - 64px);
+  margin: 0;
+  font: 500 9.5px / 1.5 var(--font-num);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink-3);
+  transform: translateX(-50%);
+}
+
+/* No motion: the scene drawn in full, the wipe a quick fade. */
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    transition: opacity 0.3s, visibility 0s linear 0.3s;
+  }
+
+  .loader[data-done="1"] {
+    clip-path: inset(0 0 0 0);
+    opacity: 0;
+  }
+
+  .ld-art *,
+  .ld-ch {
+    animation: none !important;
+  }
+
+  .ld-art * {
+    stroke-dashoffset: 0 !important;
+    transform: none !important;
+  }
+
+  .ld-art .la-sun,
+  .ld-art .la-dome,
+  .ld-art .la-lantern,
+  .ld-art .la-star,
+  .ld-art .la-piers,
+  .ld-art .la-windows rect {
+    opacity: 1;
+  }
+
+  .ld-art .la-bats {
+    display: none;
+  }
+
+  .ld-fill,
+  .ld-car {
+    transition: none;
+  }
+
+  .atlas-hero > * {
+    transition-duration: 0.01s;
+  }
+
+  .atlas-hint b {
+    animation: none;
+  }
+}
+
+/* If the map can't start: the atlas as a table. */
+.atlas-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: start center;
+  overflow-y: auto;
+  padding: 48px 16px;
+  background: radial-gradient(120% 80% at 50% 20%, #f7f1e4 0%, #ece3d0 100%);
+}
+
+.fallback-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 1000px;
+  color: var(--ink);
+}
+
+.atlas-fallback h1 {
+  margin: 0;
+  font: 400 44px/1 var(--font-display);
+}
+
+.atlas-fallback p {
+  max-width: 60ch;
+  color: var(--ink-2);
+}
+
+/* ---------- phones ---------- */
+
+@media (max-width: 759px) {
+  .atlas-header {
+    padding: 10px 12px;
+  }
+
+  /* The title card carries the name on phones; the header keeps just the mark. */
+  .wm-text,
+  .hide-sm {
+    display: none;
+  }
+
+  .wordmark {
+    padding: 0;
+    width: 38px;
+    height: 38px;
+    justify-content: center;
+    flex: none;
+  }
+
+  .seg button {
+    padding: 0 9px;
+  }
+
+  .header-actions {
+    gap: 5px;
+  }
+
+  .header-actions .icon-btn {
+    min-width: 34px;
+    padding: 0 7px;
+  }
+
+  .story-card {
+    margin: 0 12px;
+    width: auto;
+    padding: 16px 16px 14px;
+  }
+
+  .story-card h2 {
+    font-size: 24px;
+  }
+
+  .story-card .story-body {
+    font-size: 14px;
+  }
+
+  .site-list {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    margin: 12px -16px 0;
+    padding: 10px 16px 2px;
+    scrollbar-width: none;
+  }
+
+  .site-list li {
+    flex: none;
+  }
+
+  .site-row {
+    grid-template-columns: 18px auto;
+    padding: 6px 10px 6px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  .site-row-builds,
+  .site-row-status {
+    display: none;
+  }
+
+  .site-row .logo {
+    --logo: 18px;
+  }
+
+  /* Up out of the way of the cards, which sit low on phones, and beside the title card. */
+  .tour-rail {
+    right: 10px;
+    top: 33%;
+  }
+
+  .tr-line {
+    height: min(24vh, 220px);
+  }
+
+  .atlas-hero {
+    top: 42%;
+    max-width: calc(100vw - 52px);
+    padding: 22px 22px 18px;
+  }
+
+  .ld-foot {
+    letter-spacing: 0.2em;
+  }
+
+  .atlas-hero h1 {
+    font-size: clamp(30px, 9vw, 38px);
+    white-space: normal;
+  }
+
+  .hero-kicker {
+    gap: 10px;
+    letter-spacing: 0.24em;
+  }
+
+  .hero-kicker::before,
+  .hero-kicker::after {
+    width: 18px;
+  }
+
+  .company-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: 64dvh;
+    border-radius: 16px 16px 0 0;
+    background: rgba(249, 245, 236, 0.97);
+  }
+
+  /* The company sheet takes the bottom of the screen; the panels it would cover step aside. */
+  .atlas[data-selected="1"] .explore-panel,
+  .atlas[data-selected="1"] .ride-hud {
+    display: none;
+  }
+
+  .explore-panel {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    padding: 10px 12px;
+  }
+
+  .ep-domains {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ep-count,
+  .ep-hint {
+    display: none;
+  }
+
+  .ride-hud {
+    bottom: 10px;
+    padding: 12px 14px;
+  }
+
+  .rh-now {
+    font-size: 20px;
+  }
+
+  .rh-near ul {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-results button {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+
+  .sp-builds {
+    display: none;
+  }
+
+  .modal-scrim {
+    padding: 64px 10px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-panel,
+  .modal-scrim {
+    animation: none;
+  }
+}
+
+/* ---------- very narrow phones ---------- */
+
+@media (max-width: 359px) {
+  .atlas-header {
+    padding: 10px 8px;
+  }
+
+  .seg button {
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .header-actions .icon-btn {
+    min-width: 30px;
+    padding: 0 5px;
+  }
+}
+
+/* The place card shares the company card; its kicker carries a pin. */
+.place-panel .cp-domain svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- paddle journey ---------- */
+
+.paddle-hud .rh-bullet {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-fill {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-stop {
+  border-color: #1f7fa6;
+}
+
+.paddle-hud .rh-stop[data-passed="1"] {
+  background: #1f7fa6;
+}
+
+.paddle-hud .rh-stop[data-kind="bridge"] {
+  border-radius: 1px;
+}
+
+.rh-near-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+}
+
+.rh-near-bridge {
+  flex: none;
+  width: 14px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+
+.rh-near button > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.rh-near .logo {
+  --logo: 18px;
+}

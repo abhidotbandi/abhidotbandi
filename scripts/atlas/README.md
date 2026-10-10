@@ -1,0 +1,55 @@
+# Atlas data pipeline
+
+Bakes the static map assets in `public/atlas/` for the `/atlas` page from open data:
+
+| Output | Built by | From |
+|---|---|---|
+| `terrain.webp`: elevation (R/G = decimetres, 16-bit) + built-up density (B) | `build_terrain.py` | AWS Terrain Tiles (Terrarium, z12) + Overture buildings |
+| `surface.webp`: water signed-distance field (R) + parks and airfield grass (G) | `build_surface.py` | Overture `base/water`, `base/land_use`, `base/infrastructure` (airfield bounds) |
+| `vectors.json`: roads, rail, Red Line + stations, creeks (cut where they cross open water), labels | `build_vectors.py` | Overture `transportation/segment`, `base/water`, `divisions` |
+| `surface.webp` B: tree and shrub cover | `build_surface.py` | Overture `base/land_cover` (ESA WorldCover) |
+| `buildings.bin`, `central_buildings.bin`: footprints + heights, tagged with company sites (binary; the format is documented in `building_codec.py`) | `build_buildings.py` | Overture `buildings/building` + `src/data/atlas/companies.json`, plus buildings Overture hasn't mapped yet, traced in `traced_buildings.py` (Tower Business Park, Buda) |
+| `central_terrain.webp`: ~8 m elevation (R/G) + tree canopy (B) for central Austin | `build_central.py` | Terrain Tiles z14 + Overture `base/land_cover` |
+| `central_surface.webp`: 4 m water SDF (sqrt-encoded), parkland, built-up density | `build_central.py` | Overture `base/water`, `base/land_use`, buildings |
+| `central.json`: paths, Butler trail graph, river bridges, piers, Zilker Eagle track, river lanes, streets, moonlight towers, docks, landmark footprints (by point, and by Overture name for the modelled towers and arenas in `NAMED_LANDMARKS`), and Pease Park (`pease`: outline, lawns, courts, its path graph, Kingsbury Commons' feature spots, the Treehouse bridge) | `build_central.py` | Overture `transportation/segment`, `base/infrastructure`, `buildings`, places |
+| `central_trees.bin`: 60k tree instances, plus the Capitol grounds' own planting and Pease Park's woods (about 3k past the budget) | `build_central.py` | canopy raster, Overture `base/land_use` (Capitol Square, Pease Park) |
+| `*_lo.webp`: the four rasters above at half resolution, for phones and other low-power devices | `build_lowres.py` | the full rasters |
+| `outer.webp` (+ `outer_lo.webp` for phones): the country for ~80 km around the map, elevation (R/G, 1 m steps) and a water distance field (B) at ~264 m a pixel; `meta.json` `outer` gives its bounds and the towns around the map for their lights after dark | `build_outer.py` | Terrain Tiles z9, Overture `base/water` and `divisions` (localities) |
+| `src/data/atlas/terminal.json`: Austin-Bergstrom's terminal cut into the parts the airport scene builds (heights, clerestories, skylights), its curb canopies and the departures roadway | `build_terminal.py` | Overture `buildings` (the terminal and its roof outlines), `base/infrastructure` (the roadway's trestle); cut lines from USGS imagery |
+| `src/data/atlas/locator.json`: the locator map in the corner (Travis County among its neighbours, the lakes and the Colorado) and a grid naming the city or county under the camera | `build_locator.py` | Overture `divisions/division_area` (counties and cities), `base/water` |
+| `logos.webp` + `src/data/atlas/logos.json`: every company's logo as a 64 px tile, in one sprite | `build_logos.py` | `logos/`: each company's favicon or app icon, or its vector mark (Simple Icons, or the company's site), as listed in `LOGOS` |
+| `tiles/*.bin` + `tiles/index.json`: 2 km detail tiles loaded around the camera: every other building, local streets, paths, runways and taxiways, parking lots, aprons, building sites, pools and small ponds (layout in `build_tiles.py`) | `build_tiles.py` | Overture `buildings`, `transportation/segment` (all classes), `base/infrastructure`, `base/water`; Austin-Bergstrom's unmapped paving, traced from USGS imagery (`airport_areas.py`) |
+
+```bash
+pip install -r scripts/atlas/requirements.txt
+python scripts/atlas/build_all.py          # fetches into scripts/atlas/.cache, then bakes
+python scripts/atlas/preview.py            # QA renders of the region and every company site
+python scripts/atlas/preview_central.py    # QA renders of the central Austin detail patch
+```
+
+- The projection (local equirectangular around Congress Ave & 6th St, 1 unit = 1 km, north = -z)
+  lives in `config.py` and must match `src/lib/atlas/geo.ts`.
+- Overture is read straight from `s3://overturemaps-us-west-2` with a bbox filter, so only
+  Greater Austin row groups are downloaded. Set `OVERTURE_RELEASE` to pin a different release.
+- Rerun `build_buildings.py` and then `build_tiles.py` after editing company sites or `skyline.py`: the
+  first tags each site's footprints (and draws the towers in `skyline.py` at their real heights), and the
+  tiles leave out whatever it carries.
+- Rerun `build_tiles.py` after editing `airport_areas.py`.
+- Rerun `build_logos.py` after adding a company: put its logo in `logos/<id>.png` or `.svg` and add it to
+  `LOGOS` (the script stops if a company has none).
+- The central patch bounds (`C_*` in `config.py`) must match `CENTRAL` in `src/lib/atlas/geo.ts`.
+
+## Measuring the load
+
+The page records `atlas:*` performance marks: `start`, `got <file>` and `decoded <file>` for each
+download, the prep worker's steps (`regional textures`, `central buildings`, ...),
+`regional prepared`, `central prepared`, `first frame` and `ready` (the loader wipes away to the
+live map). In
+the browser console:
+
+```js
+performance.getEntriesByType("mark").filter((m) => m.name.startsWith("atlas:")).map((m) => [m.name, Math.round(m.startTime)])
+```
+
+Attribution: © Overture Maps Foundation (CDLA Permissive 2.0) including © OpenStreetMap
+contributors (ODbL); terrain from Mapzen/AWS Terrain Tiles (USGS 3DEP, SRTM).

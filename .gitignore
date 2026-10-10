@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# atlas data pipeline cache
+/scripts/atlas/.cache/
+__pycache__/

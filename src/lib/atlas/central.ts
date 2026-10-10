@@ -1,0 +1,362 @@
+// Central Austin detail patch: decoded data from scripts/atlas/build_central.py.
+
+import type { Polyline } from "./assets";
+import {
+  CX_MAX,
+  CX_MIN,
+  CZ_MAX,
+  CZ_MIN,
+  C_HEIGHT_KM,
+  C_WIDTH_KM,
+  PatchGrid,
+  type HeightField,
+} from "./geo";
+
+/** Landmark footprints drawn as models (scene/Landmarks.tsx) instead of plain extrusions. */
+export const MODELLED_LANDMARKS = [
+  "capitol",
+  "ut-tower",
+  "frost-bank-tower",
+  "the-independent",
+  "block-185",
+  "dkr-stadium",
+  "moody-center",
+  "governors-mansion",
+  "land-office",
+  "st-mary",
+] as const;
+
+export interface CentralMeta {
+  bounds: [number, number, number, number];
+  terrain: { width: number; height: number };
+  surface: { width: number; height: number; sdfK: number };
+  trees: number;
+}
+
+export interface TrailEdge {
+  a: number;
+  b: number;
+  /** 0 trail, 1 boardwalk or bridge on the trail, 2 road-bridge sidewalk or pedestrian bridge */
+  kind: number;
+  line: Polyline;
+  /** km */
+  length: number;
+}
+
+export interface Dock {
+  id: string;
+  name: string;
+  kind: "paddle" | "rowing" | "canoe" | "riverboat";
+  x: number;
+  z: number;
+}
+
+export interface River {
+  line: Polyline;
+  /** distance from the centreline to the nearest shore at each vertex, km */
+  half: Float32Array;
+}
+
+/** Pease Park (scripts/atlas/build_central.py's pease()): scene km. */
+export interface Pease {
+  /** Pease District Park and, north of 24th Street, the Shoal Creek Greenbelt to 31st */
+  outline: Polyline[];
+  /** open lawns: Kingsbury Commons' Great Lawn first, then Live Oak Meadow */
+  lawns: Polyline[];
+  courts: { basketball: Polyline[]; volleyball: Polyline[]; playground: Polyline[] };
+  /** the Shoal Creek Trail and the paths off it, as a graph (edges' kind is always 0) */
+  trail: { nodes: Float32Array; edges: TrailEdge[] };
+  /** Kingsbury Commons: the Treehouse pod, the splash pad, the Tudor Cottage, the entrance */
+  spots: Record<"treescape" | "splash" | "cottage" | "entry", [number, number]>;
+  /** the Treehouse's bridge up the hillside, and the walkway round its pod */
+  bridge: Polyline[];
+}
+
+export interface Central {
+  meta: CentralMeta;
+  /** terrain grid (~8 m): elevation in metres and tree canopy 0..255 */
+  elev: Float32Array;
+  canopy: Uint8Array;
+  surface: { width: number; height: number; rgba: Uint8Array };
+  paths: Record<string, Polyline[]>;
+  trails: { nodes: Float32Array; edges: TrailEdge[] };
+  bridges: { name: string; cls: string; line: Polyline }[];
+  piers: { polys: Polyline[]; lines: Polyline[] };
+  train: Polyline[];
+  rivers: Record<"ladybird" | "austin" | "barton", River | undefined>;
+  streets: Record<"rainey" | "sixth" | "congress" | "soco", Polyline[]>;
+  moonlight: [number, number][];
+  docks: Dock[];
+  pools: Polyline[];
+  lawns: Polyline[];
+  landmarks: Record<string, { outline: Polyline; height: number | null }>;
+  pease: Pease | null;
+  trees: Trees;
+}
+
+export interface Trees {
+  count: number;
+  /** scene km */
+  x: Float32Array;
+  z: Float32Array;
+  /** crown radius, km */
+  r: Float32Array;
+  /** bit 7 = conical (cypress, juniper); low bits = tint 0..127 */
+  v: Uint8Array;
+}
+
+export interface CentralRaw {
+  paths: Record<string, number[][]>;
+  trails: { nodes: [number, number][]; edges: [number, number, number, number[]][] };
+  bridges: { name: string; cls: string; line: number[] }[];
+  piers: { polys: number[][]; lines: number[][] };
+  train: number[][];
+  rivers: Record<string, { line: number[]; half: number[] }>;
+  streets: Record<string, number[][]>;
+  moonlight: [number, number][];
+  docks: { id: string; name: string; kind: Dock["kind"]; x: number; z: number }[];
+  pools: number[][];
+  lawns: number[][];
+  landmarks: Record<string, { outline: number[]; height: number | null }>;
+  pease?: {
+    outline: number[][];
+    lawns: number[][];
+    courts: Record<"basketball" | "volleyball" | "playground", number[][]>;
+    trail: { nodes: [number, number][]; edges: [number, number, number, number[]][] };
+    spots: Record<"treescape" | "splash" | "cottage" | "entry", [number, number]>;
+    bridge: number[][];
+  };
+}
+
+export function decodeLine(enc: number[]): Polyline {
+  const out = new Float32Array(enc.length);
+  let x = 0;
+  let z = 0;
+  for (let i = 0; i < enc.length; i += 2) {
+    x += enc[i];
+    z += enc[i + 1];
+    out[i] = x / 1000;
+    out[i + 1] = z / 1000;
+  }
+  return out;
+}
+
+export function lineLength(l: Polyline): number {
+  let d = 0;
+  for (let i = 2; i < l.length; i += 2) d += Math.hypot(l[i] - l[i - 2], l[i + 1] - l[i - 1]);
+  return d;
+}
+
+/**
+ * Trees less those whose trunks stand in a clearing (rings as flat x, z km): the ground under a
+ * site model's plant, a landmark's paving.
+ */
+export function clearTrees(t: Trees, rings: ArrayLike<number>[]): Trees {
+  const CELL = 0.1;
+  const cells = new Map<number, number[]>();
+  const key = (ix: number, iz: number) => ix * 100003 + iz;
+  rings.forEach((r, k) => {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (let i = 0; i < r.length; i += 2) {
+      x0 = Math.min(x0, r[i]);
+      x1 = Math.max(x1, r[i]);
+      z0 = Math.min(z0, r[i + 1]);
+      z1 = Math.max(z1, r[i + 1]);
+    }
+    for (let ix = Math.floor(x0 / CELL); ix <= Math.floor(x1 / CELL); ix++) {
+      for (let iz = Math.floor(z0 / CELL); iz <= Math.floor(z1 / CELL); iz++) {
+        const c = cells.get(key(ix, iz));
+        if (c) c.push(k);
+        else cells.set(key(ix, iz), [k]);
+      }
+    }
+  });
+  const keep: number[] = [];
+  for (let i = 0; i < t.count; i++) {
+    const near = cells.get(key(Math.floor(t.x[i] / CELL), Math.floor(t.z[i] / CELL)));
+    if (!near || !near.some((k) => inRing(rings[k], t.x[i], t.z[i]))) keep.push(i);
+  }
+  if (keep.length === t.count) return t;
+  return {
+    count: keep.length,
+    x: Float32Array.from(keep, (i) => t.x[i]),
+    z: Float32Array.from(keep, (i) => t.z[i]),
+    r: Float32Array.from(keep, (i) => t.r[i]),
+    v: Uint8Array.from(keep, (i) => t.v[i]),
+  };
+}
+
+function inRing(r: ArrayLike<number>, x: number, z: number): boolean {
+  let inside = false;
+  const n = r.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const zi = r[i * 2 + 1];
+    const zj = r[j * 2 + 1];
+    if (zi > z !== zj > z && x < ((r[j * 2] - r[i * 2]) * (z - zi)) / (zj - zi) + r[i * 2]) inside = !inside;
+  }
+  return inside;
+}
+
+function decodeTrees(buf: ArrayBuffer): Trees {
+  const n = Math.floor(buf.byteLength / 6);
+  const dv = new DataView(buf);
+  const x = new Float32Array(n);
+  const z = new Float32Array(n);
+  const r = new Float32Array(n);
+  const v = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const o = i * 6;
+    x[i] = CX_MIN + dv.getUint16(o, true) / 4000;
+    z[i] = CZ_MIN + dv.getUint16(o + 2, true) / 4000;
+    r[i] = dv.getUint8(o + 4) / 10000;
+    v[i] = dv.getUint8(o + 5);
+  }
+  return { count: n, x, z, r, v };
+}
+
+export function decodeCentral(
+  meta: CentralMeta,
+  terrain: { width: number; height: number; data: Uint8ClampedArray },
+  surface: { width: number; height: number; data: Uint8ClampedArray },
+  raw: CentralRaw,
+  trees: ArrayBuffer,
+): Central {
+  const n = terrain.width * terrain.height;
+  const elev = new Float32Array(n);
+  const canopy = new Uint8Array(n);
+  const td = terrain.data;
+  for (let i = 0; i < n; i++) {
+    elev[i] = (td[i * 4] * 256 + td[i * 4 + 1]) / 10;
+    canopy[i] = td[i * 4 + 2];
+  }
+  const lines = (list: number[][]) => list.map(decodeLine);
+  // The rasters may be the half-resolution ones: take their sizes from the images themselves.
+  meta = {
+    ...meta,
+    terrain: { width: terrain.width, height: terrain.height },
+    surface: { ...meta.surface, width: surface.width, height: surface.height },
+  };
+  const graph = (g: CentralRaw["trails"]) => {
+    const nodes = new Float32Array(g.nodes.length * 2);
+    g.nodes.forEach(([x, z], i) => {
+      nodes[i * 2] = x / 1000;
+      nodes[i * 2 + 1] = z / 1000;
+    });
+    const edges = g.edges.map(([a, b, kind, e]) => {
+      const line = decodeLine(e);
+      return { a, b, kind, line, length: lineLength(line) };
+    });
+    return { nodes, edges };
+  };
+  const pp = raw.pease;
+  const river = (r?: { line: number[]; half: number[] }): River | undefined =>
+    r && { line: decodeLine(r.line), half: Float32Array.from(r.half, (m) => m / 1000) };
+  return {
+    meta,
+    elev,
+    canopy,
+    surface: { width: surface.width, height: surface.height, rgba: new Uint8Array(surface.data.buffer) },
+    paths: Object.fromEntries(Object.entries(raw.paths).map(([k, v]) => [k, lines(v)])),
+    trails: graph(raw.trails),
+    bridges: raw.bridges.map((b) => ({ name: b.name, cls: b.cls, line: decodeLine(b.line) })),
+    piers: { polys: lines(raw.piers.polys), lines: lines(raw.piers.lines) },
+    train: lines(raw.train),
+    rivers: {
+      ladybird: river(raw.rivers.ladybird),
+      austin: river(raw.rivers.austin),
+      barton: river(raw.rivers.barton),
+    },
+    streets: {
+      rainey: lines(raw.streets.rainey ?? []),
+      sixth: lines(raw.streets.sixth ?? []),
+      congress: lines(raw.streets.congress ?? []),
+      soco: lines(raw.streets.soco ?? []),
+    },
+    moonlight: raw.moonlight.map(([x, z]) => [x / 1000, z / 1000]),
+    docks: raw.docks.map((d) => ({ ...d, x: d.x / 1000, z: d.z / 1000 })),
+    pools: lines(raw.pools),
+    lawns: lines(raw.lawns),
+    landmarks: Object.fromEntries(
+      Object.entries(raw.landmarks).map(([k, v]) => [k, { outline: decodeLine(v.outline), height: v.height }]),
+    ),
+    pease: pp
+      ? {
+          outline: lines(pp.outline),
+          lawns: lines(pp.lawns),
+          courts: { basketball: lines(pp.courts.basketball), volleyball: lines(pp.courts.volleyball), playground: lines(pp.courts.playground) },
+          trail: graph(pp.trail),
+          spots: Object.fromEntries(Object.entries(pp.spots).map(([k, [x, z]]) => [k, [x / 1000, z / 1000]])) as Pease["spots"],
+          bridge: lines(pp.bridge),
+        }
+      : null,
+    trees: decodeTrees(trees),
+  };
+}
+
+/** Elevation (m) of the patch DEM at scene coordinates, bilinear on texel centres. */
+export function sampleCentralElev(c: Central, x: number, z: number): number {
+  const w = c.meta.terrain.width;
+  const h = c.meta.terrain.height;
+  const u = ((x - CX_MIN) / C_WIDTH_KM) * w - 0.5;
+  const v = ((z - CZ_MIN) / C_HEIGHT_KM) * h - 0.5;
+  const x0 = Math.max(0, Math.min(w - 1, Math.floor(u)));
+  const y0 = Math.max(0, Math.min(h - 1, Math.floor(v)));
+  const x1 = Math.min(w - 1, x0 + 1);
+  const y1 = Math.min(h - 1, y0 + 1);
+  const fx = Math.max(0, Math.min(1, u - x0));
+  const fy = Math.max(0, Math.min(1, v - y0));
+  const d = c.elev;
+  const a = d[y0 * w + x0] * (1 - fx) + d[y0 * w + x1] * fx;
+  const b = d[y1 * w + x0] * (1 - fx) + d[y1 * w + x1] * fx;
+  return a * (1 - fy) + b * fy;
+}
+
+/** Width of the band (km) along the patch edge where it blends into the base terrain. */
+export const PATCH_BLEND_KM = 0.25;
+
+/** Mesh-resolution heights for the patch, blended into the base terrain near its edges. */
+export function buildPatchGrid(c: Central, base: HeightField, cellKm: number): PatchGrid {
+  const nx = Math.round(C_WIDTH_KM / cellKm) + 1;
+  const nz = Math.round(C_HEIGHT_KM / cellKm) + 1;
+  const data = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) {
+    const z = CZ_MIN + (j / (nz - 1)) * C_HEIGHT_KM;
+    for (let i = 0; i < nx; i++) {
+      const x = CX_MIN + (i / (nx - 1)) * C_WIDTH_KM;
+      const d = Math.min(x - CX_MIN, CX_MAX - x, z - CZ_MIN, CZ_MAX - z);
+      const t = Math.max(0, Math.min(1, d / PATCH_BLEND_KM));
+      const w = t * t * (3 - 2 * t);
+      const hb = base.sample(x, z);
+      data[j * nx + i] = w > 0 ? hb + (sampleCentralElev(c, x, z) - hb) * w : hb;
+    }
+  }
+  return new PatchGrid(nx, nz, data);
+}
+
+/** Signed distance to water (km, + on water) from the patch surface raster. */
+export function sampleWaterKm(c: Central, x: number, z: number): number {
+  const { width: w, height: h, rgba } = c.surface;
+  const u = Math.round(((x - CX_MIN) / C_WIDTH_KM) * w - 0.5);
+  const v = Math.round(((z - CZ_MIN) / C_HEIGHT_KM) * h - 0.5);
+  if (u < 0 || v < 0 || u >= w || v >= h) return -1;
+  const e = rgba[(v * w + u) * 4] - 128;
+  const m = Math.sign(e) * (Math.abs(e) / c.meta.surface.sdfK) ** 2;
+  return m / 1000;
+}
+
+/** Tree canopy 0..1 from the patch terrain raster. */
+export function sampleCanopy(c: Central, x: number, z: number): number {
+  const w = c.meta.terrain.width;
+  const h = c.meta.terrain.height;
+  const u = Math.round(((x - CX_MIN) / C_WIDTH_KM) * w - 0.5);
+  const v = Math.round(((z - CZ_MIN) / C_HEIGHT_KM) * h - 0.5);
+  if (u < 0 || v < 0 || u >= w || v >= h) return 0;
+  return c.canopy[v * w + u] / 255;
+}
+
+export function inCentral(x: number, z: number, margin = 0): boolean {
+  return x >= CX_MIN - margin && x <= CX_MAX + margin && z >= CZ_MIN - margin && z <= CZ_MAX + margin;
+}

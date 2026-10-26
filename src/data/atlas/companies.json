@@ -396,7 +396,9 @@
     ],
     "founded": 2002,
     "status": {
-      "kind": "private"
+      "kind": "public",
+      "ticker": "SPCX",
+      "exchange": "Nasdaq"
     },
     "defense": true,
     "tier": 1,
@@ -424,6 +426,10 @@
       {
         "label": "The Real Deal (Mar 2026)",
         "url": "https://therealdeal.com/texas/austin/2026/03/04/spacexs-bastrop-factory-balloons-east-of-austin/"
+      },
+      {
+        "label": "SpaceX: IPO pricing (Jun 2026)",
+        "url": "https://ir.spacex.com/updates/releases-details/2026/Space-Exploration-Technologies-Corp--Announces-Pricing-of-Initial-Public-Offering/default.aspx"
       }
     ]
   },
@@ -477,7 +483,8 @@
     ],
     "founded": 2002,
     "status": {
-      "kind": "private"
+      "kind": "private",
+      "stage": "Privately held"
     },
     "defense": true,
     "tier": 3,
@@ -2810,7 +2817,8 @@
     ],
     "founded": 2002,
     "status": {
-      "kind": "private"
+      "kind": "private",
+      "stage": "Privately held"
     },
     "defense": false,
     "tier": 2,
@@ -2848,7 +2856,8 @@
     ],
     "founded": 2002,
     "status": {
-      "kind": "private"
+      "kind": "private",
+      "stage": "Privately held"
     },
     "defense": false,
     "tier": 2,
@@ -2883,7 +2892,8 @@
     ],
     "founded": 1986,
     "status": {
-      "kind": "private"
+      "kind": "private",
+      "stage": "Privately held"
     },
     "defense": false,
     "tier": 2,
@@ -3037,7 +3047,8 @@
     ],
     "founded": 1981,
     "status": {
-      "kind": "private"
+      "kind": "private",
+      "stage": "Privately held"
     },
     "defense": false,
     "tier": 2,

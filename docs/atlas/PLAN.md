@@ -1434,3 +1434,14 @@ Left as they are:
 - The Boring Company and the other signature sites.
 
 The detail tiles were rebuilt, since the set of buildings in the always-loaded file changed.
+
+### 2.32 The right status on the cards (2026-10-10)
+
+The card gave every private company with no published round "Stage: Venture-backed". That was
+wrong for the trading and asset management firms, and for Nanohmics, none of which raised
+venture money. A private company's status can now carry a `stage`, which the card shows in
+place of the default. Citadel Securities, Hudson River Trading, Optiver, Dimensional and
+Nanohmics are "Privately held".
+
+SpaceX listed on Nasdaq as SPCX on June 12, 2026, so its card now reads "Listed: Nasdaq: SPCX".
+Its IPO pricing release is added to its sources.

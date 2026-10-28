@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 /** Silicon Hills moved to its own repo and deployment: github.com/abhidotbandi/silicon-hills-atlas. */
-const ATLAS_URL = "https://silicon-hills.vercel.app";
+const ATLAS_URL = "https://silicon-hills-atlas-psi.vercel.app";
 
 const nextConfig: NextConfig = {
   // Old /atlas links, deep links included (query strings carry over), go to the atlas's new home.
